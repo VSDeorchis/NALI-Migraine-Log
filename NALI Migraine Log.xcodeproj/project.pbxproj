@@ -1,0 +1,992 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		69782C862D4720060078C9C0 /* MigraineEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69782C702D4720060078C9C0 /* MigraineEvent.swift */; };
+		69782CC12D4727B40078C9C0 /* NALI Migraine Log Watch App Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 69782C9E2D4727B30078C9C0 /* NALI Migraine Log Watch App Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		69782CDD2D4730130078C9C0 /* MigraineEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69782C702D4720060078C9C0 /* MigraineEvent.swift */; };
+		69782CE02D4730880078C9C0 /* MigraineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69782CDF2D4730880078C9C0 /* MigraineStore.swift */; };
+		69782CE12D47319F0078C9C0 /* MigraineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69782CDF2D4730880078C9C0 /* MigraineStore.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		693E7CF92D46DA6E00E30E9C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 693E7CE02D46DA6A00E30E9C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 693E7CE72D46DA6A00E30E9C;
+			remoteInfo = "NALI Migraine Log";
+		};
+		693E7D032D46DA6E00E30E9C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 693E7CE02D46DA6A00E30E9C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 693E7CE72D46DA6A00E30E9C;
+			remoteInfo = "NALI Migraine Log";
+		};
+		69782CAE2D4727B40078C9C0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 693E7CE02D46DA6A00E30E9C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 69782C9D2D4727B30078C9C0;
+			remoteInfo = "NALI Migraine Log Watch App Watch App";
+		};
+		69782CB82D4727B40078C9C0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 693E7CE02D46DA6A00E30E9C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 69782C9D2D4727B30078C9C0;
+			remoteInfo = "NALI Migraine Log Watch App Watch App";
+		};
+		69782CBF2D4727B40078C9C0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 693E7CE02D46DA6A00E30E9C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 69782C9D2D4727B30078C9C0;
+			remoteInfo = "NALI Migraine Log Watch App Watch App";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		69782CC52D4727B40078C9C0 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				69782CC12D4727B40078C9C0 /* NALI Migraine Log Watch App Watch App.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		693E7CE82D46DA6B00E30E9C /* NALI Migraine Log.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "NALI Migraine Log.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		693E7CF82D46DA6E00E30E9C /* NALI Migraine LogTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "NALI Migraine LogTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		693E7D022D46DA6E00E30E9C /* NALI Migraine LogUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "NALI Migraine LogUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		69782C702D4720060078C9C0 /* MigraineEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigraineEvent.swift; sourceTree = "<group>"; };
+		69782C9E2D4727B30078C9C0 /* NALI Migraine Log Watch App Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "NALI Migraine Log Watch App Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		69782CAD2D4727B40078C9C0 /* NALI Migraine Log Watch App Watch AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "NALI Migraine Log Watch App Watch AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		69782CB72D4727B40078C9C0 /* NALI Migraine Log Watch App Watch AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "NALI Migraine Log Watch App Watch AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		69782CDF2D4730880078C9C0 /* MigraineStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigraineStore.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		693E7D382D46DE7000E30E9C /* Exceptions for "NALI Migraine Log" folder in "NALI Migraine Log" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 693E7CE72D46DA6A00E30E9C /* NALI Migraine Log */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		693E7CEA2D46DA6B00E30E9C /* NALI Migraine Log */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				693E7D382D46DE7000E30E9C /* Exceptions for "NALI Migraine Log" folder in "NALI Migraine Log" target */,
+			);
+			path = "NALI Migraine Log";
+			sourceTree = "<group>";
+		};
+		693E7CFB2D46DA6E00E30E9C /* NALI Migraine LogTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "NALI Migraine LogTests";
+			sourceTree = "<group>";
+		};
+		693E7D052D46DA6E00E30E9C /* NALI Migraine LogUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "NALI Migraine LogUITests";
+			sourceTree = "<group>";
+		};
+		69782C9F2D4727B30078C9C0 /* NALI Migraine Log Watch App Watch App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "NALI Migraine Log Watch App Watch App";
+			sourceTree = "<group>";
+		};
+		69782CB02D4727B40078C9C0 /* NALI Migraine Log Watch App Watch AppTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "NALI Migraine Log Watch App Watch AppTests";
+			sourceTree = "<group>";
+		};
+		69782CBA2D4727B40078C9C0 /* NALI Migraine Log Watch App Watch AppUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "NALI Migraine Log Watch App Watch AppUITests";
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		693E7CE52D46DA6A00E30E9C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		693E7CF52D46DA6E00E30E9C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		693E7CFF2D46DA6E00E30E9C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		69782C9B2D4727B30078C9C0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		69782CAA2D4727B40078C9C0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		69782CB42D4727B40078C9C0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		693E7CDF2D46DA6A00E30E9C = {
+			isa = PBXGroup;
+			children = (
+				69782CDC2D472F380078C9C0 /* Shared */,
+				693E7CEA2D46DA6B00E30E9C /* NALI Migraine Log */,
+				693E7CFB2D46DA6E00E30E9C /* NALI Migraine LogTests */,
+				693E7D052D46DA6E00E30E9C /* NALI Migraine LogUITests */,
+				69782C9F2D4727B30078C9C0 /* NALI Migraine Log Watch App Watch App */,
+				69782CB02D4727B40078C9C0 /* NALI Migraine Log Watch App Watch AppTests */,
+				69782CBA2D4727B40078C9C0 /* NALI Migraine Log Watch App Watch AppUITests */,
+				693E7CE92D46DA6B00E30E9C /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		693E7CE92D46DA6B00E30E9C /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				693E7CE82D46DA6B00E30E9C /* NALI Migraine Log.app */,
+				693E7CF82D46DA6E00E30E9C /* NALI Migraine LogTests.xctest */,
+				693E7D022D46DA6E00E30E9C /* NALI Migraine LogUITests.xctest */,
+				69782C9E2D4727B30078C9C0 /* NALI Migraine Log Watch App Watch App.app */,
+				69782CAD2D4727B40078C9C0 /* NALI Migraine Log Watch App Watch AppTests.xctest */,
+				69782CB72D4727B40078C9C0 /* NALI Migraine Log Watch App Watch AppUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		69782CDC2D472F380078C9C0 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				69782C702D4720060078C9C0 /* MigraineEvent.swift */,
+				69782CDF2D4730880078C9C0 /* MigraineStore.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		693E7CE72D46DA6A00E30E9C /* NALI Migraine Log */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 693E7D0C2D46DA6E00E30E9C /* Build configuration list for PBXNativeTarget "NALI Migraine Log" */;
+			buildPhases = (
+				693E7CE42D46DA6A00E30E9C /* Sources */,
+				693E7CE52D46DA6A00E30E9C /* Frameworks */,
+				693E7CE62D46DA6A00E30E9C /* Resources */,
+				69782CC52D4727B40078C9C0 /* Embed Watch Content */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				69782CC02D4727B40078C9C0 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				693E7CEA2D46DA6B00E30E9C /* NALI Migraine Log */,
+			);
+			name = "NALI Migraine Log";
+			packageProductDependencies = (
+			);
+			productName = "NALI Migraine Log";
+			productReference = 693E7CE82D46DA6B00E30E9C /* NALI Migraine Log.app */;
+			productType = "com.apple.product-type.application";
+		};
+		693E7CF72D46DA6E00E30E9C /* NALI Migraine LogTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 693E7D0F2D46DA6E00E30E9C /* Build configuration list for PBXNativeTarget "NALI Migraine LogTests" */;
+			buildPhases = (
+				693E7CF42D46DA6E00E30E9C /* Sources */,
+				693E7CF52D46DA6E00E30E9C /* Frameworks */,
+				693E7CF62D46DA6E00E30E9C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				693E7CFA2D46DA6E00E30E9C /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				693E7CFB2D46DA6E00E30E9C /* NALI Migraine LogTests */,
+			);
+			name = "NALI Migraine LogTests";
+			packageProductDependencies = (
+			);
+			productName = "NALI Migraine LogTests";
+			productReference = 693E7CF82D46DA6E00E30E9C /* NALI Migraine LogTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		693E7D012D46DA6E00E30E9C /* NALI Migraine LogUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 693E7D122D46DA6E00E30E9C /* Build configuration list for PBXNativeTarget "NALI Migraine LogUITests" */;
+			buildPhases = (
+				693E7CFE2D46DA6E00E30E9C /* Sources */,
+				693E7CFF2D46DA6E00E30E9C /* Frameworks */,
+				693E7D002D46DA6E00E30E9C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				693E7D042D46DA6E00E30E9C /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				693E7D052D46DA6E00E30E9C /* NALI Migraine LogUITests */,
+			);
+			name = "NALI Migraine LogUITests";
+			packageProductDependencies = (
+			);
+			productName = "NALI Migraine LogUITests";
+			productReference = 693E7D022D46DA6E00E30E9C /* NALI Migraine LogUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		69782C9D2D4727B30078C9C0 /* NALI Migraine Log Watch App Watch App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 69782CC22D4727B40078C9C0 /* Build configuration list for PBXNativeTarget "NALI Migraine Log Watch App Watch App" */;
+			buildPhases = (
+				69782C9A2D4727B30078C9C0 /* Sources */,
+				69782C9B2D4727B30078C9C0 /* Frameworks */,
+				69782C9C2D4727B30078C9C0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				69782C9F2D4727B30078C9C0 /* NALI Migraine Log Watch App Watch App */,
+			);
+			name = "NALI Migraine Log Watch App Watch App";
+			packageProductDependencies = (
+			);
+			productName = "NALI Migraine Log Watch App Watch App";
+			productReference = 69782C9E2D4727B30078C9C0 /* NALI Migraine Log Watch App Watch App.app */;
+			productType = "com.apple.product-type.application";
+		};
+		69782CAC2D4727B40078C9C0 /* NALI Migraine Log Watch App Watch AppTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 69782CC62D4727B40078C9C0 /* Build configuration list for PBXNativeTarget "NALI Migraine Log Watch App Watch AppTests" */;
+			buildPhases = (
+				69782CA92D4727B40078C9C0 /* Sources */,
+				69782CAA2D4727B40078C9C0 /* Frameworks */,
+				69782CAB2D4727B40078C9C0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				69782CAF2D4727B40078C9C0 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				69782CB02D4727B40078C9C0 /* NALI Migraine Log Watch App Watch AppTests */,
+			);
+			name = "NALI Migraine Log Watch App Watch AppTests";
+			packageProductDependencies = (
+			);
+			productName = "NALI Migraine Log Watch App Watch AppTests";
+			productReference = 69782CAD2D4727B40078C9C0 /* NALI Migraine Log Watch App Watch AppTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		69782CB62D4727B40078C9C0 /* NALI Migraine Log Watch App Watch AppUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 69782CC92D4727B40078C9C0 /* Build configuration list for PBXNativeTarget "NALI Migraine Log Watch App Watch AppUITests" */;
+			buildPhases = (
+				69782CB32D4727B40078C9C0 /* Sources */,
+				69782CB42D4727B40078C9C0 /* Frameworks */,
+				69782CB52D4727B40078C9C0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				69782CB92D4727B40078C9C0 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				69782CBA2D4727B40078C9C0 /* NALI Migraine Log Watch App Watch AppUITests */,
+			);
+			name = "NALI Migraine Log Watch App Watch AppUITests";
+			packageProductDependencies = (
+			);
+			productName = "NALI Migraine Log Watch App Watch AppUITests";
+			productReference = 69782CB72D4727B40078C9C0 /* NALI Migraine Log Watch App Watch AppUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		693E7CE02D46DA6A00E30E9C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1620;
+				LastUpgradeCheck = 1620;
+				TargetAttributes = {
+					693E7CE72D46DA6A00E30E9C = {
+						CreatedOnToolsVersion = 16.2;
+					};
+					693E7CF72D46DA6E00E30E9C = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = 693E7CE72D46DA6A00E30E9C;
+					};
+					693E7D012D46DA6E00E30E9C = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = 693E7CE72D46DA6A00E30E9C;
+					};
+					69782C9D2D4727B30078C9C0 = {
+						CreatedOnToolsVersion = 16.2;
+					};
+					69782CAC2D4727B40078C9C0 = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = 69782C9D2D4727B30078C9C0;
+					};
+					69782CB62D4727B40078C9C0 = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = 69782C9D2D4727B30078C9C0;
+					};
+				};
+			};
+			buildConfigurationList = 693E7CE32D46DA6A00E30E9C /* Build configuration list for PBXProject "NALI Migraine Log" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 693E7CDF2D46DA6A00E30E9C;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 693E7CE92D46DA6B00E30E9C /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				693E7CE72D46DA6A00E30E9C /* NALI Migraine Log */,
+				693E7CF72D46DA6E00E30E9C /* NALI Migraine LogTests */,
+				693E7D012D46DA6E00E30E9C /* NALI Migraine LogUITests */,
+				69782C9D2D4727B30078C9C0 /* NALI Migraine Log Watch App Watch App */,
+				69782CAC2D4727B40078C9C0 /* NALI Migraine Log Watch App Watch AppTests */,
+				69782CB62D4727B40078C9C0 /* NALI Migraine Log Watch App Watch AppUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		693E7CE62D46DA6A00E30E9C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		693E7CF62D46DA6E00E30E9C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		693E7D002D46DA6E00E30E9C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		69782C9C2D4727B30078C9C0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		69782CAB2D4727B40078C9C0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		69782CB52D4727B40078C9C0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		693E7CE42D46DA6A00E30E9C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				69782C862D4720060078C9C0 /* MigraineEvent.swift in Sources */,
+				69782CE02D4730880078C9C0 /* MigraineStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		693E7CF42D46DA6E00E30E9C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		693E7CFE2D46DA6E00E30E9C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		69782C9A2D4727B30078C9C0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				69782CE12D47319F0078C9C0 /* MigraineStore.swift in Sources */,
+				69782CDD2D4730130078C9C0 /* MigraineEvent.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		69782CA92D4727B40078C9C0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		69782CB32D4727B40078C9C0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		693E7CFA2D46DA6E00E30E9C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 693E7CE72D46DA6A00E30E9C /* NALI Migraine Log */;
+			targetProxy = 693E7CF92D46DA6E00E30E9C /* PBXContainerItemProxy */;
+		};
+		693E7D042D46DA6E00E30E9C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 693E7CE72D46DA6A00E30E9C /* NALI Migraine Log */;
+			targetProxy = 693E7D032D46DA6E00E30E9C /* PBXContainerItemProxy */;
+		};
+		69782CAF2D4727B40078C9C0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 69782C9D2D4727B30078C9C0 /* NALI Migraine Log Watch App Watch App */;
+			targetProxy = 69782CAE2D4727B40078C9C0 /* PBXContainerItemProxy */;
+		};
+		69782CB92D4727B40078C9C0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 69782C9D2D4727B30078C9C0 /* NALI Migraine Log Watch App Watch App */;
+			targetProxy = 69782CB82D4727B40078C9C0 /* PBXContainerItemProxy */;
+		};
+		69782CC02D4727B40078C9C0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 69782C9D2D4727B30078C9C0 /* NALI Migraine Log Watch App Watch App */;
+			targetProxy = 69782CBF2D4727B40078C9C0 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		693E7D0A2D46DA6E00E30E9C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		693E7D0B2D46DA6E00E30E9C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		693E7D0D2D46DA6E00E30E9C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log/Preview Content\"";
+				DEVELOPMENT_TEAM = NZ3CXVRVSL;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "NALI Migraine";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.neuroli.NALI-Migraine-Log";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		693E7D0E2D46DA6E00E30E9C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log/Preview Content\"";
+				DEVELOPMENT_TEAM = NZ3CXVRVSL;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "NALI Migraine";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.neuroli.NALI-Migraine-Log";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		693E7D102D46DA6E00E30E9C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = NZ3CXVRVSL;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.neuroli.NALI-Migraine-LogTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NALI Migraine Log.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NALI Migraine Log";
+			};
+			name = Debug;
+		};
+		693E7D112D46DA6E00E30E9C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = NZ3CXVRVSL;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.neuroli.NALI-Migraine-LogTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NALI Migraine Log.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NALI Migraine Log";
+			};
+			name = Release;
+		};
+		693E7D132D46DA6E00E30E9C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = NZ3CXVRVSL;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.neuroli.NALI-Migraine-LogUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "NALI Migraine Log";
+			};
+			name = Debug;
+		};
+		693E7D142D46DA6E00E30E9C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = NZ3CXVRVSL;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.neuroli.NALI-Migraine-LogUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "NALI Migraine Log";
+			};
+			name = Release;
+		};
+		69782CC32D4727B40078C9C0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log Watch App Watch App/Preview Content\"";
+				DEVELOPMENT_TEAM = NZ3CXVRVSL;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "NALI Migraine";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "com.neuroli.NALI-Migraine-Log";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.neuroli.NALI-Migraine-Log.watchkitapp";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.6;
+			};
+			name = Debug;
+		};
+		69782CC42D4727B40078C9C0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log Watch App Watch App/Preview Content\"";
+				DEVELOPMENT_TEAM = NZ3CXVRVSL;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "NALI Migraine";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "com.neuroli.NALI-Migraine-Log";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.neuroli.NALI-Migraine-Log.watchkitapp";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.6;
+			};
+			name = Release;
+		};
+		69782CC72D4727B40078C9C0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = NZ3CXVRVSL;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.nali.NALI-Migraine-Log-Watch-App-Watch-AppTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NALI Migraine Log Watch App Watch App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NALI Migraine Log Watch App Watch App";
+				WATCHOS_DEPLOYMENT_TARGET = 11.2;
+			};
+			name = Debug;
+		};
+		69782CC82D4727B40078C9C0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = NZ3CXVRVSL;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.nali.NALI-Migraine-Log-Watch-App-Watch-AppTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NALI Migraine Log Watch App Watch App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NALI Migraine Log Watch App Watch App";
+				WATCHOS_DEPLOYMENT_TARGET = 11.2;
+			};
+			name = Release;
+		};
+		69782CCA2D4727B40078C9C0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = NZ3CXVRVSL;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.nali.NALI-Migraine-Log-Watch-App-Watch-AppUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_TARGET_NAME = "NALI Migraine Log Watch App Watch App";
+				WATCHOS_DEPLOYMENT_TARGET = 11.2;
+			};
+			name = Debug;
+		};
+		69782CCB2D4727B40078C9C0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = NZ3CXVRVSL;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.nali.NALI-Migraine-Log-Watch-App-Watch-AppUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_TARGET_NAME = "NALI Migraine Log Watch App Watch App";
+				WATCHOS_DEPLOYMENT_TARGET = 11.2;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		693E7CE32D46DA6A00E30E9C /* Build configuration list for PBXProject "NALI Migraine Log" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				693E7D0A2D46DA6E00E30E9C /* Debug */,
+				693E7D0B2D46DA6E00E30E9C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		693E7D0C2D46DA6E00E30E9C /* Build configuration list for PBXNativeTarget "NALI Migraine Log" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				693E7D0D2D46DA6E00E30E9C /* Debug */,
+				693E7D0E2D46DA6E00E30E9C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		693E7D0F2D46DA6E00E30E9C /* Build configuration list for PBXNativeTarget "NALI Migraine LogTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				693E7D102D46DA6E00E30E9C /* Debug */,
+				693E7D112D46DA6E00E30E9C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		693E7D122D46DA6E00E30E9C /* Build configuration list for PBXNativeTarget "NALI Migraine LogUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				693E7D132D46DA6E00E30E9C /* Debug */,
+				693E7D142D46DA6E00E30E9C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		69782CC22D4727B40078C9C0 /* Build configuration list for PBXNativeTarget "NALI Migraine Log Watch App Watch App" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				69782CC32D4727B40078C9C0 /* Debug */,
+				69782CC42D4727B40078C9C0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		69782CC62D4727B40078C9C0 /* Build configuration list for PBXNativeTarget "NALI Migraine Log Watch App Watch AppTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				69782CC72D4727B40078C9C0 /* Debug */,
+				69782CC82D4727B40078C9C0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		69782CC92D4727B40078C9C0 /* Build configuration list for PBXNativeTarget "NALI Migraine Log Watch App Watch AppUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				69782CCA2D4727B40078C9C0 /* Debug */,
+				69782CCB2D4727B40078C9C0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 693E7CE02D46DA6A00E30E9C /* Project object */;
+}
