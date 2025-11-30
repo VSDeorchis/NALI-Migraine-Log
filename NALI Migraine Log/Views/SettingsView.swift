@@ -36,6 +36,7 @@ struct SettingsView: View {
                 dataSyncSection
                 weatherTrackingSection
                 backfillSection
+                unitsSection
                 appearanceSection
                 exportSection
             }
@@ -220,6 +221,26 @@ struct SettingsView: View {
                     Text(scheme.rawValue).tag(scheme)
                 }
             }
+        }
+    }
+    
+    private var unitsSection: some View {
+        Section {
+            Picker("Temperature", selection: $settings.temperatureUnit) {
+                ForEach(SettingsManager.TemperatureUnit.allCases, id: \.self) { unit in
+                    Text(unit.rawValue).tag(unit)
+                }
+            }
+            
+            Picker("Pressure", selection: $settings.pressureUnit) {
+                ForEach(SettingsManager.PressureUnit.allCases, id: \.self) { unit in
+                    Text(unit.rawValue).tag(unit)
+                }
+            }
+        } header: {
+            Text("Units")
+        } footer: {
+            Text("Choose your preferred units for weather data display.")
         }
     }
     
@@ -416,7 +437,7 @@ struct SettingsView: View {
         csvContent += "Stress,Lack of Sleep,Dehydration,Weather,Hormones,Alcohol,Caffeine,Food,Exercise,Screen Time,Other Trigger,"
         csvContent += "Ibuprofen,Excedrin,Tylenol,Sumatriptan,Rizatriptan,Naproxen,Frovatriptan,Naratriptan,Nurtec,Ubrelvy,Reyvow,Trudhesa,Elyxyb,Other Med,"
         csvContent += "Missed Work,Missed School,Missed Events,"
-        csvContent += "Temperature (°F),Pressure (hPa),Pressure Change 24h,Weather Condition,"
+        csvContent += "Temperature (\(settings.temperatureUnit.symbol)),Pressure (\(settings.pressureUnit.symbol)),Pressure Change 24h (\(settings.pressureUnit.symbol)),Weather Condition,"
         csvContent += "Notes\n"
         
         for migraine in viewModel.migraines.sorted(by: { ($0.startTime ?? Date()) > ($1.startTime ?? Date()) }) {
@@ -482,9 +503,9 @@ struct SettingsView: View {
             
             // Weather
             if migraine.hasWeatherData {
-                row.append(String(format: "%.1f", migraine.weatherTemperature))
-                row.append(String(format: "%.1f", migraine.weatherPressure))
-                row.append(String(format: "%.1f", migraine.weatherPressureChange24h))
+                row.append(String(format: "%.1f", settings.convertTemperature(migraine.weatherTemperature)))
+                row.append(String(format: "%.2f", settings.convertPressure(migraine.weatherPressure)))
+                row.append(String(format: "%.2f", settings.convertPressure(migraine.weatherPressureChange24h)))
                 row.append(WeatherService.weatherCondition(for: Int(migraine.weatherCode)))
             } else {
                 row.append("")
@@ -607,7 +628,8 @@ struct SettingsView: View {
             
             // Calculate summary stats
             let totalMigraines = sortedMigraines.count
-            let avgPain = totalMigraines > 0 ? Double(sortedMigraines.reduce(0) { $0 + Int($1.painLevel) }) / Double(totalMigraines) : 0
+            let migrainesWithPain = sortedMigraines.filter { $0.painLevel > 0 }
+            let avgPain = migrainesWithPain.count > 0 ? Double(migrainesWithPain.reduce(0) { $0 + Int($1.painLevel) }) / Double(migrainesWithPain.count) : 0
             let withAura = sortedMigraines.filter { $0.hasAura }.count
             let missedWorkCount = sortedMigraines.filter { $0.missedWork }.count
             
@@ -655,13 +677,17 @@ struct SettingsView: View {
                 entryHeader.draw(in: CGRect(x: margin, y: currentY, width: contentWidth - 80, height: 18), withAttributes: entryHeaderAttrs)
                 
                 // Pain level badge
-                let painText = "Pain: \(migraine.painLevel)/10"
-                let painColor: UIColor = migraine.painLevel >= 7 ? .systemRed : (migraine.painLevel >= 4 ? .systemOrange : .systemGreen)
+                let painLevel = Int(migraine.painLevel)
+                let painText = painLevel > 0 ? "Pain: \(painLevel)/10" : "Pain: N/A"
+                let painColor: UIColor = painLevel >= 7 ? .systemRed : (painLevel >= 4 ? .systemOrange : .systemGreen)
+                let rightAlignStyle = NSMutableParagraphStyle()
+                rightAlignStyle.alignment = .right
                 let painAttrs: [NSAttributedString.Key: Any] = [
                     .font: headerFont,
-                    .foregroundColor: painColor
+                    .foregroundColor: painColor,
+                    .paragraphStyle: rightAlignStyle
                 ]
-                painText.draw(in: CGRect(x: pageWidth - margin - 70, y: currentY, width: 70, height: 18), withAttributes: painAttrs)
+                painText.draw(in: CGRect(x: pageWidth - margin - 100, y: currentY, width: 100, height: 18), withAttributes: painAttrs)
                 currentY += 22
                 
                 // Location
@@ -733,10 +759,11 @@ struct SettingsView: View {
                 
                 // Weather data
                 if migraine.hasWeatherData {
-                    let tempF = migraine.weatherTemperature * 9/5 + 32
-                    let pressureChange = migraine.weatherPressureChange24h
-                    let changeIndicator = pressureChange > 2 ? "↑" : (pressureChange < -2 ? "↓" : "→")
-                    let weatherText = "Weather: \(String(format: "%.0f", tempF))°F, \(String(format: "%.1f", migraine.weatherPressure)) hPa (\(changeIndicator)\(String(format: "%.1f", abs(pressureChange))) hPa/24h)"
+                    let temp = settings.convertTemperature(migraine.weatherTemperature)
+                    let pressure = settings.convertPressure(migraine.weatherPressure)
+                    let pressureChange = settings.convertPressure(migraine.weatherPressureChange24h)
+                    let changeIndicator = pressureChange >= 0 ? "↑" : "↓"
+                    let weatherText = "Weather: \(String(format: "%.0f", temp))\(settings.temperatureUnit.symbol), \(String(format: "%.1f", pressure)) \(settings.pressureUnit.symbol) (\(changeIndicator)\(String(format: "%.2f", abs(pressureChange))) \(settings.pressureUnit.symbol)/24h)"
                     weatherText.draw(in: CGRect(x: margin, y: currentY, width: contentWidth, height: 15), withAttributes: summaryAttrs)
                     currentY += 20
                 }

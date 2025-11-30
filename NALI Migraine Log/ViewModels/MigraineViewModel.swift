@@ -414,7 +414,7 @@ class MigraineViewModel: NSObject, ObservableObject {
                 migraine.updateWeatherData(from: snapshot)
                 migraine.updateWeatherLocation(latitude: latitude, longitude: longitude)
                 weatherFetchStatus = .success
-                print("🌤️ Weather data added: \(snapshot.weatherCondition), \(Int(snapshot.temperature))°F, Pressure change: \(String(format: "%.1f", snapshot.pressureChange24h)) hPa")
+                print("🌤️ Weather data added: \(snapshot.weatherCondition), \(Int(snapshot.temperature))°F, Pressure change: \(String(format: "%.2f", snapshot.pressureChange24h * 0.75006)) mmHg")
             }
             
             // Reset status after 3 seconds

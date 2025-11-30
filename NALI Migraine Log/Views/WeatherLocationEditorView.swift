@@ -4,6 +4,7 @@ import MapKit
 struct WeatherLocationEditorView: View {
     let migraine: MigraineEvent
     @ObservedObject var viewModel: MigraineViewModel
+    @ObservedObject private var settings = SettingsManager.shared
     @Environment(\.dismiss) var dismiss
     @StateObject private var locationManager = LocationManager.shared
     
@@ -43,7 +44,7 @@ struct WeatherLocationEditorView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(WeatherService.weatherCondition(for: Int(migraine.weatherCode)))
                                     .font(.headline)
-                                Text("\(Int(migraine.weatherTemperature))°F")
+                                Text(settings.formatTemperature(migraine.weatherTemperature))
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }

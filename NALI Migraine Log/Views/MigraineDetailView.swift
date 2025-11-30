@@ -4,6 +4,7 @@ import CoreData
 struct MigraineDetailView: View {
     let migraine: MigraineEvent
     @ObservedObject var viewModel: MigraineViewModel
+    @ObservedObject private var settings = SettingsManager.shared
     let dismiss: () -> Void
     
     // State for form fields
@@ -139,7 +140,7 @@ struct MigraineDetailView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(WeatherService.weatherCondition(for: Int(migraine.weatherCode)))
                                 .font(.headline)
-                            Text("\(Int(migraine.weatherTemperature))°F")
+                            Text(settings.formatTemperature(migraine.weatherTemperature))
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
@@ -156,7 +157,7 @@ struct MigraineDetailView: View {
                     HStack {
                         Text("Pressure Change")
                         Spacer()
-                        Text(String(format: "%.1f hPa", migraine.weatherPressureChange24h))
+                        Text(settings.formatPressureChange(migraine.weatherPressureChange24h))
                             .foregroundColor(pressureChangeColor(migraine.weatherPressureChange24h))
                     }
                     .font(.caption)

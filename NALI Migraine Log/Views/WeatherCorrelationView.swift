@@ -10,12 +10,26 @@ import Charts
 
 struct WeatherCorrelationView: View {
     @ObservedObject var viewModel: MigraineViewModel
+    @ObservedObject private var settings = SettingsManager.shared
     let timeFilter: StatisticsView.TimeFilter
     let selectedYear: Int
     let customStartDate: Date
     let customEndDate: Date
     
     @State private var selectedWeatherCondition: String?
+    
+    // Dynamic legend text based on unit preference
+    private var pressureLegendStable: String {
+        settings.pressureUnit == .mmHg ? "Stable (< 1.5 mmHg)" : "Stable (< 2 hPa)"
+    }
+    
+    private var pressureLegendModerate: String {
+        settings.pressureUnit == .mmHg ? "Moderate (1.5-3.8 mmHg)" : "Moderate (2-5 hPa)"
+    }
+    
+    private var pressureLegendSignificant: String {
+        settings.pressureUnit == .mmHg ? "Significant (> 3.8 mmHg)" : "Significant (> 5 hPa)"
+    }
     
     private var filteredMigraines: [MigraineEvent] {
         let calendar = Calendar.current
@@ -176,7 +190,7 @@ struct WeatherCorrelationView: View {
                     Chart(pressureData) { point in
                         BarMark(
                             x: .value("Date", point.date, unit: .day),
-                            y: .value("Pressure Change (hPa)", point.change)
+                            y: .value("Pressure Change (\(settings.pressureUnit.symbol))", settings.convertPressure(point.change))
                         )
                         .foregroundStyle(pressureChangeGradient(point.change))
                         .cornerRadius(6)
@@ -212,9 +226,9 @@ struct WeatherCorrelationView: View {
                     
                     // Pressure change legend
                     HStack(spacing: 20) {
-                        LegendItem(color: .green, text: "Stable (< 2 hPa)")
-                        LegendItem(color: .orange, text: "Moderate (2-5 hPa)")
-                        LegendItem(color: .red, text: "Significant (> 5 hPa)")
+                        LegendItem(color: .green, text: pressureLegendStable)
+                        LegendItem(color: .orange, text: pressureLegendModerate)
+                        LegendItem(color: .red, text: pressureLegendSignificant)
                     }
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .padding(.horizontal)
@@ -287,20 +301,30 @@ struct WeatherCorrelationView: View {
                 let tempData = migrainesWithWeather.map { migraine in
                     TemperaturePoint(
                         id: migraine.id ?? UUID(),
-                        temperature: migraine.weatherTemperature,
+                        temperature: settings.convertTemperature(migraine.weatherTemperature),
                         count: 1
                     )
                 }
                 
-                // Group by temperature ranges
+                // Group by temperature ranges (dynamic based on unit preference)
                 let tempRanges = Dictionary(grouping: tempData) { point -> String in
                     let temp = Int(point.temperature)
-                    switch temp {
-                    case ..<32: return "< 32°F"
-                    case 32..<50: return "32-49°F"
-                    case 50..<70: return "50-69°F"
-                    case 70..<85: return "70-84°F"
-                    default: return "≥ 85°F"
+                    if settings.temperatureUnit == .fahrenheit {
+                        switch temp {
+                        case ..<32: return "< 32°F"
+                        case 32..<50: return "32-49°F"
+                        case 50..<70: return "50-69°F"
+                        case 70..<85: return "70-84°F"
+                        default: return "≥ 85°F"
+                        }
+                    } else {
+                        switch temp {
+                        case ..<0: return "< 0°C"
+                        case 0..<10: return "0-9°C"
+                        case 10..<21: return "10-20°C"
+                        case 21..<30: return "21-29°C"
+                        default: return "≥ 30°C"
+                        }
                     }
                 }
                 .map { TempRangePoint(range: $0.key, count: $0.value.count) }
@@ -472,8 +496,9 @@ struct WeatherCorrelationView: View {
         let significantChanges = migrainesWithWeather.filter { abs($0.weatherPressureChange24h) >= 5 }.count
         let percentage = (Double(significantChanges) / Double(migrainesWithWeather.count)) * 100
         
+        let thresholdText = settings.pressureUnit == .mmHg ? "≥3.8 mmHg" : "≥5 hPa"
         if percentage >= 50 {
-            return ("High correlation: \(Int(percentage))% of your migraines occurred with significant pressure changes (≥5 hPa)", .red)
+            return ("High correlation: \(Int(percentage))% of your migraines occurred with significant pressure changes (\(thresholdText))", .red)
         } else if percentage >= 30 {
             return ("Moderate correlation: \(Int(percentage))% of your migraines occurred with significant pressure changes", .orange)
         } else {
@@ -496,9 +521,10 @@ struct WeatherCorrelationView: View {
     private func calculateTemperatureInsight() -> String? {
         guard !migrainesWithWeather.isEmpty else { return nil }
         
-        let avgTemp = migrainesWithWeather.reduce(0.0) { $0 + $1.weatherTemperature } / Double(migrainesWithWeather.count)
+        let avgTempCelsius = migrainesWithWeather.reduce(0.0) { $0 + $1.weatherTemperature } / Double(migrainesWithWeather.count)
+        let avgTemp = settings.convertTemperature(avgTempCelsius)
         
-        return "Average temperature during migraines: \(Int(avgTemp))°F"
+        return "Average temperature during migraines: \(Int(avgTemp))\(settings.temperatureUnit.symbol)"
     }
     
     // MARK: - No Data View

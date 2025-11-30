@@ -3,6 +3,7 @@ import UIKit
 
 struct MigraineRowView: View {
     @ObservedObject var viewModel: MigraineViewModel
+    @ObservedObject private var settings = SettingsManager.shared
     let migraine: MigraineEvent
     
     private let dateFormatter: DateFormatter = {
@@ -128,11 +129,11 @@ struct MigraineRowView: View {
                             .font(.system(size: 22))
                             .foregroundColor(weatherIconColor(for: migraine.weatherCode))
                         
-                        Text("\(Int(migraine.weatherTemperature))°")
+                        Text(settings.formatTemperature(migraine.weatherTemperature))
                             .font(.system(size: 11, weight: .medium, design: .rounded))
                             .foregroundColor(.secondary)
                     }
-                    .accessibilityLabel("Weather: \(WeatherService.weatherCondition(for: Int(migraine.weatherCode))), \(Int(migraine.weatherTemperature)) degrees Fahrenheit")
+                    .accessibilityLabel("Weather: \(WeatherService.weatherCondition(for: Int(migraine.weatherCode))), \(settings.formatTemperature(migraine.weatherTemperature))")
                     .accessibilityHint(weatherAccessibilityHint)
                 }
             }
@@ -167,12 +168,13 @@ struct MigraineRowView: View {
                     )
                 }
                 
-                // Pressure change indicator
+                // Pressure change indicator (show if >= 1.5 mmHg, which is ~2 hPa)
                 if migraine.hasWeatherData && abs(migraine.weatherPressureChange24h) >= 2 {
+                    let pressureChangeValue = settings.convertPressure(migraine.weatherPressureChange24h)
                     HStack(spacing: 3) {
-                        Image(systemName: migraine.weatherPressureChange24h > 0 ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
+                        Image(systemName: pressureChangeValue > 0 ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
                             .font(.system(size: 12))
-                        Text(String(format: "%.1f", abs(migraine.weatherPressureChange24h)))
+                        Text(String(format: "%.1f", abs(pressureChangeValue)))
                             .font(.system(size: 11, weight: .semibold, design: .rounded))
                     }
                     .foregroundColor(pressureChangeColor(migraine.weatherPressureChange24h))
@@ -240,10 +242,12 @@ struct MigraineRowView: View {
     
     private var weatherAccessibilityHint: String {
         let pressureChange = migraine.weatherPressureChange24h
+        let pressureChangeValue = settings.convertPressure(pressureChange)
+        let unitName = settings.pressureUnit == .mmHg ? "millimeters of mercury" : "hectopascals"
         if abs(pressureChange) >= 5 {
-            return "Significant pressure change of \(String(format: "%.1f", abs(pressureChange))) hectopascals in 24 hours"
+            return "Significant pressure change of \(String(format: "%.1f", abs(pressureChangeValue))) \(unitName) in 24 hours"
         } else if abs(pressureChange) >= 2 {
-            return "Moderate pressure change of \(String(format: "%.1f", abs(pressureChange))) hectopascals in 24 hours"
+            return "Moderate pressure change of \(String(format: "%.1f", abs(pressureChangeValue))) \(unitName) in 24 hours"
         }
         return ""
     }
