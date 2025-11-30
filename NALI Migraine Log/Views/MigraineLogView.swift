@@ -9,6 +9,7 @@ struct MigraineLogView: View {
     @State private var filterOption = FilterOption.all
     @State private var searchText = ""
     @State private var showingSettings = false
+    @State private var isRefreshing = false
     
     enum FilterOption: String, CaseIterable {
         case all = "All"
@@ -51,28 +52,45 @@ struct MigraineLogView: View {
                     SearchBar(text: $searchText)
                         .padding(.top, 8)
                     
-                    // Migraine list
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(filteredMigraines) { migraine in
-                                let _ = NSLog("🔶 [MigraineLogView] Rendering row for migraine: \(migraine.id?.uuidString ?? "nil")")
-                                MigraineRowView(viewModel: viewModel, migraine: migraine)
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        selectedMigraine = migraine
-                                    }
-                                    .contextMenu {
-                                        Button(role: .destructive) {
-                                            Task {
-                                                await viewModel.deleteMigraine(migraine)
-                                            }
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
+                    // Migraine list with pull-to-refresh
+                    if filteredMigraines.isEmpty {
+                        // Empty state
+                        EmptyMigraineStateView(
+                            filterOption: filterOption,
+                            searchText: searchText,
+                            onAddTapped: { showingNewMigraineSheet = true }
+                        )
+                    } else {
+                        ScrollView {
+                            LazyVStack(spacing: 0) {
+                                ForEach(filteredMigraines) { migraine in
+                                    MigraineRowView(viewModel: viewModel, migraine: migraine)
+                                        .contentShape(Rectangle())
+                                        .onTapGesture {
+                                            // Haptic feedback on tap
+                                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                            impactFeedback.impactOccurred()
+                                            selectedMigraine = migraine
                                         }
-                                    }
+                                        .contextMenu {
+                                            Button(role: .destructive) {
+                                                Task {
+                                                    await viewModel.deleteMigraine(migraine)
+                                                }
+                                            } label: {
+                                                Label("Delete", systemImage: "trash")
+                                            }
+                                        }
+                                        .accessibilityElement(children: .combine)
+                                        .accessibilityLabel(accessibilityLabel(for: migraine))
+                                        .accessibilityHint("Double tap to view details")
+                                }
                             }
+                            .padding(.top, 8)
                         }
-                        .padding(.top, 8)
+                        .refreshable {
+                            await refreshData()
+                        }
                     }
                 }
             }
@@ -183,6 +201,191 @@ struct MigraineLogView: View {
             for index in offsets {
                 await viewModel.deleteMigraine(filteredMigraines[index])
             }
+        }
+    }
+    
+    // MARK: - Pull to Refresh
+    
+    private func refreshData() async {
+        isRefreshing = true
+        // Give haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        impactFeedback.impactOccurred()
+        
+        // Trigger a refresh of the data
+        await viewModel.refreshMigraines()
+        
+        // Small delay for visual feedback
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        isRefreshing = false
+    }
+    
+    // MARK: - Accessibility
+    
+    private func accessibilityLabel(for migraine: MigraineEvent) -> String {
+        var label = ""
+        
+        if let date = migraine.startTime {
+            let formatter = DateFormatter()
+            formatter.dateStyle = .full
+            label += "Migraine on \(formatter.string(from: date)). "
+        }
+        
+        label += "Pain level \(migraine.painLevel) out of 10. "
+        
+        if let location = migraine.location {
+            label += "\(location) location. "
+        }
+        
+        if migraine.hasWeatherData {
+            label += "Weather: \(Int(migraine.weatherTemperature)) degrees. "
+        }
+        
+        return label
+    }
+}
+
+// MARK: - Empty State View
+
+struct EmptyMigraineStateView: View {
+    let filterOption: MigraineLogView.FilterOption
+    let searchText: String
+    let onAddTapped: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 24) {
+            Spacer()
+            
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.blue.opacity(0.2), Color.purple.opacity(0.2)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 120, height: 120)
+                
+                Image(systemName: iconName)
+                    .font(.system(size: 50))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.blue, .purple],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
+            
+            // Text
+            VStack(spacing: 8) {
+                Text(titleText)
+                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .foregroundColor(.primary)
+                
+                Text(subtitleText)
+                    .font(.system(size: 15))
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            }
+            
+            // Action button (only for empty state, not for filtered/search)
+            if filterOption == .all && searchText.isEmpty {
+                Button(action: {
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                    impactFeedback.impactOccurred()
+                    onAddTapped()
+                }) {
+                    Label("Log Your First Migraine", systemImage: "plus.circle.fill")
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 14)
+                        .background(
+                            LinearGradient(
+                                colors: [.blue, .purple],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(25)
+                        .shadow(color: .blue.opacity(0.3), radius: 8, x: 0, y: 4)
+                }
+                .padding(.top, 8)
+            }
+            
+            Spacer()
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    private var iconName: String {
+        if !searchText.isEmpty {
+            return "magnifyingglass"
+        }
+        switch filterOption {
+        case .all:
+            return "brain.head.profile"
+        case .lastWeek, .lastMonth, .lastYear:
+            return "calendar"
+        case .highPain:
+            return "exclamationmark.triangle"
+        case .withAura:
+            return "sparkles"
+        case .missedWork, .missedSchool:
+            return "briefcase"
+        }
+    }
+    
+    private var titleText: String {
+        if !searchText.isEmpty {
+            return "No Results Found"
+        }
+        switch filterOption {
+        case .all:
+            return "No Migraines Logged"
+        case .lastWeek:
+            return "No Migraines This Week"
+        case .lastMonth:
+            return "No Migraines This Month"
+        case .lastYear:
+            return "No Migraines This Year"
+        case .highPain:
+            return "No High Pain Migraines"
+        case .withAura:
+            return "No Migraines with Aura"
+        case .missedWork:
+            return "No Missed Work Days"
+        case .missedSchool:
+            return "No Missed School Days"
+        }
+    }
+    
+    private var subtitleText: String {
+        if !searchText.isEmpty {
+            return "Try adjusting your search terms or clearing the filter"
+        }
+        switch filterOption {
+        case .all:
+            return "Start tracking your migraines to identify patterns and triggers"
+        case .lastWeek:
+            return "Great news! You haven't logged any migraines in the past week"
+        case .lastMonth:
+            return "Wonderful! No migraines logged in the past month"
+        case .lastYear:
+            return "Amazing! No migraines logged in the past year"
+        case .highPain:
+            return "No severe migraines (pain level 7+) found"
+        case .withAura:
+            return "No migraines with aura symptoms recorded"
+        case .missedWork:
+            return "No migraines that caused missed work"
+        case .missedSchool:
+            return "No migraines that caused missed school"
         }
     }
 }

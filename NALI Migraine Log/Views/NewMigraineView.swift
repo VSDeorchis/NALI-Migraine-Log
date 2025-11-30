@@ -22,6 +22,8 @@ struct NewMigraineView: View {
     @State private var missedEvents = false
     @State private var selectedMedications: Set<String> = []
     @State private var notes = ""
+    @State private var showingSaveError = false
+    @State private var isSaving = false
     
     private let medications = [
         "Tylenol (acetaminophen)",
@@ -209,54 +211,69 @@ struct NewMigraineView: View {
                 .navigationTitle("New Migraine")
                 .navigationBarTitleDisplayMode(.inline)
                 .onAppear {
-                    NSLog("🟣 [NewMigraineView] ===== VIEW APPEARED =====")
-                    NSLog("🟣 [NewMigraineView] NewMigraineView is now visible")
+                    #if DEBUG
+                    NSLog("🟣 [NewMigraineView] NewMigraineView appeared")
+                    #endif
                 }
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {
                             dismiss()
                         }
+                        .disabled(isSaving)
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Save") {
-                            NSLog("🔵 [NewMigraineView] Save button tapped")
-                            Task { @MainActor in
-                                NSLog("🔵 [NewMigraineView] Inside Task, calling addMigraine...")
-                                let result = await viewModel.addMigraine(
-                                    startTime: startTime,
-                                    endTime: endTime,
-                                    painLevel: painLevel,
-                                    location: location,
-                                    triggers: Array(selectedTriggers),
-                                    hasAura: hasAura,
-                                    hasPhotophobia: hasPhotophobia,
-                                    hasPhonophobia: hasPhonophobia,
-                                    hasNausea: hasNausea,
-                                    hasVomiting: hasVomiting,
-                                    hasWakeUpHeadache: hasWakeUpHeadache,
-                                    hasTinnitus: hasTinnitus,
-                                    hasVertigo: hasVertigo,
-                                    missedWork: missedWork,
-                                    missedSchool: missedSchool,
-                                    missedEvents: missedEvents,
-                                    medications: Array(selectedMedications),
-                                    notes: notes.isEmpty ? nil : notes
-                                )
-                                
-                                NSLog("🔵 [NewMigraineView] addMigraine returned: %@", result != nil ? "SUCCESS" : "FAILED")
-                                
-                                if result != nil {
-                                    NSLog("🔵 [NewMigraineView] Save succeeded, about to dismiss")
-                                    // Dismiss immediately without delay
-                                    dismiss()
-                                    NSLog("🔵 [NewMigraineView] dismiss() called successfully")
-                                } else {
-                                    NSLog("🔴 [NewMigraineView] Save failed, not dismissing")
+                        if isSaving {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        } else {
+                            Button("Save") {
+                                Task { @MainActor in
+                                    isSaving = true
+                                    
+                                    let result = await viewModel.addMigraine(
+                                        startTime: startTime,
+                                        endTime: endTime,
+                                        painLevel: painLevel,
+                                        location: location,
+                                        triggers: Array(selectedTriggers),
+                                        hasAura: hasAura,
+                                        hasPhotophobia: hasPhotophobia,
+                                        hasPhonophobia: hasPhonophobia,
+                                        hasNausea: hasNausea,
+                                        hasVomiting: hasVomiting,
+                                        hasWakeUpHeadache: hasWakeUpHeadache,
+                                        hasTinnitus: hasTinnitus,
+                                        hasVertigo: hasVertigo,
+                                        missedWork: missedWork,
+                                        missedSchool: missedSchool,
+                                        missedEvents: missedEvents,
+                                        medications: Array(selectedMedications),
+                                        notes: notes.isEmpty ? nil : notes
+                                    )
+                                    
+                                    isSaving = false
+                                    
+                                    if result != nil {
+                                        // Success haptic
+                                        let notificationFeedback = UINotificationFeedbackGenerator()
+                                        notificationFeedback.notificationOccurred(.success)
+                                        dismiss()
+                                    } else {
+                                        // Error haptic
+                                        let notificationFeedback = UINotificationFeedbackGenerator()
+                                        notificationFeedback.notificationOccurred(.error)
+                                        showingSaveError = true
+                                    }
                                 }
                             }
                         }
                     }
+                }
+                .alert("Unable to Save", isPresented: $showingSaveError) {
+                    Button("Try Again", role: .cancel) { }
+                } message: {
+                    Text("There was a problem saving your migraine entry. Please check your connection and try again.")
                 }
             }
         }

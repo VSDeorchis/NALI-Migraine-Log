@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreLocation
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @StateObject private var settings = SettingsManager.shared
@@ -15,6 +16,18 @@ struct SettingsView: View {
     @State private var backfillTotal = 0
     @State private var showingBackfillAlert = false
     @State private var backfillResult = ""
+    
+    // Export states
+    @State private var showingExportWarning = false
+    @State private var showingExportSheet = false
+    @State private var exportURL: URL?
+    @State private var isExporting = false
+    @State private var exportFormat: ExportFormat = .csv
+    
+    enum ExportFormat: String, CaseIterable {
+        case csv = "CSV"
+        case json = "JSON"
+    }
     
     var body: some View {
         NavigationView {
@@ -308,6 +321,64 @@ struct SettingsView: View {
                         }
                     }
                 }
+                
+                // MARK: - Export Data Section
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Export Migraine Data")
+                                    .font(.body)
+                                Text("\(viewModel.migraines.count) entries available")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            if isExporting {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            } else {
+                                Button("Export") {
+                                    showingExportWarning = true
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(viewModel.migraines.isEmpty)
+                            }
+                        }
+                        
+                        Picker("Format", selection: $exportFormat) {
+                            ForEach(ExportFormat.allCases, id: \.self) { format in
+                                Text(format.rawValue).tag(format)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        
+                        // Privacy warning banner
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "exclamationmark.shield.fill")
+                                    .foregroundColor(.orange)
+                                    .font(.system(size: 14))
+                                Text("Privacy Notice")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(.primary)
+                            }
+                            
+                            Text("Exported data will be unencrypted and may contain sensitive health information including migraine dates, symptoms, medications, and location data.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 12)
+                        .background(Color(.systemOrange).opacity(0.1))
+                        .cornerRadius(8)
+                    }
+                } header: {
+                    Text("Data Export")
+                } footer: {
+                    Text("Export your migraine history to share with healthcare providers or for personal backup. CSV format works with Excel and Google Sheets.")
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -349,6 +420,21 @@ struct SettingsView: View {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(backfillResult)
+            }
+            .alert("Export Health Data", isPresented: $showingExportWarning) {
+                Button("Cancel", role: .cancel) { }
+                Button("I Understand, Export") {
+                    Task {
+                        await performExport()
+                    }
+                }
+            } message: {
+                Text("⚠️ IMPORTANT: Your exported data will NOT be encrypted.\n\nThis file will contain sensitive health information including:\n• Migraine dates and times\n• Pain levels and symptoms\n• Medications taken\n• Personal notes\n• Location/weather data\n\nOnly share this file with trusted healthcare providers. Delete the file after use to protect your privacy.")
+            }
+            .sheet(isPresented: $showingExportSheet) {
+                if let url = exportURL {
+                    ShareSheet(items: [url])
+                }
             }
             .onAppear {
                 // Refresh location status when view appears
@@ -470,6 +556,264 @@ struct SettingsView: View {
             }
         }
     }
+    
+    // MARK: - Export Helpers
+    
+    private func performExport() async {
+        await MainActor.run {
+            isExporting = true
+        }
+        
+        do {
+            let url: URL
+            switch exportFormat {
+            case .csv:
+                url = try await exportToCSV()
+            case .json:
+                url = try await exportToJSON()
+            }
+            
+            await MainActor.run {
+                isExporting = false
+                exportURL = url
+                showingExportSheet = true
+            }
+        } catch {
+            await MainActor.run {
+                isExporting = false
+                errorMessage = "Export failed: \(error.localizedDescription)"
+                showingError = true
+            }
+        }
+    }
+    
+    private func exportToCSV() async throws -> URL {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm"
+        
+        let fileDateFormatter = DateFormatter()
+        fileDateFormatter.dateFormat = "yyyy-MM-dd"
+        
+        var csvContent = "Date,End Time,Pain Level,Location,Duration (hours),"
+        csvContent += "Aura,Light Sensitivity,Sound Sensitivity,Nausea,Vomiting,Wake-up Headache,Tinnitus,Vertigo,"
+        csvContent += "Stress,Lack of Sleep,Dehydration,Weather,Hormones,Alcohol,Caffeine,Food,Exercise,Screen Time,Other Trigger,"
+        csvContent += "Ibuprofen,Excedrin,Tylenol,Sumatriptan,Rizatriptan,Naproxen,Frovatriptan,Naratriptan,Nurtec,Ubrelvy,Reyvow,Trudhesa,Elyxyb,Other Med,"
+        csvContent += "Missed Work,Missed School,Missed Events,"
+        csvContent += "Temperature (°F),Pressure (hPa),Pressure Change 24h,Weather Condition,"
+        csvContent += "Notes\n"
+        
+        for migraine in viewModel.migraines.sorted(by: { ($0.startTime ?? Date()) > ($1.startTime ?? Date()) }) {
+            var row: [String] = []
+            
+            // Date and time
+            row.append(migraine.startTime.map { dateFormatter.string(from: $0) } ?? "")
+            row.append(migraine.endTime.map { dateFormatter.string(from: $0) } ?? "")
+            row.append("\(migraine.painLevel)")
+            row.append(escapeCSV(migraine.location ?? ""))
+            
+            // Duration
+            if let start = migraine.startTime, let end = migraine.endTime {
+                let hours = end.timeIntervalSince(start) / 3600
+                row.append(String(format: "%.1f", hours))
+            } else {
+                row.append("")
+            }
+            
+            // Symptoms
+            row.append(migraine.hasAura ? "Yes" : "No")
+            row.append(migraine.hasPhotophobia ? "Yes" : "No")
+            row.append(migraine.hasPhonophobia ? "Yes" : "No")
+            row.append(migraine.hasNausea ? "Yes" : "No")
+            row.append(migraine.hasVomiting ? "Yes" : "No")
+            row.append(migraine.hasWakeUpHeadache ? "Yes" : "No")
+            row.append(migraine.hasTinnitus ? "Yes" : "No")
+            row.append(migraine.hasVertigo ? "Yes" : "No")
+            
+            // Triggers
+            row.append(migraine.isTriggerStress ? "Yes" : "No")
+            row.append(migraine.isTriggerLackOfSleep ? "Yes" : "No")
+            row.append(migraine.isTriggerDehydration ? "Yes" : "No")
+            row.append(migraine.isTriggerWeather ? "Yes" : "No")
+            row.append(migraine.isTriggerHormones ? "Yes" : "No")
+            row.append(migraine.isTriggerAlcohol ? "Yes" : "No")
+            row.append(migraine.isTriggerCaffeine ? "Yes" : "No")
+            row.append(migraine.isTriggerFood ? "Yes" : "No")
+            row.append(migraine.isTriggerExercise ? "Yes" : "No")
+            row.append(migraine.isTriggerScreenTime ? "Yes" : "No")
+            row.append(migraine.isTriggerOther ? "Yes" : "No")
+            
+            // Medications
+            row.append(migraine.tookIbuprofin ? "Yes" : "No")
+            row.append(migraine.tookExcedrin ? "Yes" : "No")
+            row.append(migraine.tookTylenol ? "Yes" : "No")
+            row.append(migraine.tookSumatriptan ? "Yes" : "No")
+            row.append(migraine.tookRizatriptan ? "Yes" : "No")
+            row.append(migraine.tookNaproxen ? "Yes" : "No")
+            row.append(migraine.tookFrovatriptan ? "Yes" : "No")
+            row.append(migraine.tookNaratriptan ? "Yes" : "No")
+            row.append(migraine.tookNurtec ? "Yes" : "No")
+            row.append(migraine.tookUbrelvy ? "Yes" : "No")
+            row.append(migraine.tookReyvow ? "Yes" : "No")
+            row.append(migraine.tookTrudhesa ? "Yes" : "No")
+            row.append(migraine.tookElyxyb ? "Yes" : "No")
+            row.append(migraine.tookOther ? "Yes" : "No")
+            
+            // Impact
+            row.append(migraine.missedWork ? "Yes" : "No")
+            row.append(migraine.missedSchool ? "Yes" : "No")
+            row.append(migraine.missedEvents ? "Yes" : "No")
+            
+            // Weather
+            if migraine.hasWeatherData {
+                row.append(String(format: "%.1f", migraine.weatherTemperature))
+                row.append(String(format: "%.1f", migraine.weatherPressure))
+                row.append(String(format: "%.1f", migraine.weatherPressureChange24h))
+                row.append(WeatherService.weatherCondition(for: Int(migraine.weatherCode)))
+            } else {
+                row.append("")
+                row.append("")
+                row.append("")
+                row.append("")
+            }
+            
+            // Notes
+            row.append(escapeCSV(migraine.notes ?? ""))
+            
+            csvContent += row.joined(separator: ",") + "\n"
+        }
+        
+        let fileName = "Headway_Migraine_Export_\(fileDateFormatter.string(from: Date())).csv"
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        try csvContent.write(to: tempURL, atomically: true, encoding: .utf8)
+        
+        return tempURL
+    }
+    
+    private func exportToJSON() async throws -> URL {
+        let dateFormatter = ISO8601DateFormatter()
+        let fileDateFormatter = DateFormatter()
+        fileDateFormatter.dateFormat = "yyyy-MM-dd"
+        
+        var exportData: [[String: Any]] = []
+        
+        for migraine in viewModel.migraines.sorted(by: { ($0.startTime ?? Date()) > ($1.startTime ?? Date()) }) {
+            var entry: [String: Any] = [:]
+            
+            entry["id"] = migraine.id?.uuidString ?? ""
+            entry["startTime"] = migraine.startTime.map { dateFormatter.string(from: $0) } ?? ""
+            entry["endTime"] = migraine.endTime.map { dateFormatter.string(from: $0) } ?? NSNull()
+            entry["painLevel"] = migraine.painLevel
+            entry["location"] = migraine.location ?? ""
+            
+            // Symptoms
+            entry["symptoms"] = [
+                "aura": migraine.hasAura,
+                "lightSensitivity": migraine.hasPhotophobia,
+                "soundSensitivity": migraine.hasPhonophobia,
+                "nausea": migraine.hasNausea,
+                "vomiting": migraine.hasVomiting,
+                "wakeUpHeadache": migraine.hasWakeUpHeadache,
+                "tinnitus": migraine.hasTinnitus,
+                "vertigo": migraine.hasVertigo
+            ]
+            
+            // Triggers
+            entry["triggers"] = [
+                "stress": migraine.isTriggerStress,
+                "lackOfSleep": migraine.isTriggerLackOfSleep,
+                "dehydration": migraine.isTriggerDehydration,
+                "weather": migraine.isTriggerWeather,
+                "hormones": migraine.isTriggerHormones,
+                "alcohol": migraine.isTriggerAlcohol,
+                "caffeine": migraine.isTriggerCaffeine,
+                "food": migraine.isTriggerFood,
+                "exercise": migraine.isTriggerExercise,
+                "screenTime": migraine.isTriggerScreenTime,
+                "other": migraine.isTriggerOther
+            ]
+            
+            // Medications
+            entry["medications"] = [
+                "ibuprofen": migraine.tookIbuprofin,
+                "excedrin": migraine.tookExcedrin,
+                "tylenol": migraine.tookTylenol,
+                "sumatriptan": migraine.tookSumatriptan,
+                "rizatriptan": migraine.tookRizatriptan,
+                "naproxen": migraine.tookNaproxen,
+                "frovatriptan": migraine.tookFrovatriptan,
+                "naratriptan": migraine.tookNaratriptan,
+                "nurtec": migraine.tookNurtec,
+                "ubrelvy": migraine.tookUbrelvy,
+                "reyvow": migraine.tookReyvow,
+                "trudhesa": migraine.tookTrudhesa,
+                "elyxyb": migraine.tookElyxyb,
+                "other": migraine.tookOther
+            ]
+            
+            // Impact
+            entry["impact"] = [
+                "missedWork": migraine.missedWork,
+                "missedSchool": migraine.missedSchool,
+                "missedEvents": migraine.missedEvents
+            ]
+            
+            // Weather
+            if migraine.hasWeatherData {
+                entry["weather"] = [
+                    "temperature": migraine.weatherTemperature,
+                    "pressure": migraine.weatherPressure,
+                    "pressureChange24h": migraine.weatherPressureChange24h,
+                    "condition": WeatherService.weatherCondition(for: Int(migraine.weatherCode)),
+                    "weatherCode": migraine.weatherCode
+                ]
+            }
+            
+            entry["notes"] = migraine.notes ?? ""
+            
+            exportData.append(entry)
+        }
+        
+        let wrapper: [String: Any] = [
+            "exportDate": dateFormatter.string(from: Date()),
+            "appVersion": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown",
+            "totalEntries": exportData.count,
+            "privacyNotice": "This file contains unencrypted health data. Handle with care and delete after use.",
+            "migraines": exportData
+        ]
+        
+        let jsonData = try JSONSerialization.data(withJSONObject: wrapper, options: [.prettyPrinted, .sortedKeys])
+        
+        let fileName = "Headway_Migraine_Export_\(fileDateFormatter.string(from: Date())).json"
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        try jsonData.write(to: tempURL)
+        
+        return tempURL
+    }
+    
+    private func escapeCSV(_ string: String) -> String {
+        var result = string
+        // Replace newlines with spaces
+        result = result.replacingOccurrences(of: "\n", with: " ")
+        result = result.replacingOccurrences(of: "\r", with: " ")
+        // If contains comma, quote, or special chars, wrap in quotes
+        if result.contains(",") || result.contains("\"") || result.contains("\n") {
+            result = result.replacingOccurrences(of: "\"", with: "\"\"")
+            result = "\"\(result)\""
+        }
+        return result
+    }
+}
+
+// MARK: - Share Sheet
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        return controller
+    }
+    
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 #Preview {

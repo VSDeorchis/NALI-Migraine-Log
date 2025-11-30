@@ -76,9 +76,10 @@ struct MigraineRowView: View {
     }
     
     var body: some View {
+        #if DEBUG
         let _ = NSLog("🔷 [MigraineRowView] body computed for migraine: \(migraine.id?.uuidString ?? "nil")")
-        let _ = NSLog("🔷 [MigraineRowView] Checking if object is fault: \(migraine.isFault)")
         let _ = NSLog("🔷 [MigraineRowView] hasWeatherData: \(migraine.hasWeatherData)")
+        #endif
         
         return VStack(alignment: .leading, spacing: 0) {
             // Header row with date and pain level
@@ -98,6 +99,7 @@ struct MigraineRowView: View {
                             .foregroundColor(.white.opacity(0.9))
                     }
                 }
+                .accessibilityLabel("Pain level \(migraine.painLevel) out of 10, \(painSeverityDescription)")
                 
                 // Date and location
                 VStack(alignment: .leading, spacing: 2) {
@@ -130,6 +132,8 @@ struct MigraineRowView: View {
                             .font(.system(size: 11, weight: .medium, design: .rounded))
                             .foregroundColor(.secondary)
                     }
+                    .accessibilityLabel("Weather: \(WeatherService.weatherCondition(for: Int(migraine.weatherCode))), \(Int(migraine.weatherTemperature)) degrees Fahrenheit")
+                    .accessibilityHint(weatherAccessibilityHint)
                 }
             }
             .padding(.bottom, 8)
@@ -221,6 +225,27 @@ struct MigraineRowView: View {
         migraine.hasAura || migraine.hasPhotophobia || migraine.hasPhonophobia ||
         migraine.hasNausea || migraine.hasVomiting || migraine.hasWakeUpHeadache ||
         migraine.hasTinnitus || migraine.hasVertigo
+    }
+    
+    // Accessibility helpers
+    private var painSeverityDescription: String {
+        switch migraine.painLevel {
+        case 1...3: return "mild"
+        case 4...6: return "moderate"
+        case 7...8: return "severe"
+        case 9...10: return "very severe"
+        default: return ""
+        }
+    }
+    
+    private var weatherAccessibilityHint: String {
+        let pressureChange = migraine.weatherPressureChange24h
+        if abs(pressureChange) >= 5 {
+            return "Significant pressure change of \(String(format: "%.1f", abs(pressureChange))) hectopascals in 24 hours"
+        } else if abs(pressureChange) >= 2 {
+            return "Moderate pressure change of \(String(format: "%.1f", abs(pressureChange))) hectopascals in 24 hours"
+        }
+        return ""
     }
     
     private var symptomCount: Int {

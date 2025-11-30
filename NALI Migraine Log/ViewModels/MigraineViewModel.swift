@@ -188,8 +188,24 @@ class MigraineViewModel: NSObject, ObservableObject {
             }
         } catch {
             lastError = .fetchFailed(error)
+            #if DEBUG
             print("Error fetching migraines: \(error)")
+            #endif
         }
+    }
+    
+    /// Refresh migraines from Core Data (for pull-to-refresh)
+    @MainActor
+    func refreshMigraines() async {
+        // Refresh the context to get latest from persistent store
+        viewContext.refreshAllObjects()
+        
+        // Re-fetch migraines
+        fetchMigraines()
+        
+        #if DEBUG
+        print("📱 Migraines refreshed: \(migraines.count) entries")
+        #endif
     }
     
     // Add method to fetch only recent migraines for Watch app
