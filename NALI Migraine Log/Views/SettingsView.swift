@@ -32,353 +32,11 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("Data Sync")) {
-                    Toggle("Enable iCloud Sync", isOn: $settings.useICloudSync)
-                        .onChange(of: settings.useICloudSync) { newValue in
-                            if newValue {
-                                showingMigrationAlert = true
-                            }
-                        }
-                    
-                    Text("When enabled, your data will sync across all your devices using iCloud")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Section(header: Text("Weather Tracking")) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Location Services")
-                                .font(.body)
-                            Text(locationStatusText)
-                                .font(.caption)
-                                .foregroundColor(locationStatusColor)
-                        }
-                        Spacer()
-                        Button(locationButtonText) {
-                            handleLocationPermission()
-                        }
-                        .font(.caption)
-                        .buttonStyle(.bordered)
-                        .disabled(locationManager.authorizationStatus == .notDetermined || 
-                                 locationManager.authorizationStatus == .authorizedWhenInUse || 
-                                 locationManager.authorizationStatus == .authorizedAlways)
-                    }
-                    
-                    // Show information if notDetermined (iOS 26 "When I Share" mode - this is the new standard)
-                    if locationManager.authorizationStatus == .notDetermined {
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                    .font(.system(size: 14))
-                                Text("Weather Tracking Enabled")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(.primary)
-                            }
-                            
-                            Text("iOS 26 uses 'When I Share' as the standard location permission. Weather tracking works perfectly - you'll see a quick permission prompt when saving new entries.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                            
-                            Divider()
-                            
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("How it works:")
-                                    .font(.caption)
-                                    .fontWeight(.semibold)
-                                
-                                VStack(alignment: .leading, spacing: 6) {
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Image(systemName: "1.circle.fill")
-                                            .foregroundColor(.green)
-                                            .font(.caption)
-                                        Text("Save a new migraine entry")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Image(systemName: "2.circle.fill")
-                                            .foregroundColor(.green)
-                                            .font(.caption)
-                                        Text("iOS asks 'Allow Headway to use your location?'")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Image(systemName: "3.circle.fill")
-                                            .foregroundColor(.green)
-                                            .font(.caption)
-                                        Text("Tap 'Allow Once' - weather data is automatically fetched")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Image(systemName: "4.circle.fill")
-                                            .foregroundColor(.green)
-                                            .font(.caption)
-                                        Text("Done! Repeat for each entry to track weather patterns")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                            }
-                            
-                            Divider()
-                            
-                            VStack(alignment: .leading, spacing: 6) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "hand.raised.fill")
-                                        .foregroundColor(.blue)
-                                        .font(.system(size: 12))
-                                    Text("Privacy First")
-                                        .font(.caption2)
-                                        .fontWeight(.semibold)
-                                }
-                                Text("This is Apple's new privacy-first approach in iOS 26. You stay in control - approve location access only when you need it. Your weather data is still tracked accurately for migraine correlation analysis.")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                        .padding(.vertical, 12)
-                        .padding(.horizontal, 12)
-                        .background(Color(.systemGreen).opacity(0.1))
-                        .cornerRadius(8)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "cloud.sun.fill")
-                                .foregroundColor(.blue)
-                                .font(.system(size: 14))
-                            Text("How Weather Tracking Works")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(.primary)
-                        }
-                        
-                        Text("Your location is used to fetch historical weather data (temperature, barometric pressure, precipitation) for each migraine entry. This helps identify weather-related triggers like pressure changes, which are a common migraine cause.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        
-                        HStack(spacing: 6) {
-                            Image(systemName: "lock.shield.fill")
-                                .foregroundColor(.green)
-                                .font(.system(size: 12))
-                            Text("Your location data is only used to fetch weather and is never shared with third parties.")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                }
-                
-                Section(header: Text("Backfill Weather Data")) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Add Weather to Past Entries")
-                                    .font(.body)
-                                if isBackfilling {
-                                    Text("Processing \(backfillProgress) of \(backfillTotal)...")
-                                        .font(.caption)
-                                        .foregroundColor(.blue)
-                                } else {
-                                    let count = viewModel.migraines.filter { !$0.hasWeatherData }.count
-                                    if count > 0 {
-                                        Text("\(count) entries without weather data")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    } else {
-                                        Text("All entries have weather data")
-                                            .font(.caption)
-                                            .foregroundColor(.green)
-                                    }
-                                }
-                            }
-                            Spacer()
-                            Button(action: {
-                                Task {
-                                    await performBackfill()
-                                }
-                            }) {
-                                if isBackfilling {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                } else {
-                                    Text("Start")
-                                }
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(isBackfilling || 
-                                     viewModel.migraines.filter { !$0.hasWeatherData }.isEmpty ||
-                                     locationManager.authorizationStatus == .notDetermined)
-                        }
-                        
-                        // Information for iOS 26 "When I Share" mode
-                        if locationManager.authorizationStatus == .notDetermined {
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "hand.tap.fill")
-                                        .foregroundColor(.blue)
-                                        .font(.system(size: 14))
-                                    Text("Add Weather to Past Entries")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundColor(.primary)
-                                }
-                                
-                                Text("With iOS 26's privacy-first approach, you can add weather data to past entries one at a time. This gives you full control over which entries get weather data.")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                
-                                Divider()
-                                
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("How to add weather to a past entry:")
-                                        .font(.caption)
-                                        .fontWeight(.semibold)
-                                    
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Text("1.")
-                                            .font(.caption)
-                                            .fontWeight(.semibold)
-                                            .frame(width: 20, alignment: .leading)
-                                        Text("Tap any past migraine entry to open details")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Text("2.")
-                                            .font(.caption)
-                                            .fontWeight(.semibold)
-                                            .frame(width: 20, alignment: .leading)
-                                        Text("Scroll to Weather Data and tap 'Fetch Weather'")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Text("3.")
-                                            .font(.caption)
-                                            .fontWeight(.semibold)
-                                            .frame(width: 20, alignment: .leading)
-                                        Text("When iOS asks, tap 'Allow Once'")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Text("4.")
-                                            .font(.caption)
-                                            .fontWeight(.semibold)
-                                            .frame(width: 20, alignment: .leading)
-                                        Text("Weather data is added! Repeat for other entries")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                                
-                                Divider()
-                                
-                                VStack(alignment: .leading, spacing: 4) {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "sparkles")
-                                            .foregroundColor(.purple)
-                                            .font(.system(size: 12))
-                                        Text("Pro Tip")
-                                            .font(.caption2)
-                                            .fontWeight(.semibold)
-                                    }
-                                    Text("Focus on entries where you remember severe symptoms or unusual circumstances. Weather correlation analysis works best with quality data from significant migraine events.")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
-                            .padding(.vertical, 12)
-                            .padding(.horizontal, 12)
-                            .background(Color(.systemBlue).opacity(0.1))
-                            .cornerRadius(8)
-                        } else {
-                            Text("Fetches historical weather data for all migraine entries that don't have it. This uses your current location or the location where you logged the migraine.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-                
-                Section("Appearance") {
-                    Picker("Theme", selection: $settings.colorScheme) {
-                        ForEach(SettingsManager.ColorSchemePreference.allCases, id: \.self) { scheme in
-                            Text(scheme.rawValue).tag(scheme)
-                        }
-                    }
-                }
-                
-                // MARK: - Export Data Section
-                Section {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Export Migraine Data")
-                                    .font(.body)
-                                Text("\(viewModel.migraines.count) entries available")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
-                            if isExporting {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                            } else {
-                                Button("Export") {
-                                    showingExportWarning = true
-                                }
-                                .buttonStyle(.bordered)
-                                .disabled(viewModel.migraines.isEmpty)
-                            }
-                        }
-                        
-                        Picker("Format", selection: $exportFormat) {
-                            ForEach(ExportFormat.allCases, id: \.self) { format in
-                                Text(format.rawValue).tag(format)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        
-                        // Privacy warning banner
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "exclamationmark.shield.fill")
-                                    .foregroundColor(.orange)
-                                    .font(.system(size: 14))
-                                Text("Privacy Notice")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(.primary)
-                            }
-                            
-                            Text("Exported data will be unencrypted and may contain sensitive health information including migraine dates, symptoms, medications, and location data.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .padding(.vertical, 10)
-                        .padding(.horizontal, 12)
-                        .background(Color(.systemOrange).opacity(0.1))
-                        .cornerRadius(8)
-                    }
-                } header: {
-                    Text("Data Export")
-                } footer: {
-                    Text("Export your migraine history to share with healthcare providers or for personal backup. CSV format works with Excel and Google Sheets.")
-                }
+                dataSyncSection
+                weatherTrackingSection
+                backfillSection
+                appearanceSection
+                exportSection
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -446,6 +104,164 @@ struct SettingsView: View {
                 // Refresh status when returning from Settings app
                 print("⚙️ App entering foreground, refreshing location status")
                 locationManager.refreshAuthorizationStatus()
+            }
+        }
+    }
+    
+    // MARK: - Form Sections
+    
+    private var dataSyncSection: some View {
+        Section(header: Text("Data Sync")) {
+            Toggle("Enable iCloud Sync", isOn: $settings.useICloudSync)
+                .onChange(of: settings.useICloudSync) { newValue in
+                    if newValue {
+                        showingMigrationAlert = true
+                    }
+                }
+            
+            Text("When enabled, your data will sync across all your devices using iCloud")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+    
+    private var weatherTrackingSection: some View {
+        Section(header: Text("Weather Tracking")) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Location Services")
+                        .font(.body)
+                    Text(locationStatusText)
+                        .font(.caption)
+                        .foregroundColor(locationStatusColor)
+                }
+                Spacer()
+                Button(locationButtonText) {
+                    handleLocationPermission()
+                }
+                .font(.caption)
+                .buttonStyle(.bordered)
+                .disabled(locationManager.authorizationStatus == .notDetermined || 
+                         locationManager.authorizationStatus == .authorizedWhenInUse || 
+                         locationManager.authorizationStatus == .authorizedAlways)
+            }
+            
+            if locationManager.authorizationStatus == .notDetermined {
+                iOS26LocationInfoView()
+            }
+            
+            WeatherTrackingInfoView()
+        }
+    }
+    
+    private var backfillSection: some View {
+        Section(header: Text("Backfill Weather Data")) {
+            VStack(alignment: .leading, spacing: 12) {
+                backfillHeaderView
+                
+                if locationManager.authorizationStatus == .notDetermined {
+                    iOS26BackfillInfoView()
+                } else {
+                    Text("Fetches historical weather data for all migraine entries that don't have it. This uses your current location or the location where you logged the migraine.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+    }
+    
+    private var backfillHeaderView: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Add Weather to Past Entries")
+                    .font(.body)
+                if isBackfilling {
+                    Text("Processing \(backfillProgress) of \(backfillTotal)...")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                } else {
+                    let count = viewModel.migraines.filter { !$0.hasWeatherData }.count
+                    if count > 0 {
+                        Text("\(count) entries without weather data")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("All entries have weather data")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                    }
+                }
+            }
+            Spacer()
+            Button(action: {
+                Task {
+                    await performBackfill()
+                }
+            }) {
+                if isBackfilling {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                } else {
+                    Text("Start")
+                }
+            }
+            .buttonStyle(.bordered)
+            .disabled(isBackfilling || 
+                     viewModel.migraines.filter { !$0.hasWeatherData }.isEmpty ||
+                     locationManager.authorizationStatus == .notDetermined)
+        }
+    }
+    
+    private var appearanceSection: some View {
+        Section("Appearance") {
+            Picker("Theme", selection: $settings.colorScheme) {
+                ForEach(SettingsManager.ColorSchemePreference.allCases, id: \.self) { scheme in
+                    Text(scheme.rawValue).tag(scheme)
+                }
+            }
+        }
+    }
+    
+    private var exportSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 12) {
+                exportHeaderView
+                
+                Picker("Format", selection: $exportFormat) {
+                    ForEach(ExportFormat.allCases, id: \.self) { format in
+                        Text(format.rawValue).tag(format)
+                    }
+                }
+                .pickerStyle(.segmented)
+                
+                ExportPrivacyWarningView()
+            }
+        } header: {
+            Text("Data Export")
+        } footer: {
+            Text("Export your migraine history to share with healthcare providers or for personal backup. CSV format works with Excel and Google Sheets.")
+        }
+    }
+    
+    private var exportHeaderView: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Export Migraine Data")
+                    .font(.body)
+                Text("\(viewModel.migraines.count) entries available")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            if isExporting {
+                ProgressView()
+                    .scaleEffect(0.8)
+            } else {
+                Button("Export") {
+                    showingExportWarning = true
+                }
+                .buttonStyle(.bordered)
+                .disabled(viewModel.migraines.isEmpty)
             }
         }
     }
@@ -814,6 +630,203 @@ struct ShareSheet: UIViewControllerRepresentable {
     }
     
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+// MARK: - Helper Views
+
+struct iOS26LocationInfoView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                    .font(.system(size: 14))
+                Text("Weather Tracking Enabled")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.primary)
+            }
+            
+            Text("iOS 26 uses 'When I Share' as the standard location permission. Weather tracking works perfectly - you'll see a quick permission prompt when saving new entries.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            
+            Divider()
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Text("How it works:")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                
+                LocationStepRow(step: 1, text: "Save a new migraine entry")
+                LocationStepRow(step: 2, text: "iOS asks 'Allow Headway to use your location?'")
+                LocationStepRow(step: 3, text: "Tap 'Allow Once' - weather data is automatically fetched")
+                LocationStepRow(step: 4, text: "Done! Repeat for each entry to track weather patterns")
+            }
+            
+            Divider()
+            
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 4) {
+                    Image(systemName: "hand.raised.fill")
+                        .foregroundColor(.blue)
+                        .font(.system(size: 12))
+                    Text("Privacy First")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                }
+                Text("This is Apple's new privacy-first approach in iOS 26. You stay in control - approve location access only when you need it.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+        .background(Color(.systemGreen).opacity(0.1))
+        .cornerRadius(8)
+    }
+}
+
+struct LocationStepRow: View {
+    let step: Int
+    let text: String
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "\(step).circle.fill")
+                .foregroundColor(.green)
+                .font(.caption)
+            Text(text)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+struct WeatherTrackingInfoView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "cloud.sun.fill")
+                    .foregroundColor(.blue)
+                    .font(.system(size: 14))
+                Text("How Weather Tracking Works")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.primary)
+            }
+            
+            Text("Your location is used to fetch historical weather data (temperature, barometric pressure, precipitation) for each migraine entry. This helps identify weather-related triggers like pressure changes, which are a common migraine cause.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            
+            HStack(spacing: 6) {
+                Image(systemName: "lock.shield.fill")
+                    .foregroundColor(.green)
+                    .font(.system(size: 12))
+                Text("Your location data is only used to fetch weather and is never shared with third parties.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+struct iOS26BackfillInfoView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "hand.tap.fill")
+                    .foregroundColor(.blue)
+                    .font(.system(size: 14))
+                Text("Add Weather to Past Entries")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.primary)
+            }
+            
+            Text("With iOS 26's privacy-first approach, you can add weather data to past entries one at a time. This gives you full control over which entries get weather data.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            
+            Divider()
+            
+            VStack(alignment: .leading, spacing: 6) {
+                Text("How to add weather to a past entry:")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                
+                BackfillStepRow(step: "1", text: "Tap any past migraine entry to open details")
+                BackfillStepRow(step: "2", text: "Scroll to Weather Data and tap 'Fetch Weather'")
+                BackfillStepRow(step: "3", text: "When iOS asks, tap 'Allow Once'")
+                BackfillStepRow(step: "4", text: "Weather data is added! Repeat for other entries")
+            }
+            
+            Divider()
+            
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 4) {
+                    Image(systemName: "sparkles")
+                        .foregroundColor(.purple)
+                        .font(.system(size: 12))
+                    Text("Pro Tip")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                }
+                Text("Focus on entries where you remember severe symptoms or unusual circumstances. Weather correlation analysis works best with quality data from significant migraine events.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+        .background(Color(.systemBlue).opacity(0.1))
+        .cornerRadius(8)
+    }
+}
+
+struct BackfillStepRow: View {
+    let step: String
+    let text: String
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text("\(step).")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .frame(width: 20, alignment: .leading)
+            Text(text)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+struct ExportPrivacyWarningView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.shield.fill")
+                    .foregroundColor(.orange)
+                    .font(.system(size: 14))
+                Text("Privacy Notice")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.primary)
+            }
+            
+            Text("Exported data will be unencrypted and may contain sensitive health information including migraine dates, symptoms, medications, and location data.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .background(Color(.systemOrange).opacity(0.1))
+        .cornerRadius(8)
+    }
 }
 
 #Preview {
