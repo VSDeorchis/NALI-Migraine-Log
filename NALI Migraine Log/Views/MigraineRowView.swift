@@ -139,52 +139,55 @@ struct MigraineRowView: View {
             }
             .padding(.bottom, 8)
             
-            // Compact info row
-            HStack(spacing: 8) {
-                // Symptoms count
-                if hasAnySymptoms {
-                    CompactBadge(
-                        icon: "exclamationmark.triangle.fill",
-                        text: "\(symptomCount)",
-                        color: .purple
-                    )
-                }
-                
-                // Triggers count
-                if !activeTriggers.isEmpty {
-                    CompactBadge(
-                        icon: "bolt.fill",
-                        text: "\(activeTriggers.count)",
-                        color: .orange
-                    )
-                }
-                
-                // Medications count
-                if !activeMedications.isEmpty {
-                    CompactBadge(
-                        icon: "pill.fill",
-                        text: "\(activeMedications.count)",
-                        color: .blue
-                    )
-                }
-                
-                // Pressure change indicator (show if >= 1.5 mmHg, which is ~2 hPa)
-                if migraine.hasWeatherData && abs(migraine.weatherPressureChange24h) >= 2 {
-                    let pressureChangeValue = settings.convertPressure(migraine.weatherPressureChange24h)
-                    HStack(spacing: 3) {
-                        Image(systemName: pressureChangeValue > 0 ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
-                            .font(.system(size: 12))
-                        Text(String(format: "%.1f", abs(pressureChangeValue)))
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+            // Symptoms row (horizontal list of symptom names)
+            if !primarySymptoms.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(primarySymptoms, id: \.self) { symptom in
+                        Text(symptom)
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundColor(.purple)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.purple.opacity(0.12))
+                            .clipShape(Capsule())
                     }
-                    .foregroundColor(pressureChangeColor(migraine.weatherPressureChange24h))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(pressureChangeColor(migraine.weatherPressureChange24h).opacity(0.15))
-                    .clipShape(Capsule())
+                    
+                    // Pressure change indicator
+                    if migraine.hasWeatherData {
+                        PressureChangeBadge(
+                            pressureChangeHPa: migraine.weatherPressureChange24h,
+                            settings: settings
+                        )
+                    }
+                    
+                    Spacer()
                 }
-                
-                Spacer()
+            } else if migraine.hasWeatherData {
+                // Show pressure even if no symptoms
+                HStack {
+                    PressureChangeBadge(
+                        pressureChangeHPa: migraine.weatherPressureChange24h,
+                        settings: settings
+                    )
+                    Spacer()
+                }
+            }
+            
+            // Medications row (horizontal list of medication names)
+            if !activeMedications.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "pill.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(.blue)
+                    
+                    Text(activeMedications.joined(separator: ", "))
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundColor(.blue)
+                        .lineLimit(2)
+                    
+                    Spacer()
+                }
+                .padding(.top, 4)
             }
             
             // Notes preview (if available)
@@ -227,6 +230,17 @@ struct MigraineRowView: View {
         migraine.hasAura || migraine.hasPhotophobia || migraine.hasPhonophobia ||
         migraine.hasNausea || migraine.hasVomiting || migraine.hasWakeUpHeadache ||
         migraine.hasTinnitus || migraine.hasVertigo
+    }
+    
+    // Primary symptoms to display on cards (the most common/important ones)
+    private var primarySymptoms: [String] {
+        var symptoms: [String] = []
+        if migraine.hasAura { symptoms.append("Aura") }
+        if migraine.hasPhotophobia { symptoms.append("Photophobia") }
+        if migraine.hasPhonophobia { symptoms.append("Phonophobia") }
+        if migraine.hasNausea { symptoms.append("Nausea") }
+        if migraine.hasVomiting { symptoms.append("Vomiting") }
+        return symptoms
     }
     
     // Accessibility helpers
@@ -410,5 +424,40 @@ struct SymptomTag: View {
         .padding(.vertical, 4)
         .background(color.opacity(0.1))
         .cornerRadius(8)
+    }
+}
+
+// MARK: - Pressure Change Badge
+struct PressureChangeBadge: View {
+    let pressureChangeHPa: Double
+    let settings: SettingsManager
+    
+    private var pressureChangeValue: Double {
+        settings.convertPressure(pressureChangeHPa)
+    }
+    
+    private var color: Color {
+        let absChange = abs(pressureChangeHPa)
+        if absChange < 2 {
+            return .green
+        } else if absChange < 5 {
+            return .orange
+        } else {
+            return .red
+        }
+    }
+    
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: pressureChangeHPa > 0 ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
+                .font(.system(size: 12))
+            Text(String(format: "%.1f", abs(pressureChangeValue)))
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+        }
+        .foregroundColor(color)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(color.opacity(0.15))
+        .clipShape(Capsule())
     }
 } 

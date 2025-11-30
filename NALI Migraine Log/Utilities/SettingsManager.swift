@@ -77,13 +77,13 @@ class SettingsManager: ObservableObject {
     
     // MARK: - Unit Conversion Helpers
     
-    /// Convert temperature from Celsius (stored value) to the user's preferred unit
-    func formatTemperature(_ celsius: Double) -> String {
+    /// Convert temperature from Fahrenheit (stored value) to the user's preferred unit
+    func formatTemperature(_ fahrenheit: Double) -> String {
         switch temperatureUnit {
         case .fahrenheit:
-            let fahrenheit = celsius * 9/5 + 32
             return String(format: "%.0f%@", fahrenheit, temperatureUnit.symbol)
         case .celsius:
+            let celsius = (fahrenheit - 32) * 5/9
             return String(format: "%.0f%@", celsius, temperatureUnit.symbol)
         }
     }
@@ -121,12 +121,12 @@ class SettingsManager: ObservableObject {
     }
     
     /// Get temperature value in user's preferred unit (for charts)
-    func convertTemperature(_ celsius: Double) -> Double {
+    func convertTemperature(_ fahrenheit: Double) -> Double {
         switch temperatureUnit {
         case .fahrenheit:
-            return celsius * 9/5 + 32
+            return fahrenheit
         case .celsius:
-            return celsius
+            return (fahrenheit - 32) * 5/9
         }
     }
 } 
