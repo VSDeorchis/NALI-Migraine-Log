@@ -1,6 +1,7 @@
 import SwiftUI
 import CoreLocation
 import UniformTypeIdentifiers
+import PDFKit
 
 struct SettingsView: View {
     @StateObject private var settings = SettingsManager.shared
@@ -26,7 +27,7 @@ struct SettingsView: View {
     
     enum ExportFormat: String, CaseIterable {
         case csv = "CSV"
-        case json = "JSON"
+        case pdf = "PDF"
     }
     
     var body: some View {
@@ -239,7 +240,7 @@ struct SettingsView: View {
         } header: {
             Text("Data Export")
         } footer: {
-            Text("Export your migraine history to share with healthcare providers or for personal backup. CSV format works with Excel and Google Sheets.")
+            Text("Export your migraine history to share with healthcare providers. PDF creates a formatted report; CSV works with Excel and Google Sheets.")
         }
     }
     
@@ -385,8 +386,8 @@ struct SettingsView: View {
             switch exportFormat {
             case .csv:
                 url = try await exportToCSV()
-            case .json:
-                url = try await exportToJSON()
+            case .pdf:
+                url = try await exportToPDF()
             }
             
             await MainActor.run {
@@ -505,103 +506,276 @@ struct SettingsView: View {
         return tempURL
     }
     
-    private func exportToJSON() async throws -> URL {
-        let dateFormatter = ISO8601DateFormatter()
+    private func exportToPDF() async throws -> URL {
         let fileDateFormatter = DateFormatter()
         fileDateFormatter.dateFormat = "yyyy-MM-dd"
         
-        var exportData: [[String: Any]] = []
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateStyle = .medium
+        dateFormatter.timeStyle = .short
         
-        for migraine in viewModel.migraines.sorted(by: { ($0.startTime ?? Date()) > ($1.startTime ?? Date()) }) {
-            var entry: [String: Any] = [:]
+        let sortedMigraines = viewModel.migraines.sorted { ($0.startTime ?? Date()) > ($1.startTime ?? Date()) }
+        
+        // Create PDF renderer
+        let pageWidth: CGFloat = 612  // US Letter width in points
+        let pageHeight: CGFloat = 792 // US Letter height in points
+        let margin: CGFloat = 50
+        let contentWidth = pageWidth - (margin * 2)
+        
+        let pdfRenderer = UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight))
+        
+        let data = pdfRenderer.pdfData { context in
+            var currentY: CGFloat = margin
+            var pageNumber = 1
             
-            entry["id"] = migraine.id?.uuidString ?? ""
-            entry["startTime"] = migraine.startTime.map { dateFormatter.string(from: $0) } ?? ""
-            entry["endTime"] = migraine.endTime.map { dateFormatter.string(from: $0) } ?? NSNull()
-            entry["painLevel"] = migraine.painLevel
-            entry["location"] = migraine.location ?? ""
-            
-            // Symptoms
-            entry["symptoms"] = [
-                "aura": migraine.hasAura,
-                "lightSensitivity": migraine.hasPhotophobia,
-                "soundSensitivity": migraine.hasPhonophobia,
-                "nausea": migraine.hasNausea,
-                "vomiting": migraine.hasVomiting,
-                "wakeUpHeadache": migraine.hasWakeUpHeadache,
-                "tinnitus": migraine.hasTinnitus,
-                "vertigo": migraine.hasVertigo
-            ]
-            
-            // Triggers
-            entry["triggers"] = [
-                "stress": migraine.isTriggerStress,
-                "lackOfSleep": migraine.isTriggerLackOfSleep,
-                "dehydration": migraine.isTriggerDehydration,
-                "weather": migraine.isTriggerWeather,
-                "hormones": migraine.isTriggerHormones,
-                "alcohol": migraine.isTriggerAlcohol,
-                "caffeine": migraine.isTriggerCaffeine,
-                "food": migraine.isTriggerFood,
-                "exercise": migraine.isTriggerExercise,
-                "screenTime": migraine.isTriggerScreenTime,
-                "other": migraine.isTriggerOther
-            ]
-            
-            // Medications
-            entry["medications"] = [
-                "ibuprofen": migraine.tookIbuprofin,
-                "excedrin": migraine.tookExcedrin,
-                "tylenol": migraine.tookTylenol,
-                "sumatriptan": migraine.tookSumatriptan,
-                "rizatriptan": migraine.tookRizatriptan,
-                "naproxen": migraine.tookNaproxen,
-                "frovatriptan": migraine.tookFrovatriptan,
-                "naratriptan": migraine.tookNaratriptan,
-                "nurtec": migraine.tookNurtec,
-                "ubrelvy": migraine.tookUbrelvy,
-                "reyvow": migraine.tookReyvow,
-                "trudhesa": migraine.tookTrudhesa,
-                "elyxyb": migraine.tookElyxyb,
-                "other": migraine.tookOther
-            ]
-            
-            // Impact
-            entry["impact"] = [
-                "missedWork": migraine.missedWork,
-                "missedSchool": migraine.missedSchool,
-                "missedEvents": migraine.missedEvents
-            ]
-            
-            // Weather
-            if migraine.hasWeatherData {
-                entry["weather"] = [
-                    "temperature": migraine.weatherTemperature,
-                    "pressure": migraine.weatherPressure,
-                    "pressureChange24h": migraine.weatherPressureChange24h,
-                    "condition": WeatherService.weatherCondition(for: Int(migraine.weatherCode)),
-                    "weatherCode": migraine.weatherCode
-                ]
+            // Helper to start a new page
+            func startNewPage() {
+                context.beginPage()
+                currentY = margin
+                pageNumber += 1
             }
             
-            entry["notes"] = migraine.notes ?? ""
+            // Helper to check if we need a new page
+            func checkPageBreak(neededHeight: CGFloat) {
+                if currentY + neededHeight > pageHeight - margin {
+                    startNewPage()
+                }
+            }
             
-            exportData.append(entry)
+            // Text styles
+            let titleFont = UIFont.systemFont(ofSize: 24, weight: .bold)
+            let headerFont = UIFont.systemFont(ofSize: 14, weight: .semibold)
+            let bodyFont = UIFont.systemFont(ofSize: 11)
+            let captionFont = UIFont.systemFont(ofSize: 9)
+            
+            let titleStyle = NSMutableParagraphStyle()
+            titleStyle.alignment = .center
+            
+            let leftStyle = NSMutableParagraphStyle()
+            leftStyle.alignment = .left
+            
+            // Start first page
+            context.beginPage()
+            
+            // Title
+            let title = "Migraine History Report"
+            let titleAttrs: [NSAttributedString.Key: Any] = [
+                .font: titleFont,
+                .foregroundColor: UIColor.black,
+                .paragraphStyle: titleStyle
+            ]
+            title.draw(in: CGRect(x: margin, y: currentY, width: contentWidth, height: 30), withAttributes: titleAttrs)
+            currentY += 40
+            
+            // Privacy warning
+            let warningAttrs: [NSAttributedString.Key: Any] = [
+                .font: captionFont,
+                .foregroundColor: UIColor.darkGray,
+                .paragraphStyle: titleStyle
+            ]
+            let warning = "⚠️ CONFIDENTIAL HEALTH INFORMATION - Handle with care and delete after use"
+            warning.draw(in: CGRect(x: margin, y: currentY, width: contentWidth, height: 20), withAttributes: warningAttrs)
+            currentY += 30
+            
+            // Export info
+            let infoAttrs: [NSAttributedString.Key: Any] = [
+                .font: captionFont,
+                .foregroundColor: UIColor.gray,
+                .paragraphStyle: titleStyle
+            ]
+            let exportInfo = "Generated: \(dateFormatter.string(from: Date())) • Total Entries: \(sortedMigraines.count)"
+            exportInfo.draw(in: CGRect(x: margin, y: currentY, width: contentWidth, height: 15), withAttributes: infoAttrs)
+            currentY += 30
+            
+            // Divider
+            UIColor.lightGray.setStroke()
+            let dividerPath = UIBezierPath()
+            dividerPath.move(to: CGPoint(x: margin, y: currentY))
+            dividerPath.addLine(to: CGPoint(x: pageWidth - margin, y: currentY))
+            dividerPath.lineWidth = 0.5
+            dividerPath.stroke()
+            currentY += 20
+            
+            // Summary section
+            let summaryHeaderAttrs: [NSAttributedString.Key: Any] = [
+                .font: headerFont,
+                .foregroundColor: UIColor.black,
+                .paragraphStyle: leftStyle
+            ]
+            "SUMMARY".draw(in: CGRect(x: margin, y: currentY, width: contentWidth, height: 20), withAttributes: summaryHeaderAttrs)
+            currentY += 25
+            
+            // Calculate summary stats
+            let totalMigraines = sortedMigraines.count
+            let avgPain = totalMigraines > 0 ? Double(sortedMigraines.reduce(0) { $0 + Int($1.painLevel) }) / Double(totalMigraines) : 0
+            let withAura = sortedMigraines.filter { $0.hasAura }.count
+            let missedWorkCount = sortedMigraines.filter { $0.missedWork }.count
+            
+            let summaryAttrs: [NSAttributedString.Key: Any] = [
+                .font: bodyFont,
+                .foregroundColor: UIColor.darkGray,
+                .paragraphStyle: leftStyle
+            ]
+            
+            let summaryText = """
+            • Total migraine episodes recorded: \(totalMigraines)
+            • Average pain level: \(String(format: "%.1f", avgPain))/10
+            • Episodes with aura: \(withAura) (\(totalMigraines > 0 ? Int(Double(withAura)/Double(totalMigraines)*100) : 0)%)
+            • Missed work/school events: \(missedWorkCount)
+            """
+            summaryText.draw(in: CGRect(x: margin, y: currentY, width: contentWidth, height: 80), withAttributes: summaryAttrs)
+            currentY += 90
+            
+            // Divider
+            UIColor.lightGray.setStroke()
+            let divider2 = UIBezierPath()
+            divider2.move(to: CGPoint(x: margin, y: currentY))
+            divider2.addLine(to: CGPoint(x: pageWidth - margin, y: currentY))
+            divider2.lineWidth = 0.5
+            divider2.stroke()
+            currentY += 20
+            
+            // Individual entries
+            "DETAILED MIGRAINE LOG".draw(in: CGRect(x: margin, y: currentY, width: contentWidth, height: 20), withAttributes: summaryHeaderAttrs)
+            currentY += 30
+            
+            for (index, migraine) in sortedMigraines.enumerated() {
+                // Estimate height needed for this entry
+                let entryHeight: CGFloat = 140
+                checkPageBreak(neededHeight: entryHeight)
+                
+                // Entry header with date and pain level
+                let dateStr = migraine.startTime.map { dateFormatter.string(from: $0) } ?? "Unknown date"
+                let entryHeader = "#\(index + 1) - \(dateStr)"
+                let entryHeaderAttrs: [NSAttributedString.Key: Any] = [
+                    .font: headerFont,
+                    .foregroundColor: UIColor.black,
+                    .paragraphStyle: leftStyle
+                ]
+                entryHeader.draw(in: CGRect(x: margin, y: currentY, width: contentWidth - 80, height: 18), withAttributes: entryHeaderAttrs)
+                
+                // Pain level badge
+                let painText = "Pain: \(migraine.painLevel)/10"
+                let painColor: UIColor = migraine.painLevel >= 7 ? .systemRed : (migraine.painLevel >= 4 ? .systemOrange : .systemGreen)
+                let painAttrs: [NSAttributedString.Key: Any] = [
+                    .font: headerFont,
+                    .foregroundColor: painColor
+                ]
+                painText.draw(in: CGRect(x: pageWidth - margin - 70, y: currentY, width: 70, height: 18), withAttributes: painAttrs)
+                currentY += 22
+                
+                // Location
+                if let location = migraine.location, !location.isEmpty {
+                    let locationText = "📍 \(location)"
+                    locationText.draw(in: CGRect(x: margin, y: currentY, width: contentWidth, height: 15), withAttributes: summaryAttrs)
+                    currentY += 18
+                }
+                
+                // Symptoms
+                var symptoms: [String] = []
+                if migraine.hasAura { symptoms.append("Aura") }
+                if migraine.hasPhotophobia { symptoms.append("Light sensitivity") }
+                if migraine.hasPhonophobia { symptoms.append("Sound sensitivity") }
+                if migraine.hasNausea { symptoms.append("Nausea") }
+                if migraine.hasVomiting { symptoms.append("Vomiting") }
+                if migraine.hasVertigo { symptoms.append("Vertigo") }
+                if migraine.hasTinnitus { symptoms.append("Tinnitus") }
+                if migraine.hasWakeUpHeadache { symptoms.append("Wake-up headache") }
+                
+                if !symptoms.isEmpty {
+                    let symptomsText = "Symptoms: \(symptoms.joined(separator: ", "))"
+                    symptomsText.draw(in: CGRect(x: margin, y: currentY, width: contentWidth, height: 30), withAttributes: summaryAttrs)
+                    currentY += symptoms.count > 4 ? 35 : 20
+                }
+                
+                // Triggers
+                var triggers: [String] = []
+                if migraine.isTriggerStress { triggers.append("Stress") }
+                if migraine.isTriggerLackOfSleep { triggers.append("Lack of sleep") }
+                if migraine.isTriggerDehydration { triggers.append("Dehydration") }
+                if migraine.isTriggerWeather { triggers.append("Weather") }
+                if migraine.isTriggerHormones { triggers.append("Hormones") }
+                if migraine.isTriggerAlcohol { triggers.append("Alcohol") }
+                if migraine.isTriggerCaffeine { triggers.append("Caffeine") }
+                if migraine.isTriggerFood { triggers.append("Food") }
+                if migraine.isTriggerExercise { triggers.append("Exercise") }
+                if migraine.isTriggerScreenTime { triggers.append("Screen time") }
+                if migraine.isTriggerOther { triggers.append("Other") }
+                
+                if !triggers.isEmpty {
+                    let triggersText = "Triggers: \(triggers.joined(separator: ", "))"
+                    triggersText.draw(in: CGRect(x: margin, y: currentY, width: contentWidth, height: 30), withAttributes: summaryAttrs)
+                    currentY += triggers.count > 4 ? 35 : 20
+                }
+                
+                // Medications
+                var meds: [String] = []
+                if migraine.tookIbuprofin { meds.append("Ibuprofen") }
+                if migraine.tookExcedrin { meds.append("Excedrin") }
+                if migraine.tookTylenol { meds.append("Tylenol") }
+                if migraine.tookSumatriptan { meds.append("Sumatriptan") }
+                if migraine.tookRizatriptan { meds.append("Rizatriptan") }
+                if migraine.tookNaproxen { meds.append("Naproxen") }
+                if migraine.tookFrovatriptan { meds.append("Frovatriptan") }
+                if migraine.tookNaratriptan { meds.append("Naratriptan") }
+                if migraine.tookNurtec { meds.append("Nurtec") }
+                if migraine.tookUbrelvy { meds.append("Ubrelvy") }
+                if migraine.tookReyvow { meds.append("Reyvow") }
+                if migraine.tookTrudhesa { meds.append("Trudhesa") }
+                if migraine.tookElyxyb { meds.append("Elyxyb") }
+                if migraine.tookOther { meds.append("Other") }
+                
+                if !meds.isEmpty {
+                    let medsText = "Medications: \(meds.joined(separator: ", "))"
+                    medsText.draw(in: CGRect(x: margin, y: currentY, width: contentWidth, height: 30), withAttributes: summaryAttrs)
+                    currentY += meds.count > 4 ? 35 : 20
+                }
+                
+                // Weather data
+                if migraine.hasWeatherData {
+                    let tempF = migraine.weatherTemperature * 9/5 + 32
+                    let pressureChange = migraine.weatherPressureChange24h
+                    let changeIndicator = pressureChange > 2 ? "↑" : (pressureChange < -2 ? "↓" : "→")
+                    let weatherText = "Weather: \(String(format: "%.0f", tempF))°F, \(String(format: "%.1f", migraine.weatherPressure)) hPa (\(changeIndicator)\(String(format: "%.1f", abs(pressureChange))) hPa/24h)"
+                    weatherText.draw(in: CGRect(x: margin, y: currentY, width: contentWidth, height: 15), withAttributes: summaryAttrs)
+                    currentY += 20
+                }
+                
+                // Notes
+                if let notes = migraine.notes, !notes.isEmpty {
+                    let notesText = "Notes: \(notes)"
+                    let notesRect = CGRect(x: margin, y: currentY, width: contentWidth, height: 40)
+                    notesText.draw(in: notesRect, withAttributes: summaryAttrs)
+                    currentY += 45
+                }
+                
+                // Entry divider
+                currentY += 5
+                UIColor(white: 0.9, alpha: 1).setStroke()
+                let entryDivider = UIBezierPath()
+                entryDivider.move(to: CGPoint(x: margin + 20, y: currentY))
+                entryDivider.addLine(to: CGPoint(x: pageWidth - margin - 20, y: currentY))
+                entryDivider.lineWidth = 0.3
+                entryDivider.stroke()
+                currentY += 15
+            }
+            
+            // Footer on last page
+            checkPageBreak(neededHeight: 50)
+            currentY = pageHeight - margin - 30
+            
+            let footerAttrs: [NSAttributedString.Key: Any] = [
+                .font: captionFont,
+                .foregroundColor: UIColor.gray,
+                .paragraphStyle: titleStyle
+            ]
+            let footer = "Generated by Headway Migraine Log • This document contains sensitive health information"
+            footer.draw(in: CGRect(x: margin, y: currentY, width: contentWidth, height: 20), withAttributes: footerAttrs)
         }
         
-        let wrapper: [String: Any] = [
-            "exportDate": dateFormatter.string(from: Date()),
-            "appVersion": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown",
-            "totalEntries": exportData.count,
-            "privacyNotice": "This file contains unencrypted health data. Handle with care and delete after use.",
-            "migraines": exportData
-        ]
-        
-        let jsonData = try JSONSerialization.data(withJSONObject: wrapper, options: [.prettyPrinted, .sortedKeys])
-        
-        let fileName = "Headway_Migraine_Export_\(fileDateFormatter.string(from: Date())).json"
+        let fileName = "Headway_Migraine_Report_\(fileDateFormatter.string(from: Date())).pdf"
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-        try jsonData.write(to: tempURL)
+        try data.write(to: tempURL)
         
         return tempURL
     }
