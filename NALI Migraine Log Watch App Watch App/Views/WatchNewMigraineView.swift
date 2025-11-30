@@ -1,15 +1,15 @@
 import SwiftUI
-import WatchConnectivity
-// Add import if models are in a separate module
-// import NALIMigraineLogShared
+import CoreData
 
 struct WatchNewMigraineView: View {
-    @EnvironmentObject var migraineStore: MigraineStore
+    @ObservedObject var viewModel: MigraineViewModel
     @Environment(\.dismiss) var dismiss
     
-    @State private var painLevel = 5
-    @State private var location: PainLocation = .frontal
-    @State private var selectedTriggers: Set<Trigger> = []
+    @State private var startTime = Date()
+    @State private var endTime: Date?
+    @State private var painLevel: Int16 = 5
+    @State private var location = "Frontal"
+    @State private var selectedTriggers: Set<String> = []
     @State private var hasAura = false
     @State private var hasPhotophobia = false
     @State private var hasPhonophobia = false
@@ -17,14 +17,17 @@ struct WatchNewMigraineView: View {
     @State private var hasVomiting = false
     @State private var hasWakeUpHeadache = false
     @State private var hasTinnitus = false
-    @State private var selectedMedications: Set<Medication> = []
-    @State private var currentSection = 0
     @State private var hasVertigo = false
     @State private var missedWork = false
     @State private var missedSchool = false
     @State private var missedEvents = false
+    @State private var selectedMedications: Set<String> = []
+    @State private var currentSection = 0
+    @State private var notes = ""
     
-    let sections = ["Pain", "Triggers", "Symptoms", "Quality of Life", "Medications"]
+    private let locations = ["Frontal", "Temporal", "Occipital", "Orbital", "Whole Head"]
+    private let triggers = ["Stress", "Sleep Changes", "Weather", "Food", "Caffeine", "Alcohol", "Exercise", "Screen Time", "Hormonal", "Other"]
+    private let medications = ["Sumatriptan", "Rizatriptan", "Frovatriptan", "Naratriptan", "Ubrelvy", "Nurtec", "Tylenol", "Advil", "Excedrin", "Other"]
     
     var body: some View {
         TabView(selection: $currentSection) {
@@ -42,8 +45,8 @@ struct WatchNewMigraineView: View {
                 .labelsHidden()
                 
                 Picker("Location", selection: $location) {
-                    ForEach(PainLocation.allCases, id: \.self) { location in
-                        Text(location.rawValue)
+                    ForEach(locations, id: \.self) { location in
+                        Text(location)
                             .tag(location)
                     }
                 }
@@ -54,8 +57,8 @@ struct WatchNewMigraineView: View {
             // Triggers Section
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    ForEach(Trigger.allCases, id: \.self) { trigger in
-                        Toggle(trigger.rawValue, isOn: Binding(
+                    ForEach(triggers, id: \.self) { trigger in
+                        Toggle(trigger, isOn: Binding(
                             get: { selectedTriggers.contains(trigger) },
                             set: { isSelected in
                                 if isSelected {
@@ -101,8 +104,8 @@ struct WatchNewMigraineView: View {
             // Medications Section
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    ForEach(Medication.allCases, id: \.self) { medication in
-                        Toggle(medication.rawValue, isOn: Binding(
+                    ForEach(medications, id: \.self) { medication in
+                        Toggle(medication, isOn: Binding(
                             get: { selectedMedications.contains(medication) },
                             set: { isSelected in
                                 if isSelected {
@@ -118,37 +121,53 @@ struct WatchNewMigraineView: View {
             }
             .tag(4)
             
+            // Notes Section
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Notes")
+                        .font(.headline)
+                    TextField("Add notes here", text: $notes)
+                        .font(.body)
+                }
+                .padding()
+            }
+            .tag(5)
+            
             // Save Button
             Button("Save Entry") {
-                // Ensure we don't save future dates
-                let now = Date()
-                let migraine = MigraineEvent(
-                    startTime: min(now, Date()),  // Ensures start time isn't in future
-                    painLevel: painLevel,
-                    location: location,
-                    triggers: selectedTriggers,
-                    hasPhotophobia: hasPhotophobia,
-                    hasPhonophobia: hasPhonophobia,
-                    hasNausea: hasNausea,
-                    hasVomiting: hasVomiting,
-                    hasAura: hasAura,
-                    hasWakeUpHeadache: hasWakeUpHeadache,
-                    hasTinnitus: hasTinnitus,
-                    hasVertigo: hasVertigo,
-                    missedWork: missedWork,
-                    missedSchool: missedSchool,
-                    missedEvents: missedEvents,
-                    medications: selectedMedications
-                )
-                migraineStore.addMigraine(migraine)
-                dismiss()
+                saveMigraine()
             }
             .buttonStyle(.bordered)
             .tint(.blue)
             .font(.title3)
-            .tag(5)
         }
         .tabViewStyle(.page)
         .navigationTitle("New Entry")
+    }
+    
+    private func saveMigraine() {
+        Task {
+            await viewModel.addMigraine(
+                startTime: startTime,
+                endTime: endTime,
+                painLevel: painLevel,
+                location: location,
+                triggers: Array(selectedTriggers),
+                hasAura: hasAura,
+                hasPhotophobia: hasPhotophobia,
+                hasPhonophobia: hasPhonophobia,
+                hasNausea: hasNausea,
+                hasVomiting: hasVomiting,
+                hasWakeUpHeadache: hasWakeUpHeadache,
+                hasTinnitus: hasTinnitus,
+                hasVertigo: hasVertigo,
+                missedWork: missedWork,
+                missedSchool: missedSchool,
+                missedEvents: missedEvents,
+                medications: Array(selectedMedications),
+                notes: notes.isEmpty ? nil : notes
+            )
+            dismiss()
+        }
     }
 } 

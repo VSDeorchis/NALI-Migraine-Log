@@ -4,10 +4,20 @@
 <dict>
 	<key>SchemeUserState</key>
 	<dict>
+		<key>NALI Migraine Log Debug.xcscheme_^#shared#^_</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>2</integer>
+		</dict>
 		<key>NALI Migraine Log Watch App Watch App.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
 			<integer>1</integer>
+		</dict>
+		<key>NALI Migraine Log macOS.xcscheme_^#shared#^_</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>3</integer>
 		</dict>
 		<key>NALI Migraine Log.xcscheme_^#shared#^_</key>
 		<dict>
@@ -28,6 +38,21 @@
 			<true/>
 		</dict>
 		<key>693E7D012D46DA6E00E30E9C</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>69782C9D2D4727B30078C9C0</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>69782CAC2D4727B40078C9C0</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>69782CB62D4727B40078C9C0</key>
 		<dict>
 			<key>primary</key>
 			<true/>

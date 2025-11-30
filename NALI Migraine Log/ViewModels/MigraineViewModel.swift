@@ -6,6 +6,7 @@ import UIKit
 #elseif os(macOS)
 import AppKit
 #endif
+import OSLog
 
 enum MigraineError: LocalizedError {
     case saveFailed(Error)
@@ -33,14 +34,25 @@ class MigraineViewModel: NSObject, ObservableObject {
     
     @Published private(set) var migraines: [MigraineEvent] = []
     @Published private(set) var lastError: MigraineError?
-    @Published private(set) var syncStatus: PersistenceController.SyncStatus = .notConfigured
+    @Published private(set) var syncStatus: SyncStatus = .notConfigured
     @Published private(set) var lastSyncTime: Date?
+    @Published var weatherFetchStatus: WeatherFetchStatus = .idle
     private var pendingChanges: Int = 0
+    
+    enum WeatherFetchStatus: Equatable {
+        case idle
+        case fetching
+        case success
+        case failed(String)
+        case locationDenied
+    }
     
     private var cancellables = Set<AnyCancellable>()
     
     private let viewContext: NSManagedObjectContext
     private var fetchedResultsController: NSFetchedResultsController<MigraineEvent>?
+    
+    private let migraineLog = Logger(subsystem: "com.neuroli.Headway", category: "MigraineVM")
     
     // Update these constants
     let locations = [
@@ -52,29 +64,43 @@ class MigraineViewModel: NSObject, ObservableObject {
     ]
 
     let triggers = [
-        "Stress", "Sleep Changes", "Weather", "Food", 
-        "Caffeine", "Alcohol", "Exercise", "Screen Time", 
-        "Hormonal", "Other"
+        "Stress",
+        "Lack of Sleep",
+        "Dehydration",
+        "Weather",
+        "Hormones",
+        "Alcohol",
+        "Caffeine",
+        "Food",
+        "Exercise",
+        "Screen Time",
+        "Other"
     ]
     
     let medications = [
+        "Ibuprofen",
+        "Excedrin",
+        "Tylenol",
         "Sumatriptan",
         "Rizatriptan",
+        "Naproxen",
         "Frovatriptan",
         "Naratriptan",
-        "Ubrelvy (Ubrogepant)",
-        "Nurtec (Rimegepant)",
-        "Trudhesa (Dihydroergotamine)",
-        "Reyvow (Lasmiditan)",
-        "Elyxyb (Celecoxib)",
-        "Tylenol",
-        "Advil",
-        "Excedrin",
+        "Nurtec",
+        "Ubrelvy",
+        "Reyvow",
+        "Trudhesa",
+        "Elyxyb",
         "Other"
     ]
     
     private var autoSyncTimer: Timer?
     private let autoSyncInterval: TimeInterval = 300 // 5 minutes
+    
+    // Add caching for chart data
+    private var chartDataCache: [String: Any] = [:]
+    private var lastChartUpdateTime: Date?
+    private let chartCacheTimeout: TimeInterval = 5 // 5 seconds
     
     init(context: NSManagedObjectContext) {
         self.viewContext = context
@@ -145,7 +171,21 @@ class MigraineViewModel: NSObject, ObservableObject {
     func fetchMigraines() {
         do {
             try fetchedResultsController?.performFetch()
-            migraines = fetchedResultsController?.fetchedObjects ?? []
+            let newMigraines = fetchedResultsController?.fetchedObjects ?? []
+            
+            // Only update if there are actual changes
+            if newMigraines != migraines {
+                // Ensure every migraine has a stable UUID for SwiftUI Identifiable
+                for migraine in newMigraines where migraine.id == nil {
+                    migraine.id = UUID()
+                }
+                // Persist any newly-assigned IDs
+                if viewContext.hasChanges {
+                    try? viewContext.save()
+                }
+                migraines = newMigraines
+                invalidateCache()
+            }
         } catch {
             lastError = .fetchFailed(error)
             print("Error fetching migraines: \(error)")
@@ -166,72 +206,14 @@ class MigraineViewModel: NSObject, ObservableObject {
         }
     }
     
+    @MainActor
+    @discardableResult
     func addMigraine(
         startTime: Date,
         endTime: Date?,
         painLevel: Int16,
         location: String,
         triggers: [String],
-        medications: [String],
-        notes: String?
-    ) {
-        let migraine = MigraineEvent(context: viewContext)
-        migraine.id = UUID()
-        migraine.startTime = startTime
-        migraine.endTime = endTime
-        migraine.painLevel = painLevel
-        migraine.location = location
-        migraine.notes = notes
-        
-        // Create and associate triggers
-        let triggerEntities = triggers.map { triggerName -> TriggerEntity in
-            let trigger = TriggerEntity(context: viewContext)
-            trigger.id = UUID()
-            trigger.name = triggerName
-            trigger.migraine = migraine
-            return trigger
-        }
-        migraine.mutableSetValue(forKey: "triggers").addObjects(from: triggerEntities)
-        
-        // Create and associate medications
-        let medicationEntities = medications.map { medicationName -> MedicationEntity in
-            let medication = MedicationEntity(context: viewContext)
-            medication.id = UUID()
-            medication.name = medicationName
-            medication.migraine = migraine
-            return medication
-        }
-        migraine.mutableSetValue(forKey: "medications").addObjects(from: medicationEntities)
-        
-        // Save and verify
-        do {
-            try viewContext.save()
-            print("DEBUG: Successfully saved migraine with:")
-            print("- Triggers: \(triggers)")
-            print("- Medications: \(medications)")
-            
-            // Verify the relationships were saved
-            if let savedTriggers = migraine.triggers as? Set<TriggerEntity> {
-                print("DEBUG: Verified triggers: \(savedTriggers.compactMap { $0.name })")
-            }
-            if let savedMedications = migraine.medications as? Set<MedicationEntity> {
-                print("DEBUG: Verified medications: \(savedMedications.compactMap { $0.name })")
-            }
-            
-            objectWillChange.send()
-            fetchMigraines()
-        } catch {
-            print("ERROR: Failed to save migraine: \(error)")
-        }
-    }
-    
-    func updateMigraine(
-        _ migraine: MigraineEvent,
-        startTime: Date,
-        endTime: Date?,
-        painLevel: Int,
-        location: String,
-        triggers: Set<String>,
         hasAura: Bool,
         hasPhotophobia: Bool,
         hasPhonophobia: Bool,
@@ -243,17 +225,25 @@ class MigraineViewModel: NSObject, ObservableObject {
         missedWork: Bool,
         missedSchool: Bool,
         missedEvents: Bool,
-        medications: Set<String>,
+        medications: [String],
         notes: String?
-    ) {
-        switch validateMigraine(startTime: startTime, endTime: endTime, painLevel: painLevel) {
-        case .success:
-            // Update basic properties
+    ) async -> MigraineEvent? {
+        NSLog("🟢 [MigraineViewModel] addMigraine called")
+        migraineLog.debug("💾 addMigraine called at \(Date(), privacy: .public)")
+
+        // Create and save migraine - must be called from main thread
+        NSLog("🟢 [MigraineViewModel] Thread check - isMain: \(Thread.isMainThread)")
+        
+        NSLog("🟢 [MigraineViewModel] Creating MigraineEvent...")
+            let migraine = MigraineEvent(context: viewContext)
+            migraine.id = UUID()
             migraine.startTime = startTime
             migraine.endTime = endTime
-            migraine.painLevel = Int16(painLevel)
+            migraine.painLevel = painLevel
             migraine.location = location
             migraine.notes = notes
+            
+            // Set boolean properties
             migraine.hasAura = hasAura
             migraine.hasPhotophobia = hasPhotophobia
             migraine.hasPhonophobia = hasPhonophobia
@@ -266,21 +256,424 @@ class MigraineViewModel: NSObject, ObservableObject {
             migraine.missedSchool = missedSchool
             migraine.missedEvents = missedEvents
             
-            let userNotes = notes ?? ""
-            let tempData = [
-                "triggers": Array(triggers),
-                "medications": Array(medications)
-            ]
-            if let jsonData = try? JSONSerialization.data(withJSONObject: tempData),
-               let jsonString = String(data: jsonData, encoding: .utf8) {
-                migraine.notes = userNotes + "\n\nTEMP_DATA:" + jsonString
+            // Set trigger booleans
+            migraine.isTriggerStress = triggers.contains("Stress")
+            migraine.isTriggerLackOfSleep = triggers.contains("Lack of Sleep")
+            migraine.isTriggerDehydration = triggers.contains("Dehydration")
+            migraine.isTriggerWeather = triggers.contains("Weather")
+            migraine.isTriggerHormones = triggers.contains("Hormones")
+            migraine.isTriggerAlcohol = triggers.contains("Alcohol")
+            migraine.isTriggerCaffeine = triggers.contains("Caffeine")
+            migraine.isTriggerFood = triggers.contains("Food")
+            migraine.isTriggerExercise = triggers.contains("Exercise")
+            migraine.isTriggerScreenTime = triggers.contains("Screen Time")
+            migraine.isTriggerOther = triggers.contains("Other")
+            
+            // Set medication booleans
+            migraine.tookIbuprofin = medications.contains("Ibuprofen")
+            migraine.tookExcedrin = medications.contains("Excedrin")
+            migraine.tookTylenol = medications.contains("Tylenol")
+            migraine.tookSumatriptan = medications.contains("Sumatriptan")
+            migraine.tookRizatriptan = medications.contains("Rizatriptan")
+            migraine.tookNaproxen = medications.contains("Naproxen")
+            migraine.tookFrovatriptan = medications.contains("Frovatriptan")
+            migraine.tookNaratriptan = medications.contains("Naratriptan")
+            migraine.tookNurtec = medications.contains("Nurtec")
+            migraine.tookUbrelvy = medications.contains("Ubrelvy")
+            migraine.tookReyvow = medications.contains("Reyvow")
+            migraine.tookTrudhesa = medications.contains("Trudhesa")
+            migraine.tookElyxyb = medications.contains("Elyxyb")
+            migraine.tookOther = medications.contains("Other")
+            
+        // Save immediately - disable automatic merging temporarily to avoid deadlock
+        NSLog("🟢 [MigraineViewModel] About to save to Core Data...")
+        
+        // Ensure all default values are set before saving
+        migraine.hasWeatherData = false
+        migraine.weatherTemperature = 0
+        migraine.weatherPressure = 0
+        migraine.weatherPressureChange24h = 0
+        migraine.weatherPrecipitation = 0
+        migraine.weatherCloudCover = 0
+        migraine.weatherCode = 0
+        migraine.weatherLatitude = 0
+        migraine.weatherLongitude = 0
+        
+        // Temporarily disable automatic merging to prevent deadlock
+        let originalMergesSetting = viewContext.automaticallyMergesChangesFromParent
+        viewContext.automaticallyMergesChangesFromParent = false
+        
+        do {
+            migraineLog.debug("Saving initial migraine to Core Data")
+            NSLog("🟢 [MigraineViewModel] Calling viewContext.save()...")
+                try viewContext.save()
+            NSLog("🟢 [MigraineViewModel] Core Data save succeeded")
+            
+            // Re-enable automatic merging
+            viewContext.automaticallyMergesChangesFromParent = originalMergesSetting
+            
+            // Refresh the object to ensure it's not a fault
+            viewContext.refresh(migraine, mergeChanges: false)
+            NSLog("🟢 [MigraineViewModel] Object refreshed, isFault: \(migraine.isFault)")
+            
+            NSLog("🟢 [MigraineViewModel] Inserting into migraines array...")
+                migraines.insert(migraine, at: 0)
+            NSLog("🟢 [MigraineViewModel] Insert completed. Array now has %d items", migraines.count)
+            
+            migraineLog.debug("Initial save succeeded – id: \(migraine.id?.uuidString ?? "nil", privacy: .public)")
+            NSLog("✅ Migraine saved (initial data) – permanent ID assigned")
+            } catch {
+            // Re-enable automatic merging even on error
+            viewContext.automaticallyMergesChangesFromParent = originalMergesSetting
+            NSLog("❌ Failed to save migraine: %@", error.localizedDescription)
+                return nil
+            }
+        
+        NSLog("🟢 [MigraineViewModel] Save succeeded, migraine ID: %@", migraine.id?.uuidString ?? "nil")
+
+        // Kick off weather fetch on a background task; don't block caller
+        NSLog("🟢 [MigraineViewModel] Starting weather fetch task...")
+        Task { [weak self] in
+            NSLog("🌤️ [Weather Task] Weather fetch task started")
+            migraineLog.debug("Starting weather fetch task")
+            await self?.fetchWeatherData(for: migraine)
+            NSLog("🌤️ [Weather Task] fetchWeatherData completed")
+            await MainActor.run {
+                do {
+                    NSLog("🌤️ [Weather Task] Saving weather data to Core Data...")
+                    migraineLog.debug("Saving weather data for migraine id \(migraine.id?.uuidString ?? "nil", privacy: .public)")
+                    try self?.viewContext.save()
+                    NSLog("🌤️ [Weather Task] Weather data saved successfully")
+                    migraineLog.debug("Weather data save succeeded")
+                } catch {
+                    NSLog("🔴 [Weather Task] Failed to save weather data: %@", error.localizedDescription)
+                    migraineLog.error("Failed to save weather data: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+        }
+
+        NSLog("🟢 [MigraineViewModel] addMigraine returning migraine")
+        migraineLog.debug("addMigraine returning")
+        return migraine
+    }
+    
+    // MARK: - Weather Integration
+    
+    /// Fetch weather data for a migraine event
+    private func fetchWeatherData(for migraine: MigraineEvent) async {
+        migraineLog.debug("🌤️ fetchWeatherData started for migraine id \(migraine.id?.uuidString ?? "nil", privacy: .public)")
+        guard let startTime = migraine.startTime else {
+            migraineLog.error("No start time; aborting weather fetch")
+            await MainActor.run {
+                weatherFetchStatus = .failed("No start time available")
+            }
+            return
+        }
+        
+        await MainActor.run {
+            weatherFetchStatus = .fetching
+        }
+        
+        do {
+            // Try to get current location
+            migraineLog.debug("Requesting current location")
+            let location = try await LocationManager.shared.getCurrentLocation()
+            let latitude = location.coordinate.latitude
+            let longitude = location.coordinate.longitude
+            
+            print("📍 Fetching weather for location: \(latitude), \(longitude)")
+            
+            // Fetch weather snapshot with timeout
+            let snapshot = try await withTimeout(seconds: 10) {
+                try await WeatherService.shared.fetchWeatherSnapshot(
+                    for: startTime,
+                    latitude: latitude,
+                    longitude: longitude
+                )
+            }
+            migraineLog.debug("Weather snapshot received; updating migraine")
+            
+            // Update migraine with weather data
+            await MainActor.run {
+                migraine.updateWeatherData(from: snapshot)
+                migraine.updateWeatherLocation(latitude: latitude, longitude: longitude)
+                weatherFetchStatus = .success
+                print("🌤️ Weather data added: \(snapshot.weatherCondition), \(Int(snapshot.temperature))°F, Pressure change: \(String(format: "%.1f", snapshot.pressureChange24h)) hPa")
             }
             
-            save()
+            // Reset status after 3 seconds
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            await MainActor.run {
+                weatherFetchStatus = .idle
+            }
             
-        case .failure(let error):
-            lastError = error
-            print("Validation error: \(error.localizedDescription)")
+        } catch LocationError.unauthorized {
+            print("⚠️ Location access not authorized - weather data not available")
+            await MainActor.run {
+                weatherFetchStatus = .locationDenied
+            }
+            // Reset after 5 seconds
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            await MainActor.run {
+                weatherFetchStatus = .idle
+            }
+        } catch is TimeoutError {
+            print("⚠️ Weather fetch timed out - API may be slow or unavailable")
+            await MainActor.run {
+                weatherFetchStatus = .failed("Weather service timed out")
+            }
+            // Reset after 3 seconds
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            await MainActor.run {
+                weatherFetchStatus = .idle
+            }
+        } catch {
+            migraineLog.error("Weather fetch failed: \(error.localizedDescription, privacy: .public)")
+            await MainActor.run {
+                weatherFetchStatus = .failed(error.localizedDescription)
+            }
+            // Reset after 3 seconds
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            await MainActor.run {
+                weatherFetchStatus = .idle
+            }
+        }
+    }
+    
+    /// Helper function to add timeout to async operations
+    private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw TimeoutError()
+            }
+            
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
+        }
+    }
+    
+    struct TimeoutError: Error {}
+    
+    /// Retry fetching weather data for a migraine (manual retry)
+    @MainActor
+    func retryWeatherFetch(for migraine: MigraineEvent) async {
+        guard !migraine.hasWeatherData else {
+            print("⚠️ Migraine already has weather data")
+            return
+        }
+        
+        print("🔄 Retrying weather fetch for migraine...")
+        await fetchWeatherData(for: migraine)
+        
+        // Save after fetching
+        do {
+            try viewContext.save()
+            print("✅ Weather data saved after retry")
+        } catch {
+            print("❌ Failed to save weather data after retry: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Fetch weather data for a specific location (manual override)
+    @MainActor
+    func fetchWeatherForCustomLocation(
+        for migraine: MigraineEvent,
+        latitude: Double,
+        longitude: Double
+    ) async {
+        guard let startTime = migraine.startTime else {
+            print("❌ No start time available")
+            weatherFetchStatus = .failed("No start time available")
+            return
+        }
+        
+        weatherFetchStatus = .fetching
+        
+        do {
+            print("📍 Fetching weather for custom location: \(latitude), \(longitude)")
+            
+            let snapshot = try await withTimeout(seconds: 10) {
+                try await WeatherService.shared.fetchWeatherSnapshot(
+                    for: startTime,
+                    latitude: latitude,
+                    longitude: longitude
+                )
+            }
+            
+            // Update migraine with weather data
+            migraine.updateWeatherData(from: snapshot)
+            migraine.updateWeatherLocation(latitude: latitude, longitude: longitude)
+            weatherFetchStatus = .success
+            
+            // Save changes
+            try viewContext.save()
+            print("✅ Weather data updated with custom location")
+            
+            // Reset status after 3 seconds
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            weatherFetchStatus = .idle
+            
+        } catch {
+            print("❌ Failed to fetch weather for custom location: \(error.localizedDescription)")
+            weatherFetchStatus = .failed(error.localizedDescription)
+            
+            // Reset after 3 seconds
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            weatherFetchStatus = .idle
+        }
+    }
+    
+    /// Bulk fetch weather data for all migraines without weather data
+    @MainActor
+    func backfillWeatherData(progressCallback: @escaping (Int, Int) -> Void) async -> (success: Int, failed: Int) {
+        // Get all migraines without weather data
+        let migrainesWithoutWeather = migraines.filter { !$0.hasWeatherData }
+        let total = migrainesWithoutWeather.count
+        
+        guard total > 0 else {
+            print("ℹ️ No migraines need weather data")
+            return (0, 0)
+        }
+        
+        print("🌤️ Starting bulk weather fetch for \(total) migraines")
+        
+        var successCount = 0
+        var failedCount = 0
+        
+        for (index, migraine) in migrainesWithoutWeather.enumerated() {
+            // Update progress
+            await MainActor.run {
+                progressCallback(index + 1, total)
+            }
+            
+            // Fetch weather data
+            await fetchWeatherData(for: migraine)
+            
+            // Check if successful
+            if migraine.hasWeatherData {
+                successCount += 1
+            } else {
+                failedCount += 1
+            }
+            
+            // Save after each fetch to avoid losing data
+            do {
+                try viewContext.save()
+            } catch {
+                print("❌ Failed to save after backfill: \(error.localizedDescription)")
+            }
+            
+            // Small delay to avoid overwhelming the API
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        }
+        
+        print("✅ Bulk weather fetch complete: \(successCount) success, \(failedCount) failed")
+        return (successCount, failedCount)
+    }
+    
+    @MainActor
+    func updateMigraine(
+        _ migraine: MigraineEvent,
+        startTime: Date,
+        endTime: Date?,
+        painLevel: Int16,
+        location: String,
+        isTriggerStress: Bool,
+        isTriggerLackOfSleep: Bool,
+        isTriggerDehydration: Bool,
+        isTriggerWeather: Bool,
+        isTriggerHormones: Bool,
+        isTriggerAlcohol: Bool,
+        isTriggerCaffeine: Bool,
+        isTriggerFood: Bool,
+        isTriggerExercise: Bool,
+        isTriggerScreenTime: Bool,
+        isTriggerOther: Bool,
+        hasAura: Bool,
+        hasPhotophobia: Bool,
+        hasPhonophobia: Bool,
+        hasNausea: Bool,
+        hasVomiting: Bool,
+        hasWakeUpHeadache: Bool,
+        hasTinnitus: Bool,
+        hasVertigo: Bool,
+        missedWork: Bool,
+        missedSchool: Bool,
+        missedEvents: Bool,
+        tookIbuprofin: Bool,
+        tookExcedrin: Bool,
+        tookTylenol: Bool,
+        tookSumatriptan: Bool,
+        tookRizatriptan: Bool,
+        tookNaproxen: Bool,
+        tookFrovatriptan: Bool,
+        tookNaratriptan: Bool,
+        tookNurtec: Bool,
+        tookUbrelvy: Bool,
+        tookReyvow: Bool,
+        tookTrudhesa: Bool,
+        tookElyxyb: Bool,
+        tookOther: Bool,
+        tookEletriptan: Bool,
+        notes: String
+    ) async {
+        await MainActor.run {
+            migraine.startTime = startTime
+            migraine.endTime = endTime
+            migraine.painLevel = painLevel
+            migraine.location = location
+            migraine.notes = notes
+            
+            // Set trigger booleans
+            migraine.isTriggerStress = isTriggerStress
+            migraine.isTriggerLackOfSleep = isTriggerLackOfSleep
+            migraine.isTriggerDehydration = isTriggerDehydration
+            migraine.isTriggerWeather = isTriggerWeather
+            migraine.isTriggerHormones = isTriggerHormones
+            migraine.isTriggerAlcohol = isTriggerAlcohol
+            migraine.isTriggerCaffeine = isTriggerCaffeine
+            migraine.isTriggerFood = isTriggerFood
+            migraine.isTriggerExercise = isTriggerExercise
+            migraine.isTriggerScreenTime = isTriggerScreenTime
+            migraine.isTriggerOther = isTriggerOther
+            
+            // Set medication booleans
+            migraine.tookIbuprofin = tookIbuprofin
+            migraine.tookExcedrin = tookExcedrin
+            migraine.tookTylenol = tookTylenol
+            migraine.tookSumatriptan = tookSumatriptan
+            migraine.tookRizatriptan = tookRizatriptan
+            migraine.tookNaproxen = tookNaproxen
+            migraine.tookFrovatriptan = tookFrovatriptan
+            migraine.tookNaratriptan = tookNaratriptan
+            migraine.tookNurtec = tookNurtec
+            migraine.tookUbrelvy = tookUbrelvy
+            migraine.tookReyvow = tookReyvow
+            migraine.tookTrudhesa = tookTrudhesa
+            migraine.tookElyxyb = tookElyxyb
+            migraine.tookOther = tookOther
+            migraine.tookEletriptan = tookEletriptan
+            
+            // Set other booleans
+            migraine.hasAura = hasAura
+            migraine.hasPhotophobia = hasPhotophobia
+            migraine.hasPhonophobia = hasPhonophobia
+            migraine.hasNausea = hasNausea
+            migraine.hasVomiting = hasVomiting
+            migraine.hasWakeUpHeadache = hasWakeUpHeadache
+            migraine.hasTinnitus = hasTinnitus
+            migraine.hasVertigo = hasVertigo
+            migraine.missedWork = missedWork
+            migraine.missedSchool = missedSchool
+            migraine.missedEvents = missedEvents
+            
+            save()
         }
     }
     
@@ -288,20 +681,7 @@ class MigraineViewModel: NSObject, ObservableObject {
     func deleteMigraine(_ migraine: MigraineEvent) {
         guard let id = migraine.id else { return }
         
-        // First remove any relationships
-        if let triggers = migraine.triggers {
-            for case let trigger as TriggerEntity in triggers {
-                viewContext.delete(trigger)
-            }
-        }
-        
-        if let medications = migraine.medications {
-            for case let medication as MedicationEntity in medications {
-                viewContext.delete(medication)
-            }
-        }
-        
-        // Then delete the migraine
+        // Just delete the migraine - no need to handle relationships since we're using strings
         viewContext.delete(migraine)
         
         do {
@@ -372,9 +752,36 @@ class MigraineViewModel: NSObject, ObservableObject {
             print("  Start Time: \(migraine.startTime?.description ?? "nil")")
             print("  Pain Level: \(migraine.painLevel)")
             print("  Location: \(migraine.location ?? "nil")")
-            let tempData = MigraineViewModel.extractTempData(from: migraine)
-            print("  Triggers: \(tempData.triggers)")
-            print("  Medications: \(tempData.medications)")
+            
+            print("  Triggers:")
+            if migraine.isTriggerStress { print("    - Stress") }
+            if migraine.isTriggerLackOfSleep { print("    - Lack of Sleep") }
+            if migraine.isTriggerDehydration { print("    - Dehydration") }
+            if migraine.isTriggerWeather { print("    - Weather") }
+            if migraine.isTriggerHormones { print("    - Hormones") }
+            if migraine.isTriggerAlcohol { print("    - Alcohol") }
+            if migraine.isTriggerCaffeine { print("    - Caffeine") }
+            if migraine.isTriggerFood { print("    - Food") }
+            if migraine.isTriggerExercise { print("    - Exercise") }
+            if migraine.isTriggerScreenTime { print("    - Screen Time") }
+            if migraine.isTriggerOther { print("    - Other") }
+            
+            print("  Medications:")
+            if migraine.tookIbuprofin { print("    - Ibuprofen") }
+            if migraine.tookExcedrin { print("    - Excedrin") }
+            if migraine.tookTylenol { print("    - Tylenol") }
+            if migraine.tookSumatriptan { print("    - Sumatriptan") }
+            if migraine.tookRizatriptan { print("    - Rizatriptan") }
+            if migraine.tookNaproxen { print("    - Naproxen") }
+            if migraine.tookFrovatriptan { print("    - Frovatriptan") }
+            if migraine.tookNaratriptan { print("    - Naratriptan") }
+            if migraine.tookNurtec { print("    - Nurtec") }
+            if migraine.tookUbrelvy { print("    - Ubrelvy") }
+            if migraine.tookReyvow { print("    - Reyvow") }
+            if migraine.tookTrudhesa { print("    - Trudhesa") }
+            if migraine.tookElyxyb { print("    - Elyxyb") }
+            if migraine.tookOther { print("    - Other") }
+            
             print("  User Notes: \(getUserNotes(from: migraine) ?? "")")
             print("---")
         }
@@ -394,48 +801,53 @@ class MigraineViewModel: NSObject, ObservableObject {
             print("Error clearing data: \(error)")
         }
     }
-    
-    static func extractTempData(from migraine: MigraineEvent) -> (triggers: Set<String>, medications: Set<String>) {
-        let triggers = migraine.triggers?.compactMap { $0.name } ?? []
-        let medications = migraine.medications?.compactMap { $0.name } ?? []
-        return (Set(triggers), Set(medications))
-    }
 
     func getUserNotes(from migraine: MigraineEvent) -> String? {
-        guard let notes = migraine.notes else { return nil }
-        guard let tempDataRange = notes.range(of: "\n\nTEMP_DATA:") else { return notes }
-        return String(notes[..<tempDataRange.lowerBound])
+        return migraine.notes
     }
 
-    // Add these computed properties for statistics
+    // Update to work with booleans
     var commonTriggers: [(String, Int)] {
         var triggerCounts: [String: Int] = [:]
         
         for migraine in migraines {
-            let tempData = MigraineViewModel.extractTempData(from: migraine)
-            for trigger in tempData.triggers {
-                triggerCounts[trigger, default: 0] += 1
-            }
+            if migraine.isTriggerStress { triggerCounts["Stress", default: 0] += 1 }
+            if migraine.isTriggerLackOfSleep { triggerCounts["Lack of Sleep", default: 0] += 1 }
+            if migraine.isTriggerDehydration { triggerCounts["Dehydration", default: 0] += 1 }
+            if migraine.isTriggerWeather { triggerCounts["Weather", default: 0] += 1 }
+            if migraine.isTriggerHormones { triggerCounts["Hormones", default: 0] += 1 }
+            if migraine.isTriggerAlcohol { triggerCounts["Alcohol", default: 0] += 1 }
+            if migraine.isTriggerCaffeine { triggerCounts["Caffeine", default: 0] += 1 }
+            if migraine.isTriggerFood { triggerCounts["Food", default: 0] += 1 }
+            if migraine.isTriggerExercise { triggerCounts["Exercise", default: 0] += 1 }
+            if migraine.isTriggerScreenTime { triggerCounts["Screen Time", default: 0] += 1 }
+            if migraine.isTriggerOther { triggerCounts["Other", default: 0] += 1 }
         }
         
-        return triggerCounts
-            .sorted { $0.value > $1.value }
-            .map { ($0.key, $0.value) }
+        return triggerCounts.sorted { $0.value > $1.value }
     }
     
     var medicationUsage: [(String, Int)] {
         var medicationCounts: [String: Int] = [:]
         
         for migraine in migraines {
-            let tempData = MigraineViewModel.extractTempData(from: migraine)
-            for medication in tempData.medications {
-                medicationCounts[medication, default: 0] += 1
-            }
+            if migraine.tookIbuprofin { medicationCounts["Ibuprofen", default: 0] += 1 }
+            if migraine.tookExcedrin { medicationCounts["Excedrin", default: 0] += 1 }
+            if migraine.tookTylenol { medicationCounts["Tylenol", default: 0] += 1 }
+            if migraine.tookSumatriptan { medicationCounts["Sumatriptan", default: 0] += 1 }
+            if migraine.tookRizatriptan { medicationCounts["Rizatriptan", default: 0] += 1 }
+            if migraine.tookNaproxen { medicationCounts["Naproxen", default: 0] += 1 }
+            if migraine.tookFrovatriptan { medicationCounts["Frovatriptan", default: 0] += 1 }
+            if migraine.tookNaratriptan { medicationCounts["Naratriptan", default: 0] += 1 }
+            if migraine.tookNurtec { medicationCounts["Nurtec", default: 0] += 1 }
+            if migraine.tookUbrelvy { medicationCounts["Ubrelvy", default: 0] += 1 }
+            if migraine.tookReyvow { medicationCounts["Reyvow", default: 0] += 1 }
+            if migraine.tookTrudhesa { medicationCounts["Trudhesa", default: 0] += 1 }
+            if migraine.tookElyxyb { medicationCounts["Elyxyb", default: 0] += 1 }
+            if migraine.tookOther { medicationCounts["Other", default: 0] += 1 }
         }
         
-        return medicationCounts
-            .sorted { $0.value > $1.value }
-            .map { ($0.key, $0.value) }
+        return medicationCounts.sorted { $0.value > $1.value }
     }
     
     var averagePainLevel: Double {
@@ -472,9 +884,9 @@ class MigraineViewModel: NSObject, ObservableObject {
     
     // Make migration actually async
     func migrateToDifferentStore() async throws {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             do {
-                PersistenceController.shared.migrateDataToNewStore { result in
+                PersistenceController.shared.migrateDataToNewStore { (result: Result<Void, Error>) in
                     switch result {
                     case .success:
                         continuation.resume()
@@ -512,20 +924,26 @@ class MigraineViewModel: NSObject, ObservableObject {
     }
     
     private func checkAndSync() {
-        // Only sync if there are pending changes and we're not already syncing
-        if case .pendingChanges = syncStatus {
-            syncPendingChanges()
+        if case .enabled = syncStatus {
+            if case .pendingChanges = syncStatus {
+                syncPendingChanges()
+            }
         }
     }
     
-    private func handleSyncStatusChange(_ status: PersistenceController.SyncStatus) {
+    private func handleSyncStatusChange(_ status: SyncStatus) {
+        syncStatus = status
         switch status {
         case .enabled:
             setupAutoSync()
-        case .disabled, .error:
+        case .disabled:
             autoSyncTimer?.invalidate()
             autoSyncTimer = nil
-        default:
+            print("CloudKit sync is disabled - using local storage only")
+        case .error:
+            autoSyncTimer?.invalidate()
+            autoSyncTimer = nil
+        case .notConfigured, .pendingChanges, .syncing:
             break
         }
     }
@@ -587,105 +1005,85 @@ class MigraineViewModel: NSObject, ObservableObject {
         }
     }
     
-    // Update getTriggerFrequency to be more verbose
-    func getTriggerFrequency(for timeFrame: TimeFrame = .month) -> [(String, Int)] {
-        print("\n=== Getting Trigger Frequency ===")
-        print("Total migraines: \(migraines.count)")
-        
-        let calendar = Calendar.current
-        let now = Date()
-        let startDate: Date
-        
-        switch timeFrame {
-        case .week:
-            startDate = calendar.date(byAdding: .day, value: -7, to: now)!
-        case .month:
-            startDate = calendar.date(byAdding: .month, value: -1, to: now)!
-        case .year:
-            startDate = calendar.date(byAdding: .year, value: -1, to: now)!
+    // Optimize trigger frequency calculation
+    func getTriggerFrequency(for timeFilter: TimeFrame) -> [(String, Int)] {
+        let cacheKey = "triggers-\(timeFilter)"
+        if let cached = chartDataCache[cacheKey] as? [(String, Int)],
+           let lastUpdate = lastChartUpdateTime,
+           Date().timeIntervalSince(lastUpdate) < chartCacheTimeout {
+            return cached
         }
-        
-        print("Time frame: \(timeFrame)")
-        print("Start date: \(startDate)")
-        print("End date: \(now)")
-        
-        let filteredMigraines = migraines.filter { migraine in
-            guard let startTime = migraine.startTime else {
-                print("Migraine has no start time")
-                return false
-            }
-            let isInRange = startTime >= startDate && startTime <= now
-            print("Migraine date \(startTime) in range: \(isInRange)")
-            return isInRange
-        }
-        
-        print("Filtered migraines count: \(filteredMigraines.count)")
         
         var triggerCounts: [String: Int] = [:]
+        let filtered = filteredMigraines(for: timeFilter)
         
-        for migraine in filteredMigraines {
-            print("\nProcessing migraine: \(migraine.id?.uuidString ?? "unknown")")
-            
-            if let triggers = migraine.triggers as? Set<TriggerEntity> {
-                print("Found \(triggers.count) triggers")
-                for trigger in triggers {
-                    if let name = trigger.name {
-                        triggerCounts[name, default: 0] += 1
-                        print("Counted trigger: \(name)")
-                    }
-                }
-            } else {
-                print("Failed to get triggers")
+        for migraine in filtered {
+            for trigger in migraine.selectedTriggerNames {
+                triggerCounts[trigger, default: 0] += 1
             }
         }
         
         let result = triggerCounts.sorted { $0.value > $1.value }
-        print("\nFinal trigger counts: \(result)")
+        chartDataCache[cacheKey] = result
+        lastChartUpdateTime = Date()
         return result
     }
     
-    // Similarly update getMedicationFrequency
-    func getMedicationFrequency(for timeFrame: TimeFrame = .month) -> [(String, Int)] {
-        print("\n=== Getting Medication Frequency ===")
-        let calendar = Calendar.current
-        let now = Date()
-        
-        let startDate: Date
-        switch timeFrame {
-        case .week:
-            startDate = calendar.date(byAdding: .day, value: -7, to: now)!
-        case .month:
-            startDate = calendar.date(byAdding: .month, value: -1, to: now)!
-        case .year:
-            startDate = calendar.date(byAdding: .year, value: -1, to: now)!
+    // Optimize medication frequency calculation
+    func getMedicationFrequency(for timeFilter: TimeFrame) -> [(String, Int)] {
+        let cacheKey = "medications-\(timeFilter)"
+        if let cached = chartDataCache[cacheKey] as? [(String, Int)],
+           let lastUpdate = lastChartUpdateTime,
+           Date().timeIntervalSince(lastUpdate) < chartCacheTimeout {
+            return cached
         }
-        
-        let filteredMigraines = migraines.filter { migraine in
-            guard let startTime = migraine.startTime else { return false }
-            return startTime >= startDate && startTime <= now
-        }
-        
-        print("DEBUG: Found \(filteredMigraines.count) migraines in time frame")
         
         var medicationCounts: [String: Int] = [:]
+        let filtered = filteredMigraines(for: timeFilter)
         
-        for migraine in filteredMigraines {
-            guard let medications = migraine.medications as? Set<MedicationEntity> else {
-                print("DEBUG: Failed to get medications for migraine \(migraine.id?.uuidString ?? "unknown")")
-                continue
-            }
-            
-            for medication in medications {
-                if let name = medication.name {
-                    medicationCounts[name, default: 0] += 1
-                    print("DEBUG: Counted medication: \(name)")
-                }
+        for migraine in filtered {
+            for medication in migraine.selectedMedicationNames {
+                medicationCounts[medication, default: 0] += 1
             }
         }
         
         let result = medicationCounts.sorted { $0.value > $1.value }
-        print("DEBUG: Final medication counts: \(result)")
+        chartDataCache[cacheKey] = result
+        lastChartUpdateTime = Date()
         return result
+    }
+    
+    // Add safe navigation state management
+    func clearNavigationSelections() {
+        // This should be called when navigation state needs to be reset
+        chartDataCache.removeAll()
+        lastChartUpdateTime = nil
+    }
+    
+    // Optimize filtered migraines
+    private func filteredMigraines(for timeFrame: TimeFrame) -> [MigraineEvent] {
+        let cacheKey = "filtered-\(timeFrame)"
+        if let cached = chartDataCache[cacheKey] as? [MigraineEvent],
+           let lastUpdate = lastChartUpdateTime,
+           Date().timeIntervalSince(lastUpdate) < chartCacheTimeout {
+            return cached
+        }
+        
+        let filtered = migraines.filter { migraine in
+            guard let startTime = migraine.startTime else { return false }
+            return isDate(startTime, inTimeFrame: timeFrame)
+        }
+        
+        chartDataCache[cacheKey] = filtered
+        lastChartUpdateTime = Date()
+        return filtered
+    }
+    
+    // Add cache invalidation
+    func invalidateCache() {
+        chartDataCache.removeAll()
+        lastChartUpdateTime = nil
+        objectWillChange.send()
     }
     
     private func isDate(_ date: Date, inTimeFrame timeFrame: TimeFrame) -> Bool {
@@ -710,125 +1108,20 @@ class MigraineViewModel: NSObject, ObservableObject {
         }
     }
     
-    // Add helper method to verify data is being saved correctly
+    // Update verifyMigraineData method
     func verifyMigraineData(_ migraine: MigraineEvent) {
         print("DEBUG: Verifying migraine data:")
-        print("- ID: \(migraine.id?.uuidString ?? "unknown")")
-        print("- Start Time: \(migraine.startTime?.description ?? "unknown")")
-        print("- Triggers: \((migraine.triggers as? Set<TriggerEntity>)?.compactMap { $0.name } ?? [])")
-        print("- Medications: \((migraine.medications as? Set<MedicationEntity>)?.compactMap { $0.name } ?? [])")
+        print("- ID: \(migraine.id?.uuidString ?? "nil")")
+        print("  Start Time: \(migraine.startTime?.description ?? "nil")")
+        print("  Pain Level: \(migraine.painLevel)")
+        print("  Location: \(migraine.location ?? "nil")")
+        print("  Triggers: \(migraine.selectedTriggerNames)")
+        print("  Medications: \(migraine.selectedMedicationNames)")
+        print("  User Notes: \(getUserNotes(from: migraine) ?? "")")
+        print("---")
     }
     
-    // Add this debug method
-    private func debugPrintAllMigraines() {
-        print("\n=== DEBUG: All Migraines ===")
-        for migraine in migraines {
-            print("\nMigraine ID: \(migraine.id?.uuidString ?? "unknown")")
-            print("Date: \(migraine.startTime?.description ?? "unknown")")
-            if let triggers = migraine.triggers as? Set<TriggerEntity> {
-                print("Triggers: \(triggers.compactMap { $0.name })")
-            } else {
-                print("No triggers found or wrong type")
-            }
-            if let medications = migraine.medications as? Set<MedicationEntity> {
-                print("Medications: \(medications.compactMap { $0.name })")
-            } else {
-                print("No medications found or wrong type")
-            }
-        }
-        print("========================\n")
-    }
-    
-    // Add this test method
-    func addTestMigraine() {
-        print("\n=== Adding Test Migraines ===")
-        
-        // Clear existing test data
-        do {
-            let fetchRequest: NSFetchRequest<NSFetchRequestResult> = NSFetchRequest(entityName: "MigraineEvent")
-            fetchRequest.predicate = NSPredicate(format: "notes CONTAINS[c] %@", "test migraine")
-            let batchDeleteRequest = NSBatchDeleteRequest(fetchRequest: fetchRequest)
-            try viewContext.execute(batchDeleteRequest)
-            try viewContext.save()
-        } catch {
-            print("Error clearing test data: \(error)")
-        }
-        
-        // Add a migraine from today
-        let today = Date()
-        let migraine1 = MigraineEvent(context: viewContext)
-        migraine1.id = UUID()
-        migraine1.startTime = today
-        migraine1.endTime = today.addingTimeInterval(3600)
-        migraine1.painLevel = 5
-        migraine1.location = "Frontal"
-        migraine1.notes = "Test migraine today"
-        
-        // Add triggers for first migraine
-        let trigger1 = TriggerEntity(context: viewContext)
-        trigger1.id = UUID()
-        trigger1.name = "Stress"
-        trigger1.migraine = migraine1
-        migraine1.addToTriggers(trigger1)
-        
-        let trigger2 = TriggerEntity(context: viewContext)
-        trigger2.id = UUID()
-        trigger2.name = "Weather"
-        trigger2.migraine = migraine1
-        migraine1.addToTriggers(trigger2)
-        
-        // Add medications for first migraine
-        let med1 = MedicationEntity(context: viewContext)
-        med1.id = UUID()
-        med1.name = "Sumatriptan"
-        med1.migraine = migraine1
-        migraine1.addToMedications(med1)
-        
-        let med2 = MedicationEntity(context: viewContext)
-        med2.id = UUID()
-        med2.name = "Tylenol"
-        med2.migraine = migraine1
-        migraine1.addToMedications(med2)
-        
-        // Add a migraine from yesterday
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: today)!
-        let migraine2 = MigraineEvent(context: viewContext)
-        migraine2.id = UUID()
-        migraine2.startTime = yesterday
-        migraine2.endTime = yesterday.addingTimeInterval(3600)
-        migraine2.painLevel = 7
-        migraine2.location = "Whole Head"
-        migraine2.notes = "Test migraine yesterday"
-        
-        // Add triggers and medications for second migraine
-        let trigger3 = TriggerEntity(context: viewContext)
-        trigger3.id = UUID()
-        trigger3.name = "Sleep Changes"
-        trigger3.migraine = migraine2
-        migraine2.addToTriggers(trigger3)
-        
-        let med3 = MedicationEntity(context: viewContext)
-        med3.id = UUID()
-        med3.name = "Rizatriptan"
-        med3.migraine = migraine2
-        migraine2.addToMedications(med3)
-        
-        // Save the context
-        do {
-            try viewContext.save()
-            print("Successfully saved test migraines")
-            
-            // Force a refresh of the migraines array
-            fetchMigraines()
-            
-            // Verify the data
-            verifyAllMigraines()
-        } catch {
-            print("Error saving test data: \(error)")
-            viewContext.rollback()
-        }
-    }
-    
+    // Update verifyAllMigraines method
     private func verifyAllMigraines() {
         print("\n=== Verifying All Migraines ===")
         let fetchRequest: NSFetchRequest<MigraineEvent> = MigraineEvent.fetchRequest()
@@ -844,20 +1137,8 @@ class MigraineViewModel: NSObject, ObservableObject {
                 print("- Start Time: \(migraine.startTime?.formatted() ?? "none")")
                 print("- Location: \(migraine.location ?? "none")")
                 print("- Pain Level: \(migraine.painLevel)")
-                
-                if let triggers = migraine.triggers as? Set<TriggerEntity> {
-                    print("- Triggers (\(triggers.count)):")
-                    for trigger in triggers {
-                        print("  • \(trigger.name ?? "unnamed")")
-                    }
-                }
-                
-                if let medications = migraine.medications as? Set<MedicationEntity> {
-                    print("- Medications (\(medications.count)):")
-                    for medication in medications {
-                        print("  • \(medication.name ?? "unnamed")")
-                    }
-                }
+                print("- Triggers: \(migraine.selectedTriggerNames)")
+                print("- Medications: \(migraine.selectedMedicationNames)")
             }
             
             // Test the frequency methods
@@ -868,6 +1149,175 @@ class MigraineViewModel: NSObject, ObservableObject {
             print("Medication frequency (month): \(medications)")
         } catch {
             print("Error verifying test data: \(error)")
+        }
+    }
+    
+    // Update debugPrintAllMigraines method
+    private func debugPrintAllMigraines() {
+        print("\n=== DEBUG: All Migraines ===")
+        for migraine in migraines {
+            print("\nMigraine ID: \(migraine.id?.uuidString ?? "unknown")")
+            print("Date: \(migraine.startTime?.description ?? "unknown")")
+            print("Triggers: \(migraine.selectedTriggerNames)")
+            print("Medications: \(migraine.selectedMedicationNames)")
+        }
+        print("========================\n")
+    }
+    
+    // Update addTestMigraine method
+    func createTestData() {
+        let today = Date()
+        
+        // Create first migraine
+        let migraine1 = MigraineEvent(context: viewContext)
+        migraine1.id = UUID()
+        migraine1.startTime = today
+        migraine1.endTime = today.addingTimeInterval(7200)
+        migraine1.painLevel = 5
+        migraine1.location = "Frontal"
+        migraine1.notes = "Test migraine today"
+        
+        // Instead, set boolean properties directly
+        migraine1.isTriggerStress = true
+        migraine1.isTriggerLackOfSleep = true
+        migraine1.tookSumatriptan = true
+        
+        do {
+            try viewContext.save()
+            print("Successfully saved test migraines")
+            fetchMigraines()
+            verifyAllMigraines()
+        } catch {
+            print("Error saving test data: \(error.localizedDescription)")
+            viewContext.rollback()
+        }
+    }
+    
+    // Update helper methods to work with booleans
+    func hasTrigger(_ name: String, in migraine: MigraineEvent) -> Bool {
+        switch name {
+        case "Stress": return migraine.isTriggerStress
+        case "Lack of Sleep": return migraine.isTriggerLackOfSleep
+        case "Dehydration": return migraine.isTriggerDehydration
+        case "Weather": return migraine.isTriggerWeather
+        case "Hormones": return migraine.isTriggerHormones
+        case "Alcohol": return migraine.isTriggerAlcohol
+        case "Caffeine": return migraine.isTriggerCaffeine
+        case "Food": return migraine.isTriggerFood
+        case "Exercise": return migraine.isTriggerExercise
+        case "Screen Time": return migraine.isTriggerScreenTime
+        case "Other": return migraine.isTriggerOther
+        default: return false
+        }
+    }
+    
+    func hasMedication(_ name: String, in migraine: MigraineEvent) -> Bool {
+        switch name {
+        case "Ibuprofen": return migraine.tookIbuprofin
+        case "Excedrin": return migraine.tookExcedrin
+        case "Tylenol": return migraine.tookTylenol
+        case "Sumatriptan": return migraine.tookSumatriptan
+        case "Rizatriptan": return migraine.tookRizatriptan
+        case "Naproxen": return migraine.tookNaproxen
+        case "Frovatriptan": return migraine.tookFrovatriptan
+        case "Naratriptan": return migraine.tookNaratriptan
+        case "Nurtec": return migraine.tookNurtec
+        case "Ubrelvy": return migraine.tookUbrelvy
+        case "Reyvow": return migraine.tookReyvow
+        case "Trudhesa": return migraine.tookTrudhesa
+        case "Elyxyb": return migraine.tookElyxyb
+        case "Other": return migraine.tookOther
+        default: return false
+        }
+    }
+    
+    @MainActor
+    func loadChartData(for timeFilter: TimeFrame) async throws {
+        // Prevent multiple simultaneous loads
+        guard lastChartUpdateTime == nil || 
+              Date().timeIntervalSince(lastChartUpdateTime!) > chartCacheTimeout else {
+            return
+        }
+        
+        // Load data in background
+        try await Task {
+            // Pre-calculate all chart data
+            let filtered = filteredMigraines(for: timeFilter)
+            
+            // Cache the filtered data
+            chartDataCache["filtered-\(timeFilter)"] = filtered
+            
+            // Pre-calculate trigger frequency
+            let triggerData = getTriggerFrequency(for: timeFilter)
+            chartDataCache["triggers-\(timeFilter)"] = triggerData
+            
+            // Pre-calculate medication frequency
+            let medicationData = getMedicationFrequency(for: timeFilter)
+            chartDataCache["medications-\(timeFilter)"] = medicationData
+            
+            lastChartUpdateTime = Date()
+            objectWillChange.send()
+        }.value
+    }
+    
+    // Update the createMigraine method to work with booleans directly
+    func createMigraine(startTime: Date, endTime: Date?, painLevel: Int16, location: String, triggers: [String], medications: [String], hasAura: Bool, hasPhotophobia: Bool, hasPhonophobia: Bool, hasNausea: Bool, hasVomiting: Bool, hasWakeUpHeadache: Bool, hasTinnitus: Bool, hasVertigo: Bool, missedWork: Bool, missedSchool: Bool, missedEvents: Bool, notes: String?) {
+        let migraine = MigraineEvent(context: viewContext)
+        migraine.id = UUID()
+        migraine.startTime = startTime
+        migraine.endTime = endTime
+        migraine.painLevel = painLevel
+        migraine.location = location
+        migraine.notes = notes
+        
+        // Set symptom booleans
+        migraine.hasAura = hasAura
+        migraine.hasPhotophobia = hasPhotophobia
+        migraine.hasPhonophobia = hasPhonophobia
+        migraine.hasNausea = hasNausea
+        migraine.hasVomiting = hasVomiting
+        migraine.hasWakeUpHeadache = hasWakeUpHeadache
+        migraine.hasTinnitus = hasTinnitus
+        migraine.hasVertigo = hasVertigo
+        migraine.missedWork = missedWork
+        migraine.missedSchool = missedSchool
+        migraine.missedEvents = missedEvents
+        
+        // Set trigger booleans directly
+        migraine.isTriggerStress = triggers.contains("Stress")
+        migraine.isTriggerLackOfSleep = triggers.contains("Lack of Sleep")
+        migraine.isTriggerDehydration = triggers.contains("Dehydration")
+        migraine.isTriggerWeather = triggers.contains("Weather")
+        migraine.isTriggerHormones = triggers.contains("Hormones")
+        migraine.isTriggerAlcohol = triggers.contains("Alcohol")
+        migraine.isTriggerCaffeine = triggers.contains("Caffeine")
+        migraine.isTriggerFood = triggers.contains("Food")
+        migraine.isTriggerExercise = triggers.contains("Exercise")
+        migraine.isTriggerScreenTime = triggers.contains("Screen Time")
+        migraine.isTriggerOther = triggers.contains("Other")
+        
+        // Set medication booleans directly
+        migraine.tookIbuprofin = medications.contains("Ibuprofen")
+        migraine.tookExcedrin = medications.contains("Excedrin")
+        migraine.tookTylenol = medications.contains("Tylenol")
+        migraine.tookSumatriptan = medications.contains("Sumatriptan")
+        migraine.tookRizatriptan = medications.contains("Rizatriptan")
+        migraine.tookNaproxen = medications.contains("Naproxen")
+        migraine.tookFrovatriptan = medications.contains("Frovatriptan")
+        migraine.tookNaratriptan = medications.contains("Naratriptan")
+        migraine.tookNurtec = medications.contains("Nurtec")
+        migraine.tookUbrelvy = medications.contains("Ubrelvy")
+        migraine.tookReyvow = medications.contains("Reyvow")
+        migraine.tookTrudhesa = medications.contains("Trudhesa")
+        migraine.tookElyxyb = medications.contains("Elyxyb")
+        migraine.tookOther = medications.contains("Other")
+        
+        do {
+            try viewContext.save()
+        } catch {
+            viewContext.rollback()
+            lastError = .saveFailed(error)
+            print("Error creating migraine: \(error.localizedDescription)")
         }
     }
 }

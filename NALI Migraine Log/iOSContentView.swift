@@ -6,26 +6,34 @@
 //
 
 import SwiftUI
+import CoreData
 
-struct ContentView: View {
-    @EnvironmentObject var migraineStore: MigraineStore
+struct iOSContentView: View {
+    @StateObject private var viewModel: MigraineViewModel
+    @StateObject private var connectivityManager = WatchConnectivityManager.shared
     @State private var selectedTab = 0
+    @State private var showingNewMigraine = false
+    
+    init() {
+        let context = PersistenceController.shared.container.viewContext
+        _viewModel = StateObject(wrappedValue: MigraineViewModel(context: context))
+    }
     
     var body: some View {
         TabView(selection: $selectedTab) {
-            MigraineLogView(migraineStore: migraineStore)
+            MigraineLogView(viewModel: viewModel)
                 .tabItem {
-                    Label("Log", systemImage: "square.and.pencil")
+                    Label("Log", systemImage: "list.bullet")
                 }
                 .tag(0)
             
-            CalendarView(migraineStore: migraineStore)
+            CalendarView(viewModel: viewModel)
                 .tabItem {
                     Label("Calendar", systemImage: "calendar")
                 }
                 .tag(1)
             
-            StatisticsView(migraineStore: migraineStore)
+            StatisticsView(viewModel: viewModel)
                 .tabItem {
                     Label("Statistics", systemImage: "chart.bar")
                 }
@@ -37,10 +45,16 @@ struct ContentView: View {
                 }
                 .tag(3)
         }
+        .sheet(isPresented: $showingNewMigraine) {
+            NewMigraineView(viewModel: viewModel)
+        }
+        .environmentObject(connectivityManager)
+        .environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
     }
 }
 
 #Preview {
-    ContentView()
-        .environmentObject(MigraineStore())
+    let context = PersistenceController.preview.container.viewContext
+    return iOSContentView()
+        .environment(\.managedObjectContext, context)
 }

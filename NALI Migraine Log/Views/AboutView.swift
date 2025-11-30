@@ -29,17 +29,54 @@ struct AboutView: View {
                     // Practice Description
                     Text("Neurological Associates of Long Island has been providing comprehensive, compassionate, and innovative neurologic care to our community for over 50 years. Our team of 10 board-certified neurologists covers virtually every aspect of neurologic disease, supported by extensive on-site diagnostic testing, physical therapy, and infusion services. We are also actively engaged in clinical research, investigating novel therapies for a variety of neurologic conditions.")
                         .foregroundColor(.white)
-                        .padding(.bottom)
+                        
                     
-                    Text("In our continued effort to improve patient outcomes, we have created NALI Migraines. This app empowers patients to accurately track their headache symptoms, medications, and triggers, offering a clearer picture for both patients and physicians to guide treatment plans and improve headache management. To safeguard your privacy, all data entered into the app is stored locally on your device and never transmitted to a third party. Data may be preserved to your personal Apple iCloud account. At Neurological Associates, we remain committed to delivering timely appointments, assisting with insurance complexities, and ensuring every visit is a comfortable and informative experience.")
-                        .foregroundColor(.white)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("In our continued effort to improve patient outcomes, we have created Headway. This app empowers patients to accurately track their headache symptoms, medications, and triggers, offering a clearer picture for both patients and physicians to guide treatment plans and improve headache management. To safeguard your privacy, all data entered into the app is stored locally on your device and never transmitted to a third party. Data may be preserved to your personal Apple iCloud account. At Neurological Associates, we remain committed to delivering timely appointments, assisting with insurance complexities, and ensuring every visit is a comfortable and informative experience.")
+                            .foregroundColor(.white)
+                            .padding(.bottom, 8)
+                        
+                        Text("Maintaining a headache diary has been a well established method for identifying and managing headache symptoms and triggers¹,²")
+                            .foregroundColor(.white) +
+                        Text(". Further information can be found at the ")
+                            .foregroundColor(.white) +
+                        Text("American Migraine Foundation")
+                            .foregroundColor(.white)
+                            .underline() +
+                        Text(".")
+                            .foregroundColor(.white)
+                        
+                        Text("¹ van Casteren DS, et al. E-diary use in clinical headache practice: A prospective observational study. Cephalalgia. 2021.")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.8))
+                            .onTapGesture {
+                                if let url = URL(string: "https://pubmed.ncbi.nlm.nih.gov/33938248/") {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
+                        
+                        Text("² Minen MT, et al. Headache clinicians' perspectives on the remote monitoring of patients' electronic diary data: A qualitative study. Headache. 2023.")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.8))
+                            .onTapGesture {
+                                if let url = URL(string: "https://pubmed.ncbi.nlm.nih.gov/37313636/") {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
+                    }
+                    
+                    // Horizontal Line
+                    Rectangle()
+                        .fill(Color.white)
+                        .frame(height: 1)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
                     
                     // Contact Information
                     Group {
                         Text("Contact Us")
                             .font(.title2)
                             .foregroundColor(.white)
-                            .padding(.top)
                         
                         Button(action: {
                             openMaps()

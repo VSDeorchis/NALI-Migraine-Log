@@ -1,0 +1,22 @@
+Entity: MigraineEvent
+Properties:
+- id: UUID, optional
+- startTime: Date, optional
+- endTime: Date, optional
+- painLevel: Integer 16
+- location: String, optional
+- notes: String, optional
+- hasAura: Boolean
+- hasPhotophobia: Boolean
+- hasPhonophobia: Boolean
+- hasNausea: Boolean
+- hasVomiting: Boolean
+- hasWakeUpHeadache: Boolean
+- hasTinnitus: Boolean
+- hasVertigo: Boolean
+- missedWork: Boolean
+- missedSchool: Boolean
+- missedEvents: Boolean
+Relationships:
+- triggers: To-Many, destination: TriggerEntity, inverse: migraine
+- medications: To-Many, destination: MedicationEntity, inverse: migraine 

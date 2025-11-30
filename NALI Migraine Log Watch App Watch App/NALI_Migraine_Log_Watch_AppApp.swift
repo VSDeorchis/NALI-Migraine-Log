@@ -6,15 +6,20 @@
 //
 
 import SwiftUI
+import CoreData
 import WatchConnectivity
 
 @main
 struct NALI_Migraine_Log_Watch_AppApp: App {
-    // Use the shared instance
-    @StateObject private var migraineStore = MigraineStore.shared
+    @StateObject private var viewModel: MigraineViewModel
+    @StateObject private var connectivityManager = WatchConnectivityManager.shared
+    let persistenceController = PersistenceController.shared
     
     init() {
-        // Initialize WatchConnectivity if supported
+        let context = PersistenceController.shared.container.viewContext
+        _viewModel = StateObject(wrappedValue: MigraineViewModel(context: context))
+        
+        // Initialize WatchConnectivity
         if WCSession.isSupported() {
             WCSession.default.activate()
         }
@@ -22,10 +27,10 @@ struct NALI_Migraine_Log_Watch_AppApp: App {
     
     var body: some Scene {
         WindowGroup {
-            NavigationStack {
-                ContentView()
-                    .environmentObject(migraineStore)
-            }
+            ContentView()
+                .environmentObject(viewModel)
+                .environmentObject(connectivityManager)
+                .environment(\.managedObjectContext, persistenceController.container.viewContext)
         }
     }
 }

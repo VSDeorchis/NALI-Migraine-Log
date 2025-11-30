@@ -3,10 +3,24 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>NALI Migraine</string>
+	<string>Headway: Migraine Monitor and Analytics</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>OrpheusPro-Regular.otf</string>
 	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>CFBundleShortVersionString</key>
+	<string>2.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Headway uses your location to correlate weather patterns with your migraines. This helps identify weather-related triggers like barometric pressure changes.</string>
 </dict>
 </plist>

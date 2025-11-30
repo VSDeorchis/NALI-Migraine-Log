@@ -1,10 +1,10 @@
 import SwiftUI
-import WatchConnectivity
+import CoreData
 // Add import if models are in a separate module
 // import NALIMigraineLogShared
 
 struct WatchMigraineLogView: View {
-    @EnvironmentObject var migraineStore: MigraineStore
+    @ObservedObject var viewModel: MigraineViewModel
     @State private var showingNewEntry = false
     
     var body: some View {
@@ -15,14 +15,13 @@ struct WatchMigraineLogView: View {
                 Label("New Entry", systemImage: "plus.circle.fill")
             }
             
-            ForEach(migraineStore.migraines.prefix(5).sorted(by: { $0.startTime > $1.startTime })) { migraine in
+            ForEach(viewModel.migraines.prefix(5)) { migraine in
                 WatchMigraineRowView(migraine: migraine)
             }
         }
-        .navigationTitle("NALI Migraines")
+        .navigationTitle("Headway")
         .sheet(isPresented: $showingNewEntry) {
-            WatchNewMigraineView()
-                .environmentObject(migraineStore)
+            WatchNewMigraineView(viewModel: viewModel)
         }
     }
 } 
