@@ -317,12 +317,12 @@ https://archive-api.open-meteo.com/v1/archive
 
 ### Potential Additions:
 1. **Weather Alerts**: Notify when pressure is changing rapidly
-2. **Forecast Integration**: Predict migraine risk based on forecast
-3. **Humidity Tracking**: Add humidity as another data point
+2. ~~**Forecast Integration**: Predict migraine risk based on forecast~~ — **Implemented in v2.2** (see `ML_PREDICTION_GUIDE.md`)
+3. ~~**Humidity Tracking**: Add humidity as another data point~~ — **Implemented in v2.2** (WeatherForecastService now fetches humidity)
 4. **Wind Speed**: Some people are sensitive to wind
 5. **Moon Phase**: Controversial but some patients report correlation
 6. **Export Weather Data**: Include in PDF reports
-7. **Trigger Prediction**: ML model to predict migraines based on weather
+7. ~~**Trigger Prediction**: ML model to predict migraines based on weather~~ — **Implemented in v2.2** (see `ML_PREDICTION_GUIDE.md`)
 8. **Location History**: Remember frequently used locations for quick selection
 
 ## Troubleshooting

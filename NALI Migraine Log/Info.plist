@@ -22,5 +22,7 @@
 	<false/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Headway uses your location to correlate weather patterns with your migraines. This helps identify weather-related triggers like barometric pressure changes.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Headway reads sleep, heart rate variability, resting heart rate, step count, and menstrual cycle data to improve migraine risk predictions. All data stays on your device.</string>
 </dict>
 </plist>

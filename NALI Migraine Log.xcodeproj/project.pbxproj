@@ -20,6 +20,18 @@
 		69C15B1F2D59B28E002BAA7E /* NALI_Migraine_Log.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 69C15B092D59B28E002BAA7E /* NALI_Migraine_Log.xcdatamodeld */; };
 		69C15B292D59B4AD002BAA7E /* NALI_Migraine_Log.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 69C15B092D59B28E002BAA7E /* NALI_Migraine_Log.xcdatamodeld */; };
 		69C15B2A2D59B4AD002BAA7E /* NALI_Migraine_Log.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 69C15B092D59B28E002BAA7E /* NALI_Migraine_Log.xcdatamodeld */; };
+		AAFE000200000000000A0001 /* FeatureExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0001 /* FeatureExtractor.swift */; };
+		AAFE000300000000000A0001 /* FeatureExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0001 /* FeatureExtractor.swift */; };
+		AAFE000400000000000A0001 /* FeatureExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0001 /* FeatureExtractor.swift */; };
+		AAFE000200000000000A0002 /* WeatherForecastService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0002 /* WeatherForecastService.swift */; };
+		AAFE000300000000000A0002 /* WeatherForecastService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0002 /* WeatherForecastService.swift */; };
+		AAFE000400000000000A0002 /* WeatherForecastService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0002 /* WeatherForecastService.swift */; };
+		AAFE000200000000000A0003 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0003 /* HealthKitManager.swift */; };
+		AAFE000300000000000A0003 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0003 /* HealthKitManager.swift */; };
+		AAFE000400000000000A0003 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0003 /* HealthKitManager.swift */; };
+		AAFE000200000000000A0004 /* MigrainePredictionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0004 /* MigrainePredictionService.swift */; };
+		AAFE000300000000000A0004 /* MigrainePredictionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0004 /* MigrainePredictionService.swift */; };
+		AAFE000400000000000A0004 /* MigrainePredictionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0004 /* MigrainePredictionService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -102,6 +114,10 @@
 		698A291E2EDB54F300090EFA /* LocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationManager.swift; sourceTree = "<group>"; };
 		698A291F2EDB54F300090EFA /* WeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherService.swift; sourceTree = "<group>"; };
 		69C15B0C2D59B28E002BAA7E /* NALI_Migraine_Log.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = NALI_Migraine_Log.xcdatamodel; sourceTree = "<group>"; };
+		AAFE000100000000000A0001 /* FeatureExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureExtractor.swift; sourceTree = "<group>"; };
+		AAFE000100000000000A0002 /* WeatherForecastService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherForecastService.swift; sourceTree = "<group>"; };
+		AAFE000100000000000A0003 /* HealthKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitManager.swift; sourceTree = "<group>"; };
+		AAFE000100000000000A0004 /* MigrainePredictionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrainePredictionService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -326,6 +342,10 @@
 			children = (
 				698A291E2EDB54F300090EFA /* LocationManager.swift */,
 				698A291F2EDB54F300090EFA /* WeatherService.swift */,
+				AAFE000100000000000A0001 /* FeatureExtractor.swift */,
+				AAFE000100000000000A0002 /* WeatherForecastService.swift */,
+				AAFE000100000000000A0003 /* HealthKitManager.swift */,
+				AAFE000100000000000A0004 /* MigrainePredictionService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -693,6 +713,10 @@
 			files = (
 				698A29212EDB54F300090EFA /* LocationManager.swift in Sources */,
 				698A29222EDB54F300090EFA /* WeatherService.swift in Sources */,
+				AAFE000200000000000A0001 /* FeatureExtractor.swift in Sources */,
+				AAFE000200000000000A0002 /* WeatherForecastService.swift in Sources */,
+				AAFE000200000000000A0003 /* HealthKitManager.swift in Sources */,
+				AAFE000200000000000A0004 /* MigrainePredictionService.swift in Sources */,
 				69C15B1F2D59B28E002BAA7E /* NALI_Migraine_Log.xcdatamodeld in Sources */,
 				69A6B47C2D59BA2500AD2CFA /* WatchConnectivityManager.swift in Sources */,
 			);
@@ -720,6 +744,10 @@
 				694336972D4DD63B009A6177 /* WatchConnectivityManager.swift in Sources */,
 				698A29232EDB54F300090EFA /* LocationManager.swift in Sources */,
 				698A29242EDB54F300090EFA /* WeatherService.swift in Sources */,
+				AAFE000300000000000A0001 /* FeatureExtractor.swift in Sources */,
+				AAFE000300000000000A0002 /* WeatherForecastService.swift in Sources */,
+				AAFE000300000000000A0003 /* HealthKitManager.swift in Sources */,
+				AAFE000300000000000A0004 /* MigrainePredictionService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -745,6 +773,10 @@
 				694336962D4DD63B009A6177 /* WatchConnectivityManager.swift in Sources */,
 				698A29252EDB54F300090EFA /* LocationManager.swift in Sources */,
 				698A29262EDB54F300090EFA /* WeatherService.swift in Sources */,
+				AAFE000400000000000A0001 /* FeatureExtractor.swift in Sources */,
+				AAFE000400000000000A0002 /* WeatherForecastService.swift in Sources */,
+				AAFE000400000000000A0003 /* HealthKitManager.swift in Sources */,
+				AAFE000400000000000A0004 /* MigrainePredictionService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1061,7 +1093,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "NALI Migraine Log/NALI Migraine Log.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log/Preview Content\"";
 				DEVELOPMENT_TEAM = X56YBMN7R6;
 				ENABLE_PREVIEWS = YES;
@@ -1079,7 +1111,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.32;
+				MARKETING_VERSION = 2.35;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neuroli.Headway;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -1095,7 +1127,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "NALI Migraine Log/NALI Migraine Log.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log/Preview Content\"";
 				DEVELOPMENT_TEAM = X56YBMN7R6;
 				ENABLE_PREVIEWS = YES;
@@ -1113,7 +1145,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.32;
+				MARKETING_VERSION = 2.35;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neuroli.Headway;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -1201,7 +1233,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "NALI Migraine Log Watch App Watch App/NALI Migraine Log Watch App Watch App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log Watch App Watch App/Preview Content\"";
 				DEVELOPMENT_TEAM = X56YBMN7R6;
 				ENABLE_PREVIEWS = YES;
@@ -1214,7 +1246,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.32;
+				MARKETING_VERSION = 2.35;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neuroli.Headway.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1233,7 +1265,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "NALI Migraine Log Watch App Watch App/NALI Migraine Log Watch App Watch App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log Watch App Watch App/Preview Content\"";
 				DEVELOPMENT_TEAM = X56YBMN7R6;
 				ENABLE_PREVIEWS = YES;
@@ -1246,7 +1278,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.32;
+				MARKETING_VERSION = 2.35;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neuroli.Headway.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;

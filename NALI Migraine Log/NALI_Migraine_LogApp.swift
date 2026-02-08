@@ -65,6 +65,11 @@ struct NALI_Migraine_LogApp: App {
                                 Label("Calendar", systemImage: "calendar")
                             }
                         
+                        MigraineRiskView(viewModel: viewModel)
+                            .tabItem {
+                                Label("Predict", systemImage: "brain.head.profile")
+                            }
+                        
                         StatisticsView(viewModel: viewModel)
                             .tabItem {
                                 Label("Analytics", systemImage: "chart.bar")
