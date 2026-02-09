@@ -156,7 +156,18 @@ struct NewMigraineView: View {
                         location: location,
                         notes: notes.isEmpty ? nil : notes,
                         triggers: Array(selectedTriggers),
-                        medications: Array(selectedMedications)
+                        medications: Array(selectedMedications),
+                        hasAura: hasAura,
+                        hasPhotophobia: hasPhotophobia,
+                        hasPhonophobia: hasPhonophobia,
+                        hasNausea: hasNausea,
+                        hasVomiting: hasVomiting,
+                        hasWakeUpHeadache: hasWakeUpHeadache,
+                        hasTinnitus: hasTinnitus,
+                        hasVertigo: hasVertigo,
+                        missedWork: missedWork,
+                        missedSchool: missedSchool,
+                        missedEvents: missedEvents
                     )
                     dismiss()
                 }

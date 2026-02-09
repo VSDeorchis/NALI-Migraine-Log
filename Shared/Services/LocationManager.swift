@@ -19,6 +19,24 @@ class LocationManager: NSObject, ObservableObject {
     let locationManager = CLLocationManager()
     private var locationContinuation: CheckedContinuation<CLLocation, Error>?
     
+    /// Cross-platform check for location authorization
+    /// macOS uses .authorized; iOS/watchOS use .authorizedWhenInUse
+    var isLocationAuthorized: Bool {
+        #if os(macOS)
+        return authorizationStatus == .authorizedAlways || authorizationStatus == .authorized
+        #else
+        return authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways
+        #endif
+    }
+    
+    private static func isStatusAuthorized(_ status: CLAuthorizationStatus) -> Bool {
+        #if os(macOS)
+        return status == .authorizedAlways || status == .authorized
+        #else
+        return status == .authorizedWhenInUse || status == .authorizedAlways
+        #endif
+    }
+    
     override private init() {
         super.init()
         
@@ -42,7 +60,7 @@ class LocationManager: NSObject, ObservableObject {
         print("📍 Status description: \(statusDescription(currentStatus))")
         
         // If already authorized, start monitoring
-        if currentStatus == .authorizedWhenInUse || currentStatus == .authorizedAlways {
+        if Self.isStatusAuthorized(currentStatus) {
             print("📍 Already authorized, starting monitoring")
             locationManager.startUpdatingLocation()
         }
@@ -66,8 +84,10 @@ class LocationManager: NSObject, ObservableObject {
         case .restricted: return "Restricted"
         case .denied: return "Denied"
         case .authorizedAlways: return "Authorized Always"
+        #if !os(macOS)
         case .authorizedWhenInUse: return "Authorized When In Use"
-        @unknown default: return "Unknown"
+        #endif
+        @unknown default: return "Unknown (\(status.rawValue))"
         }
     }
     
@@ -133,7 +153,7 @@ class LocationManager: NSObject, ObservableObject {
         }
         
         // Start monitoring if authorized
-        if currentStatus == .authorizedWhenInUse || currentStatus == .authorizedAlways {
+        if Self.isStatusAuthorized(currentStatus) {
             print("📍 Starting location monitoring")
             startMonitoring()
         }
@@ -152,7 +172,7 @@ class LocationManager: NSObject, ObservableObject {
             print("📍 Status is .notDetermined, will request location (iOS 25+ 'When I Share' mode)")
             print("📍 iOS should show permission dialog when requestLocation() is called")
             // Fall through to request location - iOS will handle the permission
-        } else if status != .authorizedWhenInUse && status != .authorizedAlways {
+        } else if !Self.isStatusAuthorized(status) {
             print("⚠️ Location not authorized (status: \(status.rawValue))")
             throw LocationError.unauthorized
         } else {
@@ -200,8 +220,7 @@ class LocationManager: NSObject, ObservableObject {
     
     /// Start monitoring location changes
     func startMonitoring() {
-        guard authorizationStatus == .authorizedWhenInUse || 
-              authorizationStatus == .authorizedAlways else {
+        guard isLocationAuthorized else {
             return
         }
         locationManager.startUpdatingLocation()
@@ -223,18 +242,16 @@ extension LocationManager: CLLocationManagerDelegate {
         Task { @MainActor in
             self.authorizationStatus = status
             
-            switch status {
-            case .authorizedWhenInUse, .authorizedAlways:
+            if Self.isStatusAuthorized(status) {
                 print("✅ Location authorized - starting monitoring")
                 self.startMonitoring()
-            case .denied, .restricted:
+            } else if status == .denied || status == .restricted {
                 print("❌ Location denied or restricted")
                 self.lastError = LocationError.unauthorized
-            case .notDetermined:
+            } else if status == .notDetermined {
                 print("⚠️ Location not determined")
-            @unknown default:
+            } else {
                 print("⚠️ Unknown authorization status")
-                break
             }
         }
     }

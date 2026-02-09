@@ -1,11 +1,14 @@
+import SwiftUI
+
+/// Unused placeholder view. The macOS app uses MacContentView as its main view.
 struct MainWindowView: View {
     @ObservedObject var viewModel: MigraineViewModel
     @State private var showingSettings = false
     
     var body: some View {
-        // ... existing view code ...
-        .sheet(isPresented: $showingSettings) {
-            SettingsView(viewModel: viewModel)
-        }
+        Text("NALI Migraine Log")
+            .sheet(isPresented: $showingSettings) {
+                SettingsView()
+            }
     }
-} 
+}

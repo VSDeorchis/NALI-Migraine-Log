@@ -28,7 +28,18 @@ class MigraineViewModel: ObservableObject {
         location: String,
         notes: String?,
         triggers: [String],
-        medications: [String]
+        medications: [String],
+        hasAura: Bool = false,
+        hasPhotophobia: Bool = false,
+        hasPhonophobia: Bool = false,
+        hasNausea: Bool = false,
+        hasVomiting: Bool = false,
+        hasWakeUpHeadache: Bool = false,
+        hasTinnitus: Bool = false,
+        hasVertigo: Bool = false,
+        missedWork: Bool = false,
+        missedSchool: Bool = false,
+        missedEvents: Bool = false
     ) {
         let migraine = MigraineEvent(context: viewContext)
         migraine.id = UUID()
@@ -38,19 +49,24 @@ class MigraineViewModel: ObservableObject {
         migraine.location = location
         migraine.notes = notes
         
-        // Add triggers
-        for triggerName in triggers {
-            let trigger = TriggerEntity(context: viewContext)
-            trigger.name = triggerName
-            trigger.migraine = migraine
-        }
+        // Set symptom booleans
+        migraine.hasAura = hasAura
+        migraine.hasPhotophobia = hasPhotophobia
+        migraine.hasPhonophobia = hasPhonophobia
+        migraine.hasNausea = hasNausea
+        migraine.hasVomiting = hasVomiting
+        migraine.hasWakeUpHeadache = hasWakeUpHeadache
+        migraine.hasTinnitus = hasTinnitus
+        migraine.hasVertigo = hasVertigo
+        migraine.missedWork = missedWork
+        migraine.missedSchool = missedSchool
+        migraine.missedEvents = missedEvents
         
-        // Add medications
-        for medicationName in medications {
-            let medication = MedicationEntity(context: viewContext)
-            medication.name = medicationName
-            medication.migraine = migraine
-        }
+        // Map trigger names to boolean properties
+        applyTriggers(triggers, to: migraine)
+        
+        // Map medication names to boolean properties
+        applyMedications(medications, to: migraine)
         
         save()
         fetchMigraines()
@@ -70,7 +86,18 @@ class MigraineViewModel: ObservableObject {
         location: String,
         notes: String?,
         triggers: [String],
-        medications: [String]
+        medications: [String],
+        hasAura: Bool = false,
+        hasPhotophobia: Bool = false,
+        hasPhonophobia: Bool = false,
+        hasNausea: Bool = false,
+        hasVomiting: Bool = false,
+        hasWakeUpHeadache: Bool = false,
+        hasTinnitus: Bool = false,
+        hasVertigo: Bool = false,
+        missedWork: Bool = false,
+        missedSchool: Bool = false,
+        missedEvents: Bool = false
     ) {
         migraine.startTime = startTime
         migraine.endTime = endTime
@@ -78,44 +105,113 @@ class MigraineViewModel: ObservableObject {
         migraine.location = location
         migraine.notes = notes
         
-        // Remove existing triggers and medications
-        if let existingTriggers = migraine.triggers as? NSSet {
-            for case let trigger as TriggerEntity in existingTriggers {
-                viewContext.delete(trigger)
-            }
-        }
+        // Set symptom booleans
+        migraine.hasAura = hasAura
+        migraine.hasPhotophobia = hasPhotophobia
+        migraine.hasPhonophobia = hasPhonophobia
+        migraine.hasNausea = hasNausea
+        migraine.hasVomiting = hasVomiting
+        migraine.hasWakeUpHeadache = hasWakeUpHeadache
+        migraine.hasTinnitus = hasTinnitus
+        migraine.hasVertigo = hasVertigo
+        migraine.missedWork = missedWork
+        migraine.missedSchool = missedSchool
+        migraine.missedEvents = missedEvents
         
-        if let existingMedications = migraine.medications as? NSSet {
-            for case let medication as MedicationEntity in existingMedications {
-                viewContext.delete(medication)
-            }
-        }
-        
-        // Add new triggers
-        for triggerName in triggers {
-            let trigger = TriggerEntity(context: viewContext)
-            trigger.name = triggerName
-            trigger.migraine = migraine
-        }
-        
-        // Add new medications
-        for medicationName in medications {
-            let medication = MedicationEntity(context: viewContext)
-            medication.name = medicationName
-            medication.migraine = migraine
-        }
+        // Reset all triggers and medications, then apply new selections
+        resetTriggers(migraine)
+        resetMedications(migraine)
+        applyTriggers(triggers, to: migraine)
+        applyMedications(medications, to: migraine)
         
         save()
         fetchMigraines()
+    }
+    
+    // MARK: - Trigger Mapping
+    
+    private func applyTriggers(_ triggers: [String], to migraine: MigraineEvent) {
+        for trigger in triggers {
+            switch trigger {
+            case "Stress": migraine.isTriggerStress = true
+            case "Sleep Changes", "Lack of Sleep": migraine.isTriggerLackOfSleep = true
+            case "Weather": migraine.isTriggerWeather = true
+            case "Food": migraine.isTriggerFood = true
+            case "Caffeine": migraine.isTriggerCaffeine = true
+            case "Alcohol": migraine.isTriggerAlcohol = true
+            case "Exercise": migraine.isTriggerExercise = true
+            case "Screen Time": migraine.isTriggerScreenTime = true
+            case "Hormonal", "Hormones": migraine.isTriggerHormones = true
+            case "Dehydration": migraine.isTriggerDehydration = true
+            case "Other": migraine.isTriggerOther = true
+            default: break
+            }
+        }
+    }
+    
+    private func resetTriggers(_ migraine: MigraineEvent) {
+        migraine.isTriggerStress = false
+        migraine.isTriggerLackOfSleep = false
+        migraine.isTriggerWeather = false
+        migraine.isTriggerFood = false
+        migraine.isTriggerCaffeine = false
+        migraine.isTriggerAlcohol = false
+        migraine.isTriggerExercise = false
+        migraine.isTriggerScreenTime = false
+        migraine.isTriggerHormones = false
+        migraine.isTriggerDehydration = false
+        migraine.isTriggerOther = false
+    }
+    
+    // MARK: - Medication Mapping
+    
+    private func applyMedications(_ medications: [String], to migraine: MigraineEvent) {
+        for medication in medications {
+            switch medication {
+            case "Sumatriptan": migraine.tookSumatriptan = true
+            case "Rizatriptan": migraine.tookRizatriptan = true
+            case "Eletriptan": migraine.tookEletriptan = true
+            case "Frovatriptan": migraine.tookFrovatriptan = true
+            case "Naratriptan": migraine.tookNaratriptan = true
+            case "Ubrelvy": migraine.tookUbrelvy = true
+            case "Nurtec": migraine.tookNurtec = true
+            case "Reyvow": migraine.tookReyvow = true
+            case "Trudhesa": migraine.tookTrudhesa = true
+            case "Elyxyb": migraine.tookElyxyb = true
+            case "Tylenol": migraine.tookTylenol = true
+            case "Advil", "Ibuprofen": migraine.tookIbuprofin = true
+            case "Naproxen": migraine.tookNaproxen = true
+            case "Excedrin": migraine.tookExcedrin = true
+            case "Other": migraine.tookOther = true
+            default: break
+            }
+        }
+    }
+    
+    private func resetMedications(_ migraine: MigraineEvent) {
+        migraine.tookSumatriptan = false
+        migraine.tookRizatriptan = false
+        migraine.tookEletriptan = false
+        migraine.tookFrovatriptan = false
+        migraine.tookNaratriptan = false
+        migraine.tookUbrelvy = false
+        migraine.tookNurtec = false
+        migraine.tookReyvow = false
+        migraine.tookTrudhesa = false
+        migraine.tookElyxyb = false
+        migraine.tookTylenol = false
+        migraine.tookIbuprofin = false
+        migraine.tookNaproxen = false
+        migraine.tookExcedrin = false
+        migraine.tookOther = false
     }
     
     private func save() {
         do {
             try viewContext.save()
             objectWillChange.send()
-            fetchMigraines()
         } catch {
             print("Error saving context: \(error)")
         }
     }
-} 
+}

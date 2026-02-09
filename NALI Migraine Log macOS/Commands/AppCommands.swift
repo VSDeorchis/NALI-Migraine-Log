@@ -12,7 +12,11 @@ struct AppCommands: Commands {
             .keyboardShortcut("n", modifiers: .command)
             
             Button("Settings...") {
-                NSApp.sendAction(#selector(AppDelegate.showSettings(_:)), to: nil, from: nil)
+                if #available(macOS 14, *) {
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                } else {
+                    NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+                }
             }
             .keyboardShortcut(",", modifiers: .command)
         }

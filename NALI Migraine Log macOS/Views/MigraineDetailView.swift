@@ -24,8 +24,8 @@ struct MigraineDetailView: View {
         _editedPainLevel = State(initialValue: migraine.painLevel)
         _editedLocation = State(initialValue: migraine.location ?? "")
         _editedNotes = State(initialValue: migraine.notes ?? "")
-        _editedTriggers = State(initialValue: Set((migraine.triggers as? NSSet)?.allObjects.compactMap { ($0 as? TriggerEntity)?.name } ?? []))
-        _editedMedications = State(initialValue: Set((migraine.medications as? NSSet)?.allObjects.compactMap { ($0 as? MedicationEntity)?.name } ?? []))
+        _editedTriggers = State(initialValue: Set(migraine.selectedTriggerNames))
+        _editedMedications = State(initialValue: Set(migraine.selectedMedicationNames))
     }
     
     var body: some View {
@@ -94,11 +94,11 @@ struct MigraineDetailView: View {
                         }
                         
                         // Triggers
-                        if let triggers = migraine.triggers as? NSSet, triggers.count > 0 {
+                        if !migraine.selectedTriggerNames.isEmpty {
                             DetailSection(title: "Triggers") {
                                 FlowLayout {
-                                    ForEach(Array((migraine.triggers as? NSSet)?.allObjects ?? []).compactMap { $0 as? TriggerEntity }, id: \.id) { trigger in
-                                        Text(trigger.name ?? "")
+                                    ForEach(migraine.selectedTriggerNames, id: \.self) { trigger in
+                                        Text(trigger)
                                             .padding(.horizontal, 8)
                                             .padding(.vertical, 4)
                                             .background(Color.blue.opacity(0.1))
@@ -109,11 +109,11 @@ struct MigraineDetailView: View {
                         }
                         
                         // Medications
-                        if let medications = migraine.medications as? NSSet, medications.count > 0 {
+                        if !migraine.selectedMedicationNames.isEmpty {
                             DetailSection(title: "Medications") {
                                 FlowLayout {
-                                    ForEach(Array((migraine.medications as? NSSet)?.allObjects ?? []).compactMap { $0 as? MedicationEntity }, id: \.id) { medication in
-                                        Text(medication.name ?? "")
+                                    ForEach(migraine.selectedMedicationNames, id: \.self) { medication in
+                                        Text(medication)
                                             .padding(.horizontal, 8)
                                             .padding(.vertical, 4)
                                             .background(Color.green.opacity(0.1))
@@ -171,7 +171,18 @@ struct MigraineDetailView: View {
             location: editedLocation,
             notes: editedNotes.isEmpty ? nil : editedNotes,
             triggers: Array(editedTriggers),
-            medications: Array(editedMedications)
+            medications: Array(editedMedications),
+            hasAura: migraine.hasAura,
+            hasPhotophobia: migraine.hasPhotophobia,
+            hasPhonophobia: migraine.hasPhonophobia,
+            hasNausea: migraine.hasNausea,
+            hasVomiting: migraine.hasVomiting,
+            hasWakeUpHeadache: migraine.hasWakeUpHeadache,
+            hasTinnitus: migraine.hasTinnitus,
+            hasVertigo: migraine.hasVertigo,
+            missedWork: migraine.missedWork,
+            missedSchool: migraine.missedSchool,
+            missedEvents: migraine.missedEvents
         )
         isEditing = false
     }
@@ -199,9 +210,35 @@ struct DetailSection<Content: View>: View {
 struct SymptomsGrid: View {
     let migraine: MigraineEvent
     
+    private var activeSymptoms: [(String, String)] {
+        var symptoms: [(String, String)] = []
+        if migraine.hasAura { symptoms.append(("Aura", "eye.circle")) }
+        if migraine.hasPhotophobia { symptoms.append(("Photophobia", "sun.max")) }
+        if migraine.hasPhonophobia { symptoms.append(("Phonophobia", "ear")) }
+        if migraine.hasNausea { symptoms.append(("Nausea", "stomach")) }
+        if migraine.hasVomiting { symptoms.append(("Vomiting", "exclamationmark.triangle")) }
+        if migraine.hasWakeUpHeadache { symptoms.append(("Wake Up Headache", "bed.double")) }
+        if migraine.hasTinnitus { symptoms.append(("Tinnitus", "waveform")) }
+        if migraine.hasVertigo { symptoms.append(("Vertigo", "arrow.triangle.2.circlepath")) }
+        return symptoms
+    }
+    
     var body: some View {
-        Text("Symptoms data not available")
-            .foregroundColor(.secondary)
+        if activeSymptoms.isEmpty {
+            Text("No symptoms recorded")
+                .foregroundColor(.secondary)
+        } else {
+            FlowLayout {
+                ForEach(activeSymptoms, id: \.0) { name, icon in
+                    Label(name, systemImage: icon)
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.purple.opacity(0.1))
+                        .cornerRadius(8)
+                }
+            }
+        }
     }
 }
 

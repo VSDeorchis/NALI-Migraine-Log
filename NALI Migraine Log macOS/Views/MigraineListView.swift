@@ -12,9 +12,10 @@ struct MigraineListView: View {
         } else {
             return viewModel.migraines.filter { migraine in
                 let notesMatch = migraine.notes?.localizedCaseInsensitiveContains(searchText) ?? false
-                let medicationsMatch = (migraine.medications as? NSSet)?.allObjects.contains { ($0 as? MedicationEntity)?.name?.localizedCaseInsensitiveContains(searchText) ?? false } ?? false
-                let triggersMatch = (migraine.triggers as? NSSet)?.allObjects.contains { ($0 as? TriggerEntity)?.name?.localizedCaseInsensitiveContains(searchText) ?? false } ?? false
-                return notesMatch || medicationsMatch || triggersMatch
+                let medicationsMatch = migraine.selectedMedicationNames.contains { $0.localizedCaseInsensitiveContains(searchText) }
+                let triggersMatch = migraine.selectedTriggerNames.contains { $0.localizedCaseInsensitiveContains(searchText) }
+                let locationMatch = migraine.location?.localizedCaseInsensitiveContains(searchText) ?? false
+                return notesMatch || medicationsMatch || triggersMatch || locationMatch
             }
         }
     }
@@ -88,20 +89,13 @@ struct MigraineRowView: View {
             }
             .font(.subheadline)
             
-            if let triggers = migraine.triggers as? NSSet, triggers.count > 0 {
-                Text("Triggers: \(triggersList)")
+            if !migraine.selectedTriggerNames.isEmpty {
+                Text("Triggers: \(migraine.selectedTriggerNames.joined(separator: ", "))")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
         }
         .padding(.vertical, 4)
-    }
-    
-    private var triggersList: String {
-        guard let triggers = migraine.triggers as? NSSet else { return "" }
-        return triggers.allObjects
-            .compactMap { ($0 as? TriggerEntity)?.name }
-            .joined(separator: ", ")
     }
     
     private func painLevelColor(_ level: Int16) -> Color {

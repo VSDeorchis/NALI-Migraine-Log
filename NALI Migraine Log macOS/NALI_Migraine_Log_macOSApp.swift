@@ -18,9 +18,6 @@ struct NALI_Migraine_Log_macOSApp: App {
     init() {
         let context = PersistenceController.shared.container.viewContext
         _viewModel = StateObject(wrappedValue: MigraineViewModel(context: context))
-        
-        // Perform data migration if needed
-        DataMigrationHelper.checkAndMigrateData(context: context)
     }
     
     var body: some Scene {
@@ -40,7 +37,7 @@ struct NALI_Migraine_Log_macOSApp: App {
                             }
                         }
                 } else {
-                    MacContentView(viewModel: viewModel)
+                    MacContentView(context: persistenceController.container.viewContext)
                         .environment(\.managedObjectContext, persistenceController.container.viewContext)
                 }
             }

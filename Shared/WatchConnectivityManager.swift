@@ -1,3 +1,4 @@
+#if os(iOS) || os(watchOS)
 import Foundation
 import WatchConnectivity
 import CoreData
@@ -276,3 +277,4 @@ extension WatchConnectivityManager: WCSessionDelegate {
     }
     #endif
 }
+#endif

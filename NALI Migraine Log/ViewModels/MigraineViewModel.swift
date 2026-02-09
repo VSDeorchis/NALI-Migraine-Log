@@ -248,7 +248,7 @@ class MigraineViewModel: NSObject, ObservableObject {
         migraineLog.debug("💾 addMigraine called at \(Date(), privacy: .public)")
 
         // Create and save migraine - must be called from main thread
-        NSLog("🟢 [MigraineViewModel] Thread check - isMain: \(Thread.isMainThread)")
+        NSLog("🟢 [MigraineViewModel] Creating migraine on MainActor")
         
         NSLog("🟢 [MigraineViewModel] Creating MigraineEvent...")
             let migraine = MigraineEvent(context: viewContext)
@@ -351,19 +351,19 @@ class MigraineViewModel: NSObject, ObservableObject {
         NSLog("🟢 [MigraineViewModel] Starting weather fetch task...")
         Task { [weak self] in
             NSLog("🌤️ [Weather Task] Weather fetch task started")
-            migraineLog.debug("Starting weather fetch task")
+            self?.migraineLog.debug("Starting weather fetch task")
             await self?.fetchWeatherData(for: migraine)
             NSLog("🌤️ [Weather Task] fetchWeatherData completed")
             await MainActor.run {
                 do {
                     NSLog("🌤️ [Weather Task] Saving weather data to Core Data...")
-                    migraineLog.debug("Saving weather data for migraine id \(migraine.id?.uuidString ?? "nil", privacy: .public)")
+                    self?.migraineLog.debug("Saving weather data for migraine id \(migraine.id?.uuidString ?? "nil", privacy: .public)")
                     try self?.viewContext.save()
                     NSLog("🌤️ [Weather Task] Weather data saved successfully")
-                    migraineLog.debug("Weather data save succeeded")
+                    self?.migraineLog.debug("Weather data save succeeded")
                 } catch {
                     NSLog("🔴 [Weather Task] Failed to save weather data: %@", error.localizedDescription)
-                    migraineLog.error("Failed to save weather data: \(error.localizedDescription, privacy: .public)")
+                    self?.migraineLog.error("Failed to save weather data: \(error.localizedDescription, privacy: .public)")
                 }
             }
         }
@@ -703,8 +703,8 @@ class MigraineViewModel: NSObject, ObservableObject {
         do {
             try viewContext.save()
             // Record the deletion for syncing
-            Task {
-                await WatchConnectivityManager.shared.recordDeletion(of: id)
+            Task { @MainActor in
+                WatchConnectivityManager.shared.recordDeletion(of: id)
             }
             fetchMigraines()  // Refresh the list
         } catch {
@@ -901,17 +901,13 @@ class MigraineViewModel: NSObject, ObservableObject {
     // Make migration actually async
     func migrateToDifferentStore() async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            do {
-                PersistenceController.shared.migrateDataToNewStore { (result: Result<Void, Error>) in
-                    switch result {
-                    case .success:
-                        continuation.resume()
-                    case .failure(let error):
-                        continuation.resume(throwing: error)
-                    }
+            PersistenceController.shared.migrateDataToNewStore { (result: Result<Void, Error>) in
+                switch result {
+                case .success:
+                    continuation.resume()
+                case .failure(let error):
+                    continuation.resume(throwing: error)
                 }
-            } catch {
-                continuation.resume(throwing: error)
             }
         }
     }
@@ -1248,7 +1244,7 @@ class MigraineViewModel: NSObject, ObservableObject {
     }
     
     @MainActor
-    func loadChartData(for timeFilter: TimeFrame) async throws {
+    func loadChartData(for timeFilter: TimeFrame) async {
         // Prevent multiple simultaneous loads
         guard lastChartUpdateTime == nil || 
               Date().timeIntervalSince(lastChartUpdateTime!) > chartCacheTimeout else {
@@ -1256,7 +1252,7 @@ class MigraineViewModel: NSObject, ObservableObject {
         }
         
         // Load data in background
-        try await Task {
+        await Task {
             // Pre-calculate all chart data
             let filtered = filteredMigraines(for: timeFilter)
             

@@ -24,15 +24,20 @@ struct MacContentView: View {
                 }
                 .tag(1)
                 
+                NavigationLink(destination: MacMigraineRiskView(viewModel: viewModel)) {
+                    Label("Predict", systemImage: "brain.head.profile")
+                }
+                .tag(2)
+                
                 NavigationLink(destination: StatisticsView(viewModel: viewModel)) {
                     Label("Analytics", systemImage: "chart.bar")
                 }
-                .tag(2)
+                .tag(3)
                 
                 NavigationLink(destination: AboutView()) {
                     Label("About", systemImage: "info.circle")
                 }
-                .tag(3)
+                .tag(4)
             }
             .listStyle(.sidebar)
             .toolbar {
@@ -50,8 +55,10 @@ struct MacContentView: View {
                 case 1:
                     CalendarView(viewModel: viewModel)
                 case 2:
-                    StatisticsView(viewModel: viewModel)
+                    MacMigraineRiskView(viewModel: viewModel)
                 case 3:
+                    StatisticsView(viewModel: viewModel)
+                case 4:
                     AboutView()
                 default:
                     MigraineListView(viewModel: viewModel)

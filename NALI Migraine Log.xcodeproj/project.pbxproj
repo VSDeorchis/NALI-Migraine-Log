@@ -21,16 +21,16 @@
 		69C15B292D59B4AD002BAA7E /* NALI_Migraine_Log.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 69C15B092D59B28E002BAA7E /* NALI_Migraine_Log.xcdatamodeld */; };
 		69C15B2A2D59B4AD002BAA7E /* NALI_Migraine_Log.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 69C15B092D59B28E002BAA7E /* NALI_Migraine_Log.xcdatamodeld */; };
 		AAFE000200000000000A0001 /* FeatureExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0001 /* FeatureExtractor.swift */; };
-		AAFE000300000000000A0001 /* FeatureExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0001 /* FeatureExtractor.swift */; };
-		AAFE000400000000000A0001 /* FeatureExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0001 /* FeatureExtractor.swift */; };
 		AAFE000200000000000A0002 /* WeatherForecastService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0002 /* WeatherForecastService.swift */; };
-		AAFE000300000000000A0002 /* WeatherForecastService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0002 /* WeatherForecastService.swift */; };
-		AAFE000400000000000A0002 /* WeatherForecastService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0002 /* WeatherForecastService.swift */; };
 		AAFE000200000000000A0003 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0003 /* HealthKitManager.swift */; };
-		AAFE000300000000000A0003 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0003 /* HealthKitManager.swift */; };
-		AAFE000400000000000A0003 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0003 /* HealthKitManager.swift */; };
 		AAFE000200000000000A0004 /* MigrainePredictionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0004 /* MigrainePredictionService.swift */; };
+		AAFE000300000000000A0001 /* FeatureExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0001 /* FeatureExtractor.swift */; };
+		AAFE000300000000000A0002 /* WeatherForecastService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0002 /* WeatherForecastService.swift */; };
+		AAFE000300000000000A0003 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0003 /* HealthKitManager.swift */; };
 		AAFE000300000000000A0004 /* MigrainePredictionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0004 /* MigrainePredictionService.swift */; };
+		AAFE000400000000000A0001 /* FeatureExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0001 /* FeatureExtractor.swift */; };
+		AAFE000400000000000A0002 /* WeatherForecastService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0002 /* WeatherForecastService.swift */; };
+		AAFE000400000000000A0003 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0003 /* HealthKitManager.swift */; };
 		AAFE000400000000000A0004 /* MigrainePredictionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0004 /* MigrainePredictionService.swift */; };
 /* End PBXBuildFile section */
 
@@ -126,6 +126,8 @@
 			membershipExceptions = (
 				"MigraineEvent+CoreDataClass.swift",
 				"MigraineEvent+CoreDataProperties.swift",
+				MigraineRiskScore.swift,
+				SyncStatus.swift,
 			);
 			target = 692AFEBC2D581D0600F792E1 /* NALI Migraine Log macOS */;
 		};
@@ -148,7 +150,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Assets.xcassets,
-				ViewModels/MigraineViewModel.swift,
 			);
 			target = 692AFEBC2D581D0600F792E1 /* NALI Migraine Log macOS */;
 		};
@@ -843,7 +844,7 @@
 				CODE_SIGN_ENTITLEMENTS = "NALI Migraine Log macOS/NALI_Migraine_Log_macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log macOS/Preview Content\"";
 				DEVELOPMENT_TEAM = X56YBMN7R6;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -855,7 +856,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
-				MARKETING_VERSION = 2.32;
+				MARKETING_VERSION = 2.50;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.nali.NALI-Migraine-Log-macOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -872,7 +873,7 @@
 				CODE_SIGN_ENTITLEMENTS = "NALI Migraine Log macOS/NALI_Migraine_Log_macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log macOS/Preview Content\"";
 				DEVELOPMENT_TEAM = X56YBMN7R6;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -884,7 +885,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
-				MARKETING_VERSION = 2.32;
+				MARKETING_VERSION = 2.50;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.nali.NALI-Migraine-Log-macOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1093,7 +1094,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "NALI Migraine Log/NALI Migraine Log.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log/Preview Content\"";
 				DEVELOPMENT_TEAM = X56YBMN7R6;
 				ENABLE_PREVIEWS = YES;
@@ -1111,7 +1112,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.35;
+				MARKETING_VERSION = 2.50;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neuroli.Headway;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -1127,7 +1128,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "NALI Migraine Log/NALI Migraine Log.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log/Preview Content\"";
 				DEVELOPMENT_TEAM = X56YBMN7R6;
 				ENABLE_PREVIEWS = YES;
@@ -1145,7 +1146,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.35;
+				MARKETING_VERSION = 2.50;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neuroli.Headway;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -1233,7 +1234,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "NALI Migraine Log Watch App Watch App/NALI Migraine Log Watch App Watch App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log Watch App Watch App/Preview Content\"";
 				DEVELOPMENT_TEAM = X56YBMN7R6;
 				ENABLE_PREVIEWS = YES;
@@ -1246,7 +1247,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.35;
+				MARKETING_VERSION = 2.50;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neuroli.Headway.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1265,7 +1266,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "NALI Migraine Log Watch App Watch App/NALI Migraine Log Watch App Watch App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log Watch App Watch App/Preview Content\"";
 				DEVELOPMENT_TEAM = X56YBMN7R6;
 				ENABLE_PREVIEWS = YES;
@@ -1278,7 +1279,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.35;
+				MARKETING_VERSION = 2.50;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neuroli.Headway.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;

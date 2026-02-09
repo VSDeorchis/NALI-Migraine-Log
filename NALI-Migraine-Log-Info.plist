@@ -10,5 +10,9 @@
 	<false/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Headway uses your location to fetch weather data (temperature, barometric pressure) for each migraine event. This helps identify weather-related triggers. Location is only accessed when logging migraines, not in the background.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Headway reads sleep, heart rate variability, resting heart rate, step count, and menstrual cycle data to improve migraine risk predictions. All data stays on your device.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Headway may log migraine events to Apple Health so you can view your headache history alongside other health data. No other health data is modified.</string>
 </dict>
 </plist>

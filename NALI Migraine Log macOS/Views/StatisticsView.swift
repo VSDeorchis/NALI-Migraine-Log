@@ -162,14 +162,18 @@ struct StatisticsView: View {
     }
     
     private var abortiveMedsCount: Int {
-        let abortiveMeds = ["Sumatriptan", "Rizatriptan", "Frovatriptan", "Naratriptan", "Ubrelvy", "Nurtec"]
         return filteredMigraines.reduce(0) { count, migraine in
-            guard let medications = migraine.medications as? NSSet else { return count }
-            return count + medications.allObjects.filter { med in
-                guard let medication = med as? MedicationEntity,
-                      let name = medication.name else { return false }
-                return abortiveMeds.contains(name)
-            }.count
+            var abortiveCount = 0
+            if migraine.tookSumatriptan { abortiveCount += 1 }
+            if migraine.tookRizatriptan { abortiveCount += 1 }
+            if migraine.tookFrovatriptan { abortiveCount += 1 }
+            if migraine.tookNaratriptan { abortiveCount += 1 }
+            if migraine.tookEletriptan { abortiveCount += 1 }
+            if migraine.tookUbrelvy { abortiveCount += 1 }
+            if migraine.tookNurtec { abortiveCount += 1 }
+            if migraine.tookReyvow { abortiveCount += 1 }
+            if migraine.tookTrudhesa { abortiveCount += 1 }
+            return count + abortiveCount
         }
     }
     
@@ -235,11 +239,8 @@ struct StatisticsView: View {
     private var triggerData: [TriggerPoint] {
         var counts: [String: Int] = [:]
         for migraine in filteredMigraines {
-            guard let triggers = migraine.triggers as? NSSet else { continue }
-            for case let trigger as TriggerEntity in triggers {
-                if let name = trigger.name {
-                    counts[name, default: 0] += 1
-                }
+            for name in migraine.selectedTriggerNames {
+                counts[name, default: 0] += 1
             }
         }
         return counts.map { TriggerPoint(trigger: $0.key, count: $0.value) }
@@ -249,11 +250,8 @@ struct StatisticsView: View {
     private var medicationData: [MedicationPoint] {
         var counts: [String: Int] = [:]
         for migraine in filteredMigraines {
-            guard let medications = migraine.medications as? NSSet else { continue }
-            for case let medication as MedicationEntity in medications {
-                if let name = medication.name {
-                    counts[name, default: 0] += 1
-                }
+            for name in migraine.selectedMedicationNames {
+                counts[name, default: 0] += 1
             }
         }
         return counts.map { MedicationPoint(medication: $0.key, count: $0.value) }
