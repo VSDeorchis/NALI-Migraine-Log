@@ -68,7 +68,7 @@ struct StatisticsView: View {
                     case "Lack of Sleep": return migraine.isTriggerLackOfSleep
                     case "Dehydration": return migraine.isTriggerDehydration
                     case "Weather": return migraine.isTriggerWeather
-                    case "Hormones": return migraine.isTriggerHormones
+                    case "Menstrual": return migraine.isTriggerHormones
                     case "Alcohol": return migraine.isTriggerAlcohol
                     case "Caffeine": return migraine.isTriggerCaffeine
                     case "Food": return migraine.isTriggerFood
@@ -165,18 +165,144 @@ struct StatisticsView: View {
     }
     
     private var summaryStatsView: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
-            StatBox(title: "\(timeFilter.rawValue) Total", value: String(totalMigraines))
-            StatBox(
-                title: "This vs Last \(timeFilter.rawValue)",
-                value: "\(currentPeriodMigraines) vs \(previousPeriodMigraines)"
-            )
-            StatBox(title: "Avg Duration", value: formatDuration(averageDuration))
-            StatBox(title: "\(timeFilter.rawValue)ly Average", value: String(format: "%.1f", averageFrequency))
-            StatBox(title: "Avg Pain", value: String(format: "%.1f", averagePain))
-            StatBox(title: "Abortives Used", value: String(abortivesUsed))
+        VStack(spacing: 20) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
+                StatBox(
+                    title: "\(timeFilter.rawValue) Total",
+                    value: String(totalMigraines),
+                    trend: totalTrend
+                )
+                StatBox(
+                    title: "Avg Pain",
+                    value: String(format: "%.1f", averagePain),
+                    trend: painTrend
+                )
+                StatBox(title: "Avg Duration", value: formatDuration(averageDuration))
+                StatBox(title: "Abortives Used", value: String(abortivesUsed))
+            }
+            .padding(.horizontal)
+            
+            // Impact summary
+            impactSummaryView
         }
-        .padding(.horizontal)
+    }
+    
+    // MARK: - Impact Summary
+    
+    private var impactSummaryView: some View {
+        let missedWorkCount = filteredMigraines.filter { $0.missedWork }.count
+        let missedSchoolCount = filteredMigraines.filter { $0.missedSchool }.count
+        let missedEventsCount = filteredMigraines.filter { $0.missedEvents }.count
+        let totalImpact = missedWorkCount + missedSchoolCount + missedEventsCount
+        
+        return Group {
+            if totalImpact > 0 {
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Life Impact", systemImage: "heart.slash.fill")
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.red)
+                        .padding(.horizontal, 4)
+                    
+                    HStack(spacing: 12) {
+                        if missedWorkCount > 0 {
+                            ImpactBadge(
+                                icon: "briefcase.fill",
+                                count: missedWorkCount,
+                                label: "Work",
+                                color: .red
+                            ) {
+                                selectedImpactType = "Missed Work"
+                            }
+                        }
+                        if missedSchoolCount > 0 {
+                            ImpactBadge(
+                                icon: "graduationcap.fill",
+                                count: missedSchoolCount,
+                                label: "School",
+                                color: .orange
+                            ) {
+                                selectedImpactType = "Missed School"
+                            }
+                        }
+                        if missedEventsCount > 0 {
+                            ImpactBadge(
+                                icon: "calendar.badge.exclamationmark",
+                                count: missedEventsCount,
+                                label: "Events",
+                                color: .purple
+                            ) {
+                                selectedImpactType = "Missed Events"
+                            }
+                        }
+                    }
+                }
+                .padding(20)
+                .background(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(Color(.secondarySystemGroupedBackground))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .strokeBorder(Color(.systemGray5), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
+                .padding(.horizontal, 16)
+            }
+        }
+    }
+    
+    // MARK: - Trend Calculations
+    
+    private var totalTrend: StatBox.TrendDirection? {
+        guard timeFilter != .range else { return nil }
+        let current = currentPeriodMigraines
+        let previous = previousPeriodMigraines
+        if current > previous {
+            return .up("\(current - previous) more")
+        } else if current < previous {
+            return .down("\(previous - current) fewer")
+        } else {
+            return .same
+        }
+    }
+    
+    private var painTrend: StatBox.TrendDirection? {
+        guard timeFilter != .range else { return nil }
+        let currentPain = averagePain
+        let previousPain = previousPeriodAveragePain
+        guard previousPain > 0 else { return nil }
+        let diff = currentPain - previousPain
+        if abs(diff) < 0.2 { return .same }
+        if diff > 0 {
+            return .up(String(format: "+%.1f", diff))
+        } else {
+            return .down(String(format: "%.1f", diff))
+        }
+    }
+    
+    private var previousPeriodAveragePain: Double {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        let prevMigraines = viewModel.migraines.filter { migraine in
+            guard let startTime = migraine.startTime else { return false }
+            switch timeFilter {
+            case .week:
+                let lastWeekStart = calendar.date(byAdding: .day, value: -14, to: now)!
+                let lastWeekEnd = calendar.date(byAdding: .day, value: -7, to: now)!
+                return startTime >= lastWeekStart && startTime < lastWeekEnd
+            case .month:
+                let lastMonthStart = calendar.date(byAdding: .month, value: -2, to: now)!
+                let lastMonthEnd = calendar.date(byAdding: .month, value: -1, to: now)!
+                return startTime >= lastMonthStart && startTime < lastMonthEnd
+            case .year:
+                return calendar.component(.year, from: startTime) == selectedYear - 1
+            case .range:
+                return false
+            }
+        }
+        guard !prevMigraines.isEmpty else { return 0 }
+        return prevMigraines.reduce(0.0) { $0 + Double($1.painLevel) } / Double(prevMigraines.count)
     }
     
     private var chartsView: some View {
@@ -344,9 +470,37 @@ struct StatisticsView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         if filteredMigraines.isEmpty {
-                            Text("No data for selected period")
-                                .foregroundColor(.secondary)
-                                .padding()
+                            VStack(spacing: 20) {
+                                Spacer()
+                                    .frame(height: 40)
+                                
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.blue.opacity(0.1))
+                                        .frame(width: 100, height: 100)
+                                    Image(systemName: "chart.bar.xaxis")
+                                        .font(.system(size: 40))
+                                        .foregroundStyle(
+                                            LinearGradient(
+                                                colors: [.blue, .purple],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                }
+                                
+                                VStack(spacing: 8) {
+                                    Text("No Data for This Period")
+                                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                                    Text("Try selecting a different time range, or log a migraine to start seeing statistics.")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 40)
+                                }
+                                
+                                Spacer()
+                            }
                         } else {
                             summaryStatsView
                                 .padding(.top)
@@ -597,7 +751,7 @@ struct StatisticsView: View {
                     if migraine.isTriggerLackOfSleep { counts["Lack of Sleep", default: 0] += 1 }
                     if migraine.isTriggerDehydration { counts["Dehydration", default: 0] += 1 }
                     if migraine.isTriggerWeather { counts["Weather", default: 0] += 1 }
-                    if migraine.isTriggerHormones { counts["Hormones", default: 0] += 1 }
+                    if migraine.isTriggerHormones { counts["Menstrual", default: 0] += 1 }
                     if migraine.isTriggerAlcohol { counts["Alcohol", default: 0] += 1 }
                     if migraine.isTriggerCaffeine { counts["Caffeine", default: 0] += 1 }
                     if migraine.isTriggerFood { counts["Food", default: 0] += 1 }
@@ -1097,6 +1251,13 @@ struct ChartSection<Content: View>: View {
 struct StatBox: View {
     let title: String
     let value: String
+    var trend: TrendDirection? = nil
+    
+    enum TrendDirection {
+        case up(String)    // e.g. "up from 3"
+        case down(String)  // e.g. "down from 8"
+        case same
+    }
     
     var body: some View {
         VStack(spacing: 8) {
@@ -1110,6 +1271,11 @@ struct StatBox: View {
             Text(value)
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundColor(Color(red: 68/255, green: 130/255, blue: 180/255))
+                .minimumScaleFactor(0.7)
+            
+            if let trend = trend {
+                trendLabel(trend)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
@@ -1124,6 +1290,36 @@ struct StatBox: View {
         )
         .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
         .shadow(color: Color(red: 68/255, green: 130/255, blue: 180/255).opacity(0.1), radius: 4, x: 0, y: 2)
+    }
+    
+    @ViewBuilder
+    private func trendLabel(_ trend: TrendDirection) -> some View {
+        switch trend {
+        case .up(let detail):
+            HStack(spacing: 2) {
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 9, weight: .bold))
+                Text(detail)
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+            }
+            .foregroundColor(.red)
+        case .down(let detail):
+            HStack(spacing: 2) {
+                Image(systemName: "arrow.down.right")
+                    .font(.system(size: 9, weight: .bold))
+                Text(detail)
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+            }
+            .foregroundColor(.green)
+        case .same:
+            HStack(spacing: 2) {
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 9, weight: .bold))
+                Text("No change")
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+            }
+            .foregroundColor(.secondary)
+        }
     }
 }
 
@@ -1172,6 +1368,40 @@ extension StatisticsView.TimeFilter {
         case .year: return .year
         case .range: return .week // Fallback mapping
         }
+    }
+}
+
+// MARK: - Impact Badge
+struct ImpactBadge: View {
+    let icon: String
+    let count: Int
+    let label: String
+    let color: Color
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundColor(color)
+                
+                Text("\(count)")
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundColor(.primary)
+                
+                Text(label)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(color.opacity(0.08))
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 

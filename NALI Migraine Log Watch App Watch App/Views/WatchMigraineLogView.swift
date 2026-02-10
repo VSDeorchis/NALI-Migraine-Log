@@ -1,7 +1,5 @@
 import SwiftUI
 import CoreData
-// Add import if models are in a separate module
-// import NALIMigraineLogShared
 
 struct WatchMigraineLogView: View {
     @ObservedObject var viewModel: MigraineViewModel
@@ -9,14 +7,34 @@ struct WatchMigraineLogView: View {
     
     var body: some View {
         List {
-            Button(action: {
-                showingNewEntry = true
-            }) {
-                Label("New Entry", systemImage: "plus.circle.fill")
+            // Quick actions
+            Section {
+                Button(action: {
+                    showingNewEntry = true
+                }) {
+                    Label("New Entry", systemImage: "plus.circle.fill")
+                        .foregroundColor(.blue)
+                }
+                
+                NavigationLink {
+                    WatchMigraineRiskView(viewModel: viewModel)
+                } label: {
+                    Label("Risk Prediction", systemImage: "brain.head.profile")
+                        .foregroundColor(.purple)
+                }
             }
             
-            ForEach(viewModel.migraines.prefix(5)) { migraine in
-                WatchMigraineRowView(migraine: migraine)
+            // Recent migraines
+            Section("Recent") {
+                if viewModel.migraines.isEmpty {
+                    Text("No migraines logged")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                } else {
+                    ForEach(viewModel.migraines.prefix(5)) { migraine in
+                        WatchMigraineRowView(migraine: migraine)
+                    }
+                }
             }
         }
         .navigationTitle("Headway")

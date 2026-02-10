@@ -101,7 +101,7 @@ extension MigraineEvent {
         if isTriggerLackOfSleep { triggers.append("Lack of Sleep") }
         if isTriggerDehydration { triggers.append("Dehydration") }
         if isTriggerWeather { triggers.append("Weather") }
-        if isTriggerHormones { triggers.append("Hormones") }
+        if isTriggerHormones { triggers.append("Menstrual") }
         if isTriggerAlcohol { triggers.append("Alcohol") }
         if isTriggerCaffeine { triggers.append("Caffeine") }
         if isTriggerFood { triggers.append("Food") }

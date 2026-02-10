@@ -465,7 +465,7 @@ struct TriggerSelectionView: View {
         "Lack of Sleep",
         "Dehydration",
         "Weather",
-        "Hormones",
+        "Menstrual",
         "Alcohol",
         "Caffeine",
         "Food",
@@ -482,7 +482,7 @@ struct TriggerSelectionView: View {
                     trigger == "Lack of Sleep" ? isTriggerLackOfSleep :
                     trigger == "Dehydration" ? isTriggerDehydration :
                     trigger == "Weather" ? isTriggerWeather :
-                    trigger == "Hormones" ? isTriggerHormones :
+                    trigger == "Menstrual" ? isTriggerHormones :
                     trigger == "Alcohol" ? isTriggerAlcohol :
                     trigger == "Caffeine" ? isTriggerCaffeine :
                     trigger == "Food" ? isTriggerFood :
@@ -498,7 +498,7 @@ struct TriggerSelectionView: View {
                             case "Lack of Sleep": isTriggerLackOfSleep = true
                             case "Dehydration": isTriggerDehydration = true
                             case "Weather": isTriggerWeather = true
-                            case "Hormones": isTriggerHormones = true
+                            case "Menstrual": isTriggerHormones = true
                             case "Alcohol": isTriggerAlcohol = true
                             case "Caffeine": isTriggerCaffeine = true
                             case "Food": isTriggerFood = true
@@ -512,7 +512,7 @@ struct TriggerSelectionView: View {
                             case "Lack of Sleep": isTriggerLackOfSleep = false
                             case "Dehydration": isTriggerDehydration = false
                             case "Weather": isTriggerWeather = false
-                            case "Hormones": isTriggerHormones = false
+                            case "Menstrual": isTriggerHormones = false
                             case "Alcohol": isTriggerAlcohol = false
                             case "Caffeine": isTriggerCaffeine = false
                             case "Food": isTriggerFood = false

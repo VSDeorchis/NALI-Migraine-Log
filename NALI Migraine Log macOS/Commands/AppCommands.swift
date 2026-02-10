@@ -3,6 +3,7 @@ import SwiftUI
 struct AppCommands: Commands {
     @ObservedObject var viewModel: MigraineViewModel
     @Binding var showingNewMigraine: Bool
+    @Binding var selectedTab: Int
     
     var body: some Commands {
         CommandGroup(after: .newItem) {
@@ -10,6 +11,8 @@ struct AppCommands: Commands {
                 showingNewMigraine = true
             }
             .keyboardShortcut("n", modifiers: .command)
+            
+            Divider()
             
             Button("Settings...") {
                 if #available(macOS 14, *) {
@@ -34,6 +37,33 @@ struct AppCommands: Commands {
                 viewModel.fetchMigraines()
             }
             .keyboardShortcut("r", modifiers: .command)
+            
+            Divider()
+            
+            Button("Migraine Log") {
+                selectedTab = 0
+            }
+            .keyboardShortcut("1", modifiers: .command)
+            
+            Button("Calendar") {
+                selectedTab = 1
+            }
+            .keyboardShortcut("2", modifiers: .command)
+            
+            Button("Predict") {
+                selectedTab = 2
+            }
+            .keyboardShortcut("3", modifiers: .command)
+            
+            Button("Analytics") {
+                selectedTab = 3
+            }
+            .keyboardShortcut("4", modifiers: .command)
+            
+            Button("About") {
+                selectedTab = 4
+            }
+            .keyboardShortcut("5", modifiers: .command)
         }
         
         CommandMenu("Help") {

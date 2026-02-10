@@ -3,6 +3,15 @@ import SwiftUI
 struct SplashScreen: View {
     @State private var animationPhase: CGFloat = 0
     
+    // Staggered entrance animation states
+    @State private var showTitle = false
+    @State private var showSubtitle = false
+    @State private var showTagline = false
+    @State private var showIcon = false
+    @State private var showDivider = false
+    @State private var showPractice = false
+    @State private var showFooter = false
+    
     private var appVersion: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
@@ -19,44 +28,72 @@ struct SplashScreen: View {
             VStack {
                 Spacer()
                 
+                // Title block
                 VStack(spacing: 8) {
                     Text("Headway")
-                        .font(.custom("Optima-Bold", size: 38))
+                        .font(.custom("Optima-Bold", size: UIFontMetrics.default.scaledValue(for: 38)))
+                        .minimumScaleFactor(0.7)
+                        .opacity(showTitle ? 1 : 0)
+                        .offset(y: showTitle ? 0 : 12)
+                    
                     Text("Migraine Monitor and Analytics")
-                        .font(.custom("Optima-Regular", size: 24))
+                        .font(.custom("Optima-Regular", size: UIFontMetrics.default.scaledValue(for: 20)))
+                        .minimumScaleFactor(0.7)
+                        .opacity(showSubtitle ? 1 : 0)
+                        .offset(y: showSubtitle ? 0 : 8)
+                    
+                    Text("Track  ·  Predict  ·  Prevent")
+                        .font(.custom("Optima-Bold", size: UIFontMetrics.default.scaledValue(for: 14)))
+                        .minimumScaleFactor(0.7)
+                        .tracking(2)
+                        .opacity(showTagline ? 0.85 : 0)
+                        .offset(y: showTagline ? 0 : 8)
+                        .padding(.top, 4)
+                    
                     Image(systemName: "brain.head.profile")
                         .font(.system(size: 45))
                         .foregroundColor(.white)
                         .padding(.top, 15)
+                        .opacity(showIcon ? 1 : 0)
+                        .scaleEffect(showIcon ? 1 : 0.7)
+                        .accessibilityLabel("Brain icon")
                 }
                 .foregroundColor(.white)
                 .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 2)
                 
-                Rectangle()
-                    .fill(Color.white.opacity(0.9))
-                    .frame(width: 200, height: 1)
+                // Gradient divider
+                gradientDivider
                     .padding(.vertical, 20)
-                    .shadow(color: .white.opacity(0.3), radius: 4)
+                    .opacity(showDivider ? 1 : 0)
+                    .scaleEffect(x: showDivider ? 1 : 0, y: 1)
+                    .accessibilityHidden(true)
                 
                 Text("Neurological Associates\nof Long Island, P.C.")
-                    .font(.custom("Optima-Bold", size: 22))
+                    .font(.custom("Optima-Bold", size: UIFontMetrics.default.scaledValue(for: 22)))
+                    .minimumScaleFactor(0.7)
                     .multilineTextAlignment(.center)
                     .foregroundColor(.white)
                     .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 2)
+                    .opacity(showPractice ? 1 : 0)
+                    .offset(y: showPractice ? 0 : 8)
                 
                 Spacer()
                 
                 VStack(alignment: .center, spacing: 8) {
                     Text("Developed by Vincent S. DeOrchis, M.D. M.S. FAAN")
-                        .font(.custom("Optima-Regular", size: 12))
-                    Text("© 2025 Clinical Insights Consulting Group")
-                        .font(.custom("Optima-Regular", size: 12))
+                        .font(.custom("Optima-Regular", size: UIFontMetrics.default.scaledValue(for: 12)))
+                        .minimumScaleFactor(0.7)
+                    Text("© 2026 Clinical Insights Consulting Group")
+                        .font(.custom("Optima-Regular", size: UIFontMetrics.default.scaledValue(for: 12)))
+                        .minimumScaleFactor(0.7)
                     Text(appVersion)
-                        .font(.custom("Optima-Regular", size: 12))
+                        .font(.custom("Optima-Regular", size: UIFontMetrics.default.scaledValue(for: 12)))
+                        .minimumScaleFactor(0.7)
                 }
                 .foregroundColor(.white.opacity(0.95))
                 .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 1)
                 .padding()
+                .opacity(showFooter ? 1 : 0)
             }
         }
         .transition(.opacity)
@@ -65,7 +102,47 @@ struct SplashScreen: View {
             withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
                 animationPhase = 1.0
             }
+            
+            // Staggered entrance animations
+            withAnimation(.easeOut(duration: 0.6).delay(0.1)) {
+                showTitle = true
+            }
+            withAnimation(.easeOut(duration: 0.5).delay(0.3)) {
+                showSubtitle = true
+            }
+            withAnimation(.easeOut(duration: 0.5).delay(0.5)) {
+                showTagline = true
+            }
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.6)) {
+                showIcon = true
+            }
+            withAnimation(.easeOut(duration: 0.5).delay(0.8)) {
+                showDivider = true
+            }
+            withAnimation(.easeOut(duration: 0.5).delay(1.0)) {
+                showPractice = true
+            }
+            withAnimation(.easeOut(duration: 0.4).delay(1.2)) {
+                showFooter = true
+            }
         }
+    }
+    
+    // MARK: - Gradient Divider
+    
+    private var gradientDivider: some View {
+        LinearGradient(
+            gradient: Gradient(colors: [
+                Color.white.opacity(0),
+                Color.white.opacity(0.9),
+                Color.white.opacity(0.9),
+                Color.white.opacity(0)
+            ]),
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+        .frame(width: 220, height: 1)
+        .shadow(color: .white.opacity(0.3), radius: 4)
     }
 }
 
@@ -142,15 +219,11 @@ struct AnimatedGradientBackground: View {
     
     // Helper function to interpolate between three colors (blue → gray → purple)
     private func interpolateThreeColors(from: Color, mid: Color, to: Color, progress: CGFloat) -> Color {
-        // Progress 0.0 → 0.5: blue to gray
-        // Progress 0.5 → 1.0: gray to purple
         if progress < 0.5 {
-            // First half: blue to gray
-            let adjustedProgress = progress * 2.0 // Scale 0-0.5 to 0-1
+            let adjustedProgress = progress * 2.0
             return interpolateColor(from: from, to: mid, progress: adjustedProgress)
         } else {
-            // Second half: gray to purple
-            let adjustedProgress = (progress - 0.5) * 2.0 // Scale 0.5-1 to 0-1
+            let adjustedProgress = (progress - 0.5) * 2.0
             return interpolateColor(from: mid, to: to, progress: adjustedProgress)
         }
     }

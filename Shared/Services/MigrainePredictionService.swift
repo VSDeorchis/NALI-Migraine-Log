@@ -431,7 +431,7 @@ class MigrainePredictionService: ObservableObject {
             ("Lack of Sleep", features.triggerSleepFreq,      "bed.double.fill"),
             ("Dehydration",  features.triggerDehydrationFreq, "drop.fill"),
             ("Weather",      features.triggerWeatherFreq,     "cloud.sun.rain.fill"),
-            ("Hormones",     features.triggerHormonesFreq,    "waveform.path.ecg"),
+            ("Menstrual",    features.triggerHormonesFreq,    "waveform.path.ecg"),
             ("Alcohol",      features.triggerAlcoholFreq,     "wineglass.fill"),
             ("Caffeine",     features.triggerCaffeineFreq,    "cup.and.saucer.fill"),
             ("Food",         features.triggerFoodFreq,        "fork.knife"),

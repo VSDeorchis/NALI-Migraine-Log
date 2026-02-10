@@ -26,13 +26,30 @@ struct WatchNewMigraineView: View {
     @State private var notes = ""
     
     private let locations = ["Frontal", "Temporal", "Occipital", "Orbital", "Whole Head"]
-    private let triggers = ["Stress", "Lack of Sleep", "Dehydration", "Weather", "Hormones", "Alcohol", "Caffeine", "Food", "Exercise", "Screen Time", "Other"]
+    private let triggers = ["Stress", "Lack of Sleep", "Dehydration", "Weather", "Menstrual", "Alcohol", "Caffeine", "Food", "Exercise", "Screen Time", "Other"]
     private let medications = ["Sumatriptan", "Rizatriptan", "Frovatriptan", "Naratriptan", "Ubrelvy", "Nurtec", "Tylenol", "Advil", "Excedrin", "Other"]
+    
+    private let totalSections = 7
+    
+    private var sectionTitle: String {
+        switch currentSection {
+        case 0: return "Pain & Location"
+        case 1: return "Triggers"
+        case 2: return "Symptoms"
+        case 3: return "Impact"
+        case 4: return "Medications"
+        case 5: return "Notes"
+        case 6: return "Save"
+        default: return ""
+        }
+    }
     
     var body: some View {
         TabView(selection: $currentSection) {
             // Pain Details Section
-            VStack(spacing: 15) {
+            VStack(spacing: 8) {
+                StepIndicator(current: 0, total: totalSections)
+                
                 Text("Pain Level: \(painLevel)")
                     .font(.headline)
                 
@@ -57,6 +74,7 @@ struct WatchNewMigraineView: View {
             // Triggers Section
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
+                    StepIndicator(current: 1, total: totalSections)
                     ForEach(triggers, id: \.self) { trigger in
                         Toggle(trigger, isOn: Binding(
                             get: { selectedTriggers.contains(trigger) },
@@ -77,6 +95,7 @@ struct WatchNewMigraineView: View {
             // Symptoms Section
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
+                    StepIndicator(current: 2, total: totalSections)
                     Toggle("Aura", isOn: $hasAura)
                     Toggle("Light Sensitivity", isOn: $hasPhotophobia)
                     Toggle("Sound Sensitivity", isOn: $hasPhonophobia)
@@ -93,6 +112,7 @@ struct WatchNewMigraineView: View {
             // Quality of Life Section
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
+                    StepIndicator(current: 3, total: totalSections)
                     Toggle("Missed Work", isOn: $missedWork)
                     Toggle("Missed School", isOn: $missedSchool)
                     Toggle("Missed Events", isOn: $missedEvents)
@@ -104,6 +124,7 @@ struct WatchNewMigraineView: View {
             // Medications Section
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
+                    StepIndicator(current: 4, total: totalSections)
                     ForEach(medications, id: \.self) { medication in
                         Toggle(medication, isOn: Binding(
                             get: { selectedMedications.contains(medication) },
@@ -124,6 +145,7 @@ struct WatchNewMigraineView: View {
             // Notes Section
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
+                    StepIndicator(current: 5, total: totalSections)
                     Text("Notes")
                         .font(.headline)
                     TextField("Add notes here", text: $notes)
@@ -134,18 +156,44 @@ struct WatchNewMigraineView: View {
             .tag(5)
             
             // Save Button
-            Button("Save Entry") {
-                saveMigraine()
+            VStack(spacing: 12) {
+                StepIndicator(current: 6, total: totalSections)
+                
+                Button("Save Entry") {
+                    saveMigraine()
+                }
+                .buttonStyle(.bordered)
+                .tint(.blue)
+                .font(.title3)
             }
-            .buttonStyle(.bordered)
-            .tint(.blue)
-            .font(.title3)
         }
         .tabViewStyle(.page)
         .navigationTitle("New Entry")
     }
     
-    private func saveMigraine() {
+}
+
+// MARK: - Step Indicator for Watch
+struct StepIndicator: View {
+    let current: Int
+    let total: Int
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<total, id: \.self) { index in
+                Capsule()
+                    .fill(index <= current ? Color.blue : Color.gray.opacity(0.3))
+                    .frame(height: 3)
+            }
+        }
+        .padding(.horizontal, 4)
+        .padding(.bottom, 2)
+    }
+}
+
+// MARK: - Save Logic
+extension WatchNewMigraineView {
+    func saveMigraine() {
         Task {
             await viewModel.addMigraine(
                 startTime: startTime,

@@ -5,12 +5,22 @@ struct MigraineListView: View {
     @State private var searchText = ""
     @State private var selectedMigraine: MigraineEvent?
     @State private var isEditing = false
+    @State private var sortOption: SortOption = .dateNewest
+    
+    enum SortOption: String, CaseIterable {
+        case dateNewest = "Date (Newest)"
+        case dateOldest = "Date (Oldest)"
+        case painHighest = "Pain (Highest)"
+        case painLowest = "Pain (Lowest)"
+        case durationLongest = "Duration (Longest)"
+    }
     
     var filteredMigraines: [MigraineEvent] {
+        var result: [MigraineEvent]
         if searchText.isEmpty {
-            return viewModel.migraines
+            result = viewModel.migraines
         } else {
-            return viewModel.migraines.filter { migraine in
+            result = viewModel.migraines.filter { migraine in
                 let notesMatch = migraine.notes?.localizedCaseInsensitiveContains(searchText) ?? false
                 let medicationsMatch = migraine.selectedMedicationNames.contains { $0.localizedCaseInsensitiveContains(searchText) }
                 let triggersMatch = migraine.selectedTriggerNames.contains { $0.localizedCaseInsensitiveContains(searchText) }
@@ -18,12 +28,40 @@ struct MigraineListView: View {
                 return notesMatch || medicationsMatch || triggersMatch || locationMatch
             }
         }
+        
+        switch sortOption {
+        case .dateNewest:
+            result.sort { ($0.startTime ?? .distantPast) > ($1.startTime ?? .distantPast) }
+        case .dateOldest:
+            result.sort { ($0.startTime ?? .distantPast) < ($1.startTime ?? .distantPast) }
+        case .painHighest:
+            result.sort { $0.painLevel > $1.painLevel }
+        case .painLowest:
+            result.sort { $0.painLevel < $1.painLevel }
+        case .durationLongest:
+            result.sort { ($0.duration ?? 0) > ($1.duration ?? 0) }
+        }
+        
+        return result
     }
     
     var body: some View {
-        VStack {
-            SearchBar(text: $searchText)
-                .padding()
+        VStack(spacing: 0) {
+            HStack {
+                SearchBar(text: $searchText)
+                
+                Picker("Sort", selection: $sortOption) {
+                    ForEach(SortOption.allCases, id: \.self) { option in
+                        Text(option.rawValue).tag(option)
+                    }
+                }
+                .frame(width: 200)
+                
+                Text("\(filteredMigraines.count) entries")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding()
             
             List(selection: $selectedMigraine) {
                 ForEach(filteredMigraines, id: \.id) { migraine in
@@ -56,7 +94,7 @@ struct MigraineListView: View {
             }
         }
         .navigationTitle("Migraine Log")
-        .task {  // Use task instead of onAppear for better reliability
+        .task {
             viewModel.fetchMigraines()
         }
         .sheet(item: $selectedMigraine) { migraine in
@@ -74,11 +112,31 @@ struct MigraineListView: View {
 struct MigraineRowView: View {
     let migraine: MigraineEvent
     
+    private var formattedDuration: String? {
+        guard let start = migraine.startTime else { return nil }
+        if let end = migraine.endTime {
+            let interval = end.timeIntervalSince(start)
+            let hours = Int(interval / 3600)
+            let minutes = Int((interval.truncatingRemainder(dividingBy: 3600)) / 60)
+            if hours > 0 { return "\(hours)h \(minutes)m" }
+            return "\(minutes)m"
+        }
+        return "Ongoing"
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            if let startTime = migraine.startTime {
-                Text(startTime, style: .date)
-                    .font(.headline)
+            HStack {
+                if let startTime = migraine.startTime {
+                    Text(startTime, style: .date)
+                        .font(.headline)
+                }
+                Spacer()
+                if let durationText = formattedDuration {
+                    Label(durationText, systemImage: "clock")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
             
             HStack {

@@ -12,6 +12,7 @@ struct NALI_Migraine_Log_macOSApp: App {
     @StateObject private var viewModel: MigraineViewModel
     @State private var showingNewMigraine = false
     @State private var showingSplash = true
+    @State private var selectedTab = 0
     @State private var hasAcceptedDisclaimer = UserDefaults.standard.bool(forKey: Constants.hasAcceptedDisclaimer)
     let persistenceController = PersistenceController.shared
     
@@ -43,7 +44,7 @@ struct NALI_Migraine_Log_macOSApp: App {
             }
         }
         .commands {
-            AppCommands(viewModel: viewModel, showingNewMigraine: $showingNewMigraine)
+            AppCommands(viewModel: viewModel, showingNewMigraine: $showingNewMigraine, selectedTab: $selectedTab)
             SidebarCommands()
         }
         

@@ -40,49 +40,23 @@ struct AboutView: View {
                     }
                     .padding(.bottom, 4)
                     
-                    // App Introduction
-                    Text("Headway: Migraine Monitor was created by Vincent S. DeOrchis, M.D., M.S., F.A.A.N., a board-certified neurologist with subspecialty fellowship training in Clinical Neurophysiology and Neuromuscular Disorders at Neurological Associates of Long Island, P.C.")
-                        .foregroundColor(.white)
-                        .lineSpacing(3)
-                    
-                    // Education & Training
-                    VStack(alignment: .leading, spacing: 8) {
-                        AboutSectionHeader(title: "Education & Training")
-                        
-                        BulletPoint("B.S. in Neural Science, New York University")
-                        BulletPoint("M.S. in Physiology & Biophysics, Georgetown University")
-                        BulletPoint("M.D., SUNY Downstate College of Medicine")
-                        BulletPoint("Neurology Residency, Albert Einstein College of Medicine / Montefiore Medical Center \u{2014} Chief Resident")
-                        BulletPoint("Fellowship in Clinical Neurophysiology & Neuromuscular Disease, Albert Einstein College of Medicine")
-                    }
-                    
-                    // Recognition
-                    VStack(alignment: .leading, spacing: 8) {
-                        AboutSectionHeader(title: "Recognition")
-                        
-                        BulletPoint("Fellow of the American Academy of Neurology (FAAN)")
-                        BulletPoint("Super Doctors 2025, The New York Times \u{2014} the only neurologist in Nassau County")
-                        BulletPoint("Castle Connolly Top Doctors of New York")
-                        BulletPoint("Published in Headache, Neurology, Muscle & Nerve, and other peer-reviewed journals")
-                    }
-                    
-                    // Clinical Roles
-                    VStack(alignment: .leading, spacing: 8) {
-                        AboutSectionHeader(title: "Clinical Leadership")
-                        
-                        BulletPoint("Managing Partner, Neurological Associates of Long Island, P.C.")
-                        BulletPoint("Director of Neurology & Stroke Director, St. Francis Hospital and Heart Center")
-                        BulletPoint("Clinical Assistant Professor of Neurology, Hofstra Medical School")
-                        BulletPoint("Principal Investigator on multiple clinical trials")
-                    }
-                    
-                    // Technology Innovation
-                    VStack(alignment: .leading, spacing: 8) {
-                        AboutSectionHeader(title: "Technology & Innovation")
-                        
-                        Text("Dr. DeOrchis has a strong interest in clinical technology innovation. In addition to Headway, he created iFell, an iOS application that records heart rate at the moment of a fall to assess potential cardiovascular causes, and BrainMetrix, an advanced analytics platform for quantitative brain MRI volumetric analysis. He also holds a patent pending for an avatar-assisted telemedicine platform and collaborated with Fujifilm to establish the first Synergy Series MRI system in the United States. Headway and iFell are available free on the Apple App Store.")
+                    // Bio
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Headway: Migraine Monitor was created by Vincent S. DeOrchis, M.D., M.S., F.A.A.N., a board-certified neurologist and Managing Partner of Neurological Associates of Long Island, P.C., where he specializes in Clinical Neurophysiology and Neuromuscular Disorders.")
                             .foregroundColor(.white)
-                            .lineSpacing(3)
+                            .lineSpacing(4)
+                        
+                        Text("Dr. DeOrchis studied Neural Science at New York University and earned his Master\u{2019}s degree in Physiology and Biophysics from Georgetown University before receiving his medical degree from SUNY Downstate College of Medicine. He completed his Neurology residency at Albert Einstein College of Medicine\u{2019}s Montefiore Medical Center, where he served as Chief Resident, followed by a fellowship in Clinical Neurophysiology and Neuromuscular Disease.")
+                            .foregroundColor(.white)
+                            .lineSpacing(4)
+                        
+                        Text("A Fellow of the American Academy of Neurology, Dr. DeOrchis has been recognized as a Castle Connolly Top Doctor and was the only neurologist in Nassau County named to Super Doctors 2025 by The New York Times. His research has been published in Headache, Neurology, Muscle & Nerve, and other peer-reviewed journals, and he serves as a principal investigator on numerous clinical trials. He currently holds the positions of Director of Neurology and Stroke Director at St. Francis Hospital and Heart Center and is a Clinical Assistant Professor of Neurology at Hofstra Medical School.")
+                            .foregroundColor(.white)
+                            .lineSpacing(4)
+                        
+                        Text("Driven by a passion for clinical technology, Dr. DeOrchis has developed several digital health tools beyond Headway, including iFell, which records heart rate at the moment of a fall to help identify cardiovascular causes, and BrainMetrix, an analytics platform for quantitative brain MRI volumetric analysis. He also holds a patent pending for an avatar-assisted telemedicine platform and partnered with Fujifilm to bring the first Synergy Series MRI system in the nation to his practice. Headway and iFell are available free on the Apple App Store.")
+                            .foregroundColor(.white)
+                            .lineSpacing(4)
                     }
                     
                     // Privacy Note
@@ -184,38 +158,6 @@ struct AboutView: View {
             .navigationTitle("")
         }
         .navigationViewStyle(.stack)
-    }
-}
-
-// MARK: - Helper Views
-
-private struct AboutSectionHeader: View {
-    let title: String
-    
-    var body: some View {
-        Text(title)
-            .font(.custom("Optima-Bold", size: 18))
-            .foregroundColor(.white)
-    }
-}
-
-private struct BulletPoint: View {
-    let text: String
-    
-    init(_ text: String) {
-        self.text = text
-    }
-    
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text("\u{2022}")
-                .foregroundColor(.white.opacity(0.8))
-                .font(.subheadline)
-            Text(text)
-                .foregroundColor(.white.opacity(0.9))
-                .font(.subheadline)
-                .lineSpacing(2)
-        }
     }
 }
 

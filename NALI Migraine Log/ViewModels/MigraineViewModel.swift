@@ -68,7 +68,7 @@ class MigraineViewModel: NSObject, ObservableObject {
         "Lack of Sleep",
         "Dehydration",
         "Weather",
-        "Hormones",
+        "Menstrual",
         "Alcohol",
         "Caffeine",
         "Food",
@@ -277,7 +277,7 @@ class MigraineViewModel: NSObject, ObservableObject {
             migraine.isTriggerLackOfSleep = triggers.contains("Lack of Sleep")
             migraine.isTriggerDehydration = triggers.contains("Dehydration")
             migraine.isTriggerWeather = triggers.contains("Weather")
-            migraine.isTriggerHormones = triggers.contains("Hormones")
+            migraine.isTriggerHormones = triggers.contains("Menstrual")
             migraine.isTriggerAlcohol = triggers.contains("Alcohol")
             migraine.isTriggerCaffeine = triggers.contains("Caffeine")
             migraine.isTriggerFood = triggers.contains("Food")
@@ -831,7 +831,7 @@ class MigraineViewModel: NSObject, ObservableObject {
             if migraine.isTriggerLackOfSleep { triggerCounts["Lack of Sleep", default: 0] += 1 }
             if migraine.isTriggerDehydration { triggerCounts["Dehydration", default: 0] += 1 }
             if migraine.isTriggerWeather { triggerCounts["Weather", default: 0] += 1 }
-            if migraine.isTriggerHormones { triggerCounts["Hormones", default: 0] += 1 }
+            if migraine.isTriggerHormones { triggerCounts["Menstrual", default: 0] += 1 }
             if migraine.isTriggerAlcohol { triggerCounts["Alcohol", default: 0] += 1 }
             if migraine.isTriggerCaffeine { triggerCounts["Caffeine", default: 0] += 1 }
             if migraine.isTriggerFood { triggerCounts["Food", default: 0] += 1 }
@@ -1212,7 +1212,7 @@ class MigraineViewModel: NSObject, ObservableObject {
         case "Lack of Sleep": return migraine.isTriggerLackOfSleep
         case "Dehydration": return migraine.isTriggerDehydration
         case "Weather": return migraine.isTriggerWeather
-        case "Hormones": return migraine.isTriggerHormones
+        case "Menstrual": return migraine.isTriggerHormones
         case "Alcohol": return migraine.isTriggerAlcohol
         case "Caffeine": return migraine.isTriggerCaffeine
         case "Food": return migraine.isTriggerFood
@@ -1300,7 +1300,7 @@ class MigraineViewModel: NSObject, ObservableObject {
         migraine.isTriggerLackOfSleep = triggers.contains("Lack of Sleep")
         migraine.isTriggerDehydration = triggers.contains("Dehydration")
         migraine.isTriggerWeather = triggers.contains("Weather")
-        migraine.isTriggerHormones = triggers.contains("Hormones")
+        migraine.isTriggerHormones = triggers.contains("Menstrual")
         migraine.isTriggerAlcohol = triggers.contains("Alcohol")
         migraine.isTriggerCaffeine = triggers.contains("Caffeine")
         migraine.isTriggerFood = triggers.contains("Food")

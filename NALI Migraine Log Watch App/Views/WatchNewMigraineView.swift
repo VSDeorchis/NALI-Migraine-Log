@@ -111,7 +111,7 @@ struct WatchNewMigraineView: View {
                 Toggle("Lack of Sleep", isOn: $isTriggerLackOfSleep)
                 Toggle("Dehydration", isOn: $isTriggerDehydration)
                 Toggle("Weather", isOn: $isTriggerWeather)
-                Toggle("Hormones", isOn: $isTriggerHormones)
+                Toggle("Menstrual", isOn: $isTriggerHormones)
                 Toggle("Alcohol", isOn: $isTriggerAlcohol)
                 Toggle("Caffeine", isOn: $isTriggerCaffeine)
                 Toggle("Food", isOn: $isTriggerFood)

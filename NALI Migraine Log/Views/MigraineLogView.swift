@@ -67,12 +67,25 @@ struct MigraineLogView: View {
                                     MigraineRowView(viewModel: viewModel, migraine: migraine)
                                         .contentShape(Rectangle())
                                         .onTapGesture {
-                                            // Haptic feedback on tap
                                             let impactFeedback = UIImpactFeedbackGenerator(style: .light)
                                             impactFeedback.impactOccurred()
                                             selectedMigraine = migraine
                                         }
                                         .contextMenu {
+                                            Button {
+                                                selectedMigraine = migraine
+                                            } label: {
+                                                Label("View Details", systemImage: "eye")
+                                            }
+                                            
+                                            Button {
+                                                duplicateMigraine(migraine)
+                                            } label: {
+                                                Label("Duplicate", systemImage: "doc.on.doc")
+                                            }
+                                            
+                                            Divider()
+                                            
                                             Button(role: .destructive) {
                                                 Task {
                                                     await viewModel.deleteMigraine(migraine)
@@ -80,6 +93,27 @@ struct MigraineLogView: View {
                                             } label: {
                                                 Label("Delete", systemImage: "trash")
                                             }
+                                        }
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                            Button(role: .destructive) {
+                                                let feedback = UINotificationFeedbackGenerator()
+                                                feedback.notificationOccurred(.warning)
+                                                Task {
+                                                    await viewModel.deleteMigraine(migraine)
+                                                }
+                                            } label: {
+                                                Label("Delete", systemImage: "trash")
+                                            }
+                                        }
+                                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                            Button {
+                                                let feedback = UIImpactFeedbackGenerator(style: .medium)
+                                                feedback.impactOccurred()
+                                                duplicateMigraine(migraine)
+                                            } label: {
+                                                Label("Duplicate", systemImage: "doc.on.doc")
+                                            }
+                                            .tint(.blue)
                                         }
                                         .accessibilityElement(children: .combine)
                                         .accessibilityLabel(accessibilityLabel(for: migraine))
@@ -164,7 +198,7 @@ struct MigraineLogView: View {
                     (searchText.localizedCaseInsensitiveContains("sleep") && migraine.isTriggerLackOfSleep) ||
                     (searchText.localizedCaseInsensitiveContains("dehydration") && migraine.isTriggerDehydration) ||
                     (searchText.localizedCaseInsensitiveContains("weather") && migraine.isTriggerWeather) ||
-                    (searchText.localizedCaseInsensitiveContains("hormones") && migraine.isTriggerHormones) ||
+                    ((searchText.localizedCaseInsensitiveContains("menstrual") || searchText.localizedCaseInsensitiveContains("hormones")) && migraine.isTriggerHormones) ||
                     (searchText.localizedCaseInsensitiveContains("alcohol") && migraine.isTriggerAlcohol) ||
                     (searchText.localizedCaseInsensitiveContains("caffeine") && migraine.isTriggerCaffeine) ||
                     (searchText.localizedCaseInsensitiveContains("food") && migraine.isTriggerFood) ||
@@ -194,6 +228,33 @@ struct MigraineLogView: View {
         }
         
         return migraines
+    }
+    
+    private func duplicateMigraine(_ migraine: MigraineEvent) {
+        Task {
+            await viewModel.addMigraine(
+                startTime: Date(),
+                endTime: nil,
+                painLevel: migraine.painLevel,
+                location: migraine.location ?? "Frontal",
+                triggers: migraine.selectedTriggerNames,
+                hasAura: migraine.hasAura,
+                hasPhotophobia: migraine.hasPhotophobia,
+                hasPhonophobia: migraine.hasPhonophobia,
+                hasNausea: migraine.hasNausea,
+                hasVomiting: migraine.hasVomiting,
+                hasWakeUpHeadache: migraine.hasWakeUpHeadache,
+                hasTinnitus: migraine.hasTinnitus,
+                hasVertigo: migraine.hasVertigo,
+                missedWork: migraine.missedWork,
+                missedSchool: migraine.missedSchool,
+                missedEvents: migraine.missedEvents,
+                medications: migraine.selectedMedicationNames,
+                notes: nil
+            )
+            let feedback = UINotificationFeedbackGenerator()
+            feedback.notificationOccurred(.success)
+        }
     }
     
     private func deleteMigraines(at offsets: IndexSet) {
@@ -403,7 +464,11 @@ struct FilterButton: View {
     let action: () -> Void
     
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            let feedback = UISelectionFeedbackGenerator()
+            feedback.selectionChanged()
+            action()
+        }) {
             Text(title)
                 .font(.system(.subheadline, design: .rounded, weight: isSelected ? .semibold : .regular))
                 .padding(.horizontal, 14)
@@ -444,7 +509,11 @@ struct SearchBar: View {
                 .font(.system(.body, design: .rounded))
             
             if !text.isEmpty {
-                Button(action: { text = "" }) {
+                Button(action: {
+                    let feedback = UIImpactFeedbackGenerator(style: .light)
+                    feedback.impactOccurred()
+                    text = ""
+                }) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.secondary)
                         .font(.system(size: 16))

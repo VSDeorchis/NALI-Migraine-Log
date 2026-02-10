@@ -727,7 +727,7 @@ struct SettingsView: View {
                 if migraine.isTriggerLackOfSleep { triggers.append("Lack of sleep") }
                 if migraine.isTriggerDehydration { triggers.append("Dehydration") }
                 if migraine.isTriggerWeather { triggers.append("Weather") }
-                if migraine.isTriggerHormones { triggers.append("Hormones") }
+                if migraine.isTriggerHormones { triggers.append("Menstrual") }
                 if migraine.isTriggerAlcohol { triggers.append("Alcohol") }
                 if migraine.isTriggerCaffeine { triggers.append("Caffeine") }
                 if migraine.isTriggerFood { triggers.append("Food") }

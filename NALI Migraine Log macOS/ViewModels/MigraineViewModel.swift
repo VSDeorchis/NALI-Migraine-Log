@@ -141,7 +141,7 @@ class MigraineViewModel: ObservableObject {
             case "Alcohol": migraine.isTriggerAlcohol = true
             case "Exercise": migraine.isTriggerExercise = true
             case "Screen Time": migraine.isTriggerScreenTime = true
-            case "Hormonal", "Hormones": migraine.isTriggerHormones = true
+            case "Menstrual", "Hormonal", "Hormones": migraine.isTriggerHormones = true
             case "Dehydration": migraine.isTriggerDehydration = true
             case "Other": migraine.isTriggerOther = true
             default: break

@@ -19,7 +19,7 @@ struct MigraineRowView: View {
         if migraine.isTriggerLackOfSleep { triggers.append("Lack of Sleep") }
         if migraine.isTriggerDehydration { triggers.append("Dehydration") }
         if migraine.isTriggerWeather { triggers.append("Weather") }
-        if migraine.isTriggerHormones { triggers.append("Hormones") }
+        if migraine.isTriggerHormones { triggers.append("Menstrual") }
         if migraine.isTriggerAlcohol { triggers.append("Alcohol") }
         if migraine.isTriggerCaffeine { triggers.append("Caffeine") }
         if migraine.isTriggerFood { triggers.append("Food") }
@@ -102,7 +102,7 @@ struct MigraineRowView: View {
                 }
                 .accessibilityLabel("Pain level \(migraine.painLevel) out of 10, \(painSeverityDescription)")
                 
-                // Date and location
+                // Date, location, and duration
                 VStack(alignment: .leading, spacing: 2) {
                     if let startTime = migraine.startTime {
                         Text(dateFormatter.string(from: startTime))
@@ -117,6 +117,18 @@ struct MigraineRowView: View {
                         Text(migraine.location ?? "Unknown")
                             .font(.system(size: 13))
                             .foregroundColor(.secondary)
+                        
+                        if let durationText = formattedDuration {
+                            Text("·")
+                                .foregroundColor(.secondary)
+                                .font(.system(size: 13))
+                            Image(systemName: "clock")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                            Text(durationText)
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
                 
@@ -223,6 +235,24 @@ struct MigraineRowView: View {
         .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
+    }
+    
+    // Duration display
+    private var formattedDuration: String? {
+        guard let start = migraine.startTime else { return nil }
+        if let end = migraine.endTime {
+            let interval = end.timeIntervalSince(start)
+            let hours = Int(interval / 3600)
+            let minutes = Int((interval.truncatingRemainder(dividingBy: 3600)) / 60)
+            if hours > 0 {
+                return "\(hours)h \(minutes)m"
+            } else {
+                return "\(minutes)m"
+            }
+        } else {
+            // Ongoing migraine
+            return "Ongoing"
+        }
     }
     
     // Helper computed properties

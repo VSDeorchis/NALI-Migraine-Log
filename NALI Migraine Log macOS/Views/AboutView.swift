@@ -33,51 +33,19 @@ struct AboutView: View {
                 }
                 .padding(.bottom, 4)
                 
-                // App Introduction
-                Text("Headway: Migraine Monitor was created by Vincent S. DeOrchis, M.D., M.S., F.A.A.N., a board-certified neurologist with subspecialty fellowship training in Clinical Neurophysiology and Neuromuscular Disorders at Neurological Associates of Long Island, P.C.")
-                    .lineSpacing(3)
-                
-                // Education & Training
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Education & Training")
-                        .font(.headline)
+                // Bio
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Headway: Migraine Monitor was created by Vincent S. DeOrchis, M.D., M.S., F.A.A.N., a board-certified neurologist and Managing Partner of Neurological Associates of Long Island, P.C., where he specializes in Clinical Neurophysiology and Neuromuscular Disorders.")
+                        .lineSpacing(4)
                     
-                    MacBulletPoint("B.S. in Neural Science, New York University")
-                    MacBulletPoint("M.S. in Physiology & Biophysics, Georgetown University")
-                    MacBulletPoint("M.D., SUNY Downstate College of Medicine")
-                    MacBulletPoint("Neurology Residency, Albert Einstein College of Medicine / Montefiore Medical Center \u{2014} Chief Resident")
-                    MacBulletPoint("Fellowship in Clinical Neurophysiology & Neuromuscular Disease, Albert Einstein College of Medicine")
-                }
-                
-                // Recognition
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Recognition")
-                        .font(.headline)
+                    Text("Dr. DeOrchis studied Neural Science at New York University and earned his Master\u{2019}s degree in Physiology and Biophysics from Georgetown University before receiving his medical degree from SUNY Downstate College of Medicine. He completed his Neurology residency at Albert Einstein College of Medicine\u{2019}s Montefiore Medical Center, where he served as Chief Resident, followed by a fellowship in Clinical Neurophysiology and Neuromuscular Disease.")
+                        .lineSpacing(4)
                     
-                    MacBulletPoint("Fellow of the American Academy of Neurology (FAAN)")
-                    MacBulletPoint("Super Doctors 2025, The New York Times \u{2014} the only neurologist in Nassau County")
-                    MacBulletPoint("Castle Connolly Top Doctors of New York")
-                    MacBulletPoint("Published in Headache, Neurology, Muscle & Nerve, and other peer-reviewed journals")
-                }
-                
-                // Clinical Roles
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Clinical Leadership")
-                        .font(.headline)
+                    Text("A Fellow of the American Academy of Neurology, Dr. DeOrchis has been recognized as a Castle Connolly Top Doctor and was the only neurologist in Nassau County named to Super Doctors 2025 by The New York Times. His research has been published in Headache, Neurology, Muscle & Nerve, and other peer-reviewed journals, and he serves as a principal investigator on numerous clinical trials. He currently holds the positions of Director of Neurology and Stroke Director at St. Francis Hospital and Heart Center and is a Clinical Assistant Professor of Neurology at Hofstra Medical School.")
+                        .lineSpacing(4)
                     
-                    MacBulletPoint("Managing Partner, Neurological Associates of Long Island, P.C.")
-                    MacBulletPoint("Director of Neurology & Stroke Director, St. Francis Hospital and Heart Center")
-                    MacBulletPoint("Clinical Assistant Professor of Neurology, Hofstra Medical School")
-                    MacBulletPoint("Principal Investigator on multiple clinical trials")
-                }
-                
-                // Technology Innovation
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Technology & Innovation")
-                        .font(.headline)
-                    
-                    Text("Dr. DeOrchis has a strong interest in clinical technology innovation. In addition to Headway, he created iFell, an iOS application that records heart rate at the moment of a fall to assess potential cardiovascular causes, and BrainMetrix, an advanced analytics platform for quantitative brain MRI volumetric analysis. He also holds a patent pending for an avatar-assisted telemedicine platform and collaborated with Fujifilm to establish the first Synergy Series MRI system in the United States. Headway and iFell are available free on the Apple App Store.")
-                        .lineSpacing(3)
+                    Text("Driven by a passion for clinical technology, Dr. DeOrchis has developed several digital health tools beyond Headway, including iFell, which records heart rate at the moment of a fall to help identify cardiovascular causes, and BrainMetrix, an analytics platform for quantitative brain MRI volumetric analysis. He also holds a patent pending for an avatar-assisted telemedicine platform and partnered with Fujifilm to bring the first Synergy Series MRI system in the nation to his practice. Headway and iFell are available free on the Apple App Store.")
+                        .lineSpacing(4)
                 }
                 
                 Divider()
@@ -255,26 +223,6 @@ struct MacNeurologicalAssociatesView: View {
     private func openURL(_ urlString: String) {
         if let url = URL(string: urlString) {
             NSWorkspace.shared.open(url)
-        }
-    }
-}
-
-// MARK: - Helper Views
-
-private struct MacBulletPoint: View {
-    let text: String
-    
-    init(_ text: String) {
-        self.text = text
-    }
-    
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text("\u{2022}")
-                .foregroundColor(.secondary)
-            Text(text)
-                .font(.subheadline)
-                .lineSpacing(2)
         }
     }
 }

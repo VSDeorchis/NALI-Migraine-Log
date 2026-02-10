@@ -21,18 +21,16 @@ struct ContentView: View {
     }
     
     var body: some View {
-        Group {
+        NavigationStack {
+            WatchMigraineLogView(viewModel: viewModel)
+        }
+        .task {
             if viewModel.migraines.isEmpty {
-                ProgressView("Loading…")
-                    .task {
-                        connectivityManager.requestFullSync()
-                    }
-            } else {
-        WatchMigraineLogView(viewModel: viewModel)
+                connectivityManager.requestFullSync()
             }
         }
-            .environmentObject(connectivityManager)
-            .environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
+        .environmentObject(connectivityManager)
+        .environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
     }
 }
 

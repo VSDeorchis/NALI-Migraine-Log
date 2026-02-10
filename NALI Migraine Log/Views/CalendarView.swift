@@ -30,14 +30,28 @@ struct CalendarView: View {
                 HStack {
                     Button(action: previousMonth) {
                         Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .semibold))
                     }
                     
                     Text(dateFormatter.string(from: selectedDate))
                         .font(.title2)
                         .frame(maxWidth: .infinity)
                     
+                    Button(action: {
+                        selectedDate = Date()
+                    }) {
+                        Text("Today")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.blue.opacity(0.15))
+                            .foregroundColor(.blue)
+                            .clipShape(Capsule())
+                    }
+                    
                     Button(action: nextMonth) {
                         Image(systemName: "chevron.right")
+                            .font(.system(size: 16, weight: .semibold))
                     }
                 }
                 .padding(.horizontal)
@@ -62,6 +76,10 @@ struct CalendarView: View {
                     }
                 }
                 
+                // Legend
+                CalendarLegend()
+                    .padding(.horizontal)
+                
                 // Selected day details
                 let migraines = viewModel.migraines
                 if !migraines.isEmpty {
@@ -77,9 +95,18 @@ struct CalendarView: View {
                         }
                     }
                 } else {
-                    Text("No migraines recorded for this date")
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    VStack(spacing: 16) {
+                        Image(systemName: "calendar.badge.checkmark")
+                            .font(.system(size: 40))
+                            .foregroundColor(.green.opacity(0.6))
+                        Text("No migraines this month")
+                            .font(.system(size: 15, weight: .medium, design: .rounded))
+                            .foregroundColor(.secondary)
+                        Text("Tap any day to see details")
+                            .font(.system(size: 13))
+                            .foregroundColor(.secondary.opacity(0.7))
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .navigationTitle("Calendar")
@@ -144,31 +171,81 @@ struct DayCell: View {
     let migraines: [MigraineEvent]
     @ObservedObject var viewModel: MigraineViewModel
     
+    private var maxPainLevel: Int16 {
+        migraines.map(\.painLevel).max() ?? 0
+    }
+    
+    private var painColor: Color {
+        switch maxPainLevel {
+        case 1...3: return .green
+        case 4...6: return .yellow
+        case 7...8: return .orange
+        case 9...10: return .red
+        default: return .clear
+        }
+    }
+    
     var body: some View {
         NavigationLink(destination: DayDetailView(date: date, migraines: migraines, viewModel: viewModel)) {
             ZStack {
-                // Migraine indicator (solid pink circle)
+                // Migraine indicator (pain-level colored)
                 if !migraines.isEmpty {
                     Circle()
-                        .fill(Color.pink.opacity(0.3))
-                        .frame(width: 32, height: 32)
+                        .fill(painColor.opacity(0.35))
+                        .frame(width: 34, height: 34)
                 }
                 
-                // Current day indicator (solid light blue circle with dark blue outline)
+                // Current day indicator
                 if Calendar.current.isDateInToday(date) {
                     Circle()
-                        .fill(Color.blue.opacity(0.2))
-                        .frame(width: 32, height: 32)
+                        .fill(Color.blue.opacity(0.15))
+                        .frame(width: 34, height: 34)
                     
                     Circle()
-                        .stroke(Color.blue, lineWidth: 1)
-                        .frame(width: 32, height: 32)
+                        .stroke(Color.blue, lineWidth: 2)
+                        .frame(width: 34, height: 34)
                 }
                 
-                Text("\(Calendar.current.component(.day, from: date))")
-                    .font(.system(.body))
+                VStack(spacing: 0) {
+                    Text("\(Calendar.current.component(.day, from: date))")
+                        .font(.system(.body, design: .rounded))
+                        .foregroundColor(Calendar.current.isDateInToday(date) ? .blue : .primary)
+                    
+                    // Show count badge for multiple migraines
+                    if migraines.count > 1 {
+                        Text("\(migraines.count)")
+                            .font(.system(size: 8, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                            .frame(width: 12, height: 12)
+                            .background(painColor)
+                            .clipShape(Circle())
+                    }
+                }
             }
-            .frame(height: 40)
+            .frame(height: 44)
+        }
+    }
+}
+
+// MARK: - Calendar Legend
+struct CalendarLegend: View {
+    var body: some View {
+        HStack(spacing: 16) {
+            legendItem(color: .green, label: "Mild (1-3)")
+            legendItem(color: .yellow, label: "Moderate (4-6)")
+            legendItem(color: .orange, label: "Severe (7-8)")
+            legendItem(color: .red, label: "Very Severe (9-10)")
+        }
+        .font(.system(size: 10, weight: .medium, design: .rounded))
+    }
+    
+    private func legendItem(color: Color, label: String) -> some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(color.opacity(0.5))
+                .frame(width: 8, height: 8)
+            Text(label)
+                .foregroundColor(.secondary)
         }
     }
 }
