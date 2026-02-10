@@ -26,7 +26,7 @@ struct WatchNewMigraineView: View {
     @State private var notes = ""
     
     private let locations = ["Frontal", "Temporal", "Occipital", "Orbital", "Whole Head"]
-    private let triggers = ["Stress", "Sleep Changes", "Weather", "Food", "Caffeine", "Alcohol", "Exercise", "Screen Time", "Hormonal", "Other"]
+    private let triggers = ["Stress", "Lack of Sleep", "Dehydration", "Weather", "Hormones", "Alcohol", "Caffeine", "Food", "Exercise", "Screen Time", "Other"]
     private let medications = ["Sumatriptan", "Rizatriptan", "Frovatriptan", "Naratriptan", "Ubrelvy", "Nurtec", "Tylenol", "Advil", "Excedrin", "Other"]
     
     var body: some View {

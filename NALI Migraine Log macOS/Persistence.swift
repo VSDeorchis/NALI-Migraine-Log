@@ -29,7 +29,7 @@ class PersistenceController {
             description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
             description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
             description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
-                containerIdentifier: "iCloud.com.neuroli.NALI-Migraine-Log"
+                containerIdentifier: "iCloud.com.nali.migrainelog"
             )
         }
         

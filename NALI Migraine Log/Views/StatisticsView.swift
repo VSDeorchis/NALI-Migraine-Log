@@ -13,9 +13,7 @@ struct StatisticsView: View {
     @State private var selectedTimeOfDay: String?
     @State private var selectedImpactType: String?
     @State private var selectedPainLevel: Int?
-    @State private var lastTimeFilter: TimeFilter?
-    @State private var cachedFilteredMigraines: [MigraineEvent]?
-    @State private var cachedChartData: [String: Any] = [:]
+    
     @State private var isNavigating = false
     @State private var customStartDate: Date = Calendar.current.date(byAdding: .month, value: -1, to: Date())!
     @State private var customEndDate: Date = Date()
@@ -289,97 +287,116 @@ struct StatisticsView: View {
     
     var body: some View {
         NavigationStack {
-            ZStack {
-                // Background
-                Color(.systemGroupedBackground)
-                    .ignoresSafeArea()
-                
-                VStack(spacing: 0) {
-                    timeFilterView
-                        .padding(.horizontal)
-                        .padding(.top)
-                        .background(Color(.systemGroupedBackground))
-                    
-                    ScrollView {
-                        VStack(spacing: 20) {
-                            if filteredMigraines.isEmpty {
-                                Text("No data for selected period")
-                                    .foregroundColor(.secondary)
-                                    .padding()
-                            } else {
-                                summaryStatsView
-                                    .padding(.top)
-                                chartsView
-                            }
-                        }
-                        .padding(.vertical)
+            statisticsContent
+                .navigationTitle("Statistics")
+                .navigationDestination(isPresented: $showingMonthDetail) {
+                    if let month = selectedMonth {
+                        MonthDetailView(viewModel: viewModel, month: month)
                     }
                 }
-            }
-            .navigationTitle("Statistics")
-            .navigationDestination(isPresented: $showingMonthDetail) {
-                if let month = selectedMonth {
-                    MonthDetailView(viewModel: viewModel, month: month)
+                .navigationDestination(isPresented: medicationBinding) {
+                    medicationNavigationView()
+                }
+                .navigationDestination(isPresented: triggerBinding) {
+                    triggerNavigationView()
+                }
+                .navigationDestination(isPresented: timeOfDayBinding) {
+                    timeOfDayNavigationView()
+                }
+                .navigationDestination(isPresented: impactBinding) {
+                    impactNavigationView()
+                }
+                .navigationDestination(isPresented: painLevelBinding) {
+                    painLevelNavigationView()
+                }
+                .onAppear {
+                    viewModel.fetchMigraines()
+                    lastUpdateTime = Date()
+                }
+                .onChange(of: viewModel.migraines) { _ in
+                    lastUpdateTime = Date()
+                }
+                .onChange(of: timeFilter) { _ in
+                    lastUpdateTime = Date()
+                }
+                .onChange(of: customStartDate) { _ in
+                    lastUpdateTime = Date()
+                }
+                .onChange(of: customEndDate) { _ in
+                    lastUpdateTime = Date()
+                }
+        }
+    }
+    
+    // MARK: - Body Subviews
+    
+    private var statisticsContent: some View {
+        ZStack {
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                timeFilterView
+                    .padding(.horizontal)
+                    .padding(.top)
+                    .background(Color(.systemGroupedBackground))
+                
+                ScrollView {
+                    VStack(spacing: 20) {
+                        if filteredMigraines.isEmpty {
+                            Text("No data for selected period")
+                                .foregroundColor(.secondary)
+                                .padding()
+                        } else {
+                            summaryStatsView
+                                .padding(.top)
+                            chartsView
+                        }
+                    }
+                    .padding(.vertical)
                 }
             }
-            .navigationDestination(isPresented: Binding(
-                get: { selectedMedication != nil },
-                set: { if !$0 { selectedMedication = nil } }
-            )) {
-                medicationNavigationView()
-            }
-            .navigationDestination(isPresented: Binding(
-                get: { selectedTrigger != nil },
-                set: { if !$0 { 
-                    selectedTrigger = nil
-                    isNavigating = false 
-                }}
-            )) {
-                triggerNavigationView()
-            }
-            .navigationDestination(isPresented: Binding(
-                get: { selectedTimeOfDay != nil },
-                set: { if !$0 { selectedTimeOfDay = nil } }
-            )) {
-                timeOfDayNavigationView()
-            }
-            .navigationDestination(isPresented: Binding(
-                get: { selectedImpactType != nil },
-                set: { if !$0 { selectedImpactType = nil } }
-            )) {
-                impactNavigationView()
-            }
-            .navigationDestination(isPresented: Binding(
-                get: { selectedPainLevel != nil },
-                set: { if !$0 { selectedPainLevel = nil } }
-            )) {
-                painLevelNavigationView()
-            }
-            .onAppear {
-                // Refresh data when view appears
-                viewModel.fetchMigraines()
-                lastUpdateTime = Date()
-            }
-            .onChange(of: viewModel.migraines) { _ in
-                // Refresh when migraines data changes
-                lastUpdateTime = Date()
-                cachedFilteredMigraines = nil
-                cachedChartData = [:]
-            }
-            .onChange(of: timeFilter) { _ in
-                // Clear caches when time filter changes
-                cachedFilteredMigraines = nil
-                cachedChartData = [:]
-            }
-            .onChange(of: customStartDate) { _ in
-                cachedFilteredMigraines = nil
-                cachedChartData = [:]
-            }
-            .onChange(of: customEndDate) { _ in
-                cachedFilteredMigraines = nil
-                cachedChartData = [:]
-            }
         }
+    }
+    
+    // MARK: - Navigation Bindings
+    
+    private var medicationBinding: Binding<Bool> {
+        Binding(
+            get: { selectedMedication != nil },
+            set: { if !$0 { selectedMedication = nil } }
+        )
+    }
+    
+    private var triggerBinding: Binding<Bool> {
+        Binding(
+            get: { selectedTrigger != nil },
+            set: { if !$0 {
+                selectedTrigger = nil
+                isNavigating = false
+            }}
+        )
+    }
+    
+    private var timeOfDayBinding: Binding<Bool> {
+        Binding(
+            get: { selectedTimeOfDay != nil },
+            set: { if !$0 { selectedTimeOfDay = nil } }
+        )
+    }
+    
+    private var impactBinding: Binding<Bool> {
+        Binding(
+            get: { selectedImpactType != nil },
+            set: { if !$0 { selectedImpactType = nil } }
+        )
+    }
+    
+    private var painLevelBinding: Binding<Bool> {
+        Binding(
+            get: { selectedPainLevel != nil },
+            set: { if !$0 { selectedPainLevel = nil } }
+        )
     }
     
     // Computed properties for statistics
@@ -396,15 +413,10 @@ struct StatisticsView: View {
     
     // Filtered migraines based on time filter
     private var filteredMigraines: [MigraineEvent] {
-        // Cache this value when timeFilter changes instead of recomputing
-        if lastTimeFilter == timeFilter && cachedFilteredMigraines != nil {
-            return cachedFilteredMigraines!
-        }
-        
         let calendar = Calendar.current
         let now = Date()
         
-        let filtered = viewModel.migraines.filter { migraine in
+        return viewModel.migraines.filter { migraine in
             guard let startTime = migraine.startTime else { return false }
             
             switch timeFilter {
@@ -420,10 +432,6 @@ struct StatisticsView: View {
                 return startTime >= customStartDate && startTime <= customEndDate
             }
         }
-        
-        cachedFilteredMigraines = filtered
-        lastTimeFilter = timeFilter
-        return filtered
     }
     
     private var totalMigraines: Int {
@@ -541,16 +549,9 @@ struct StatisticsView: View {
     }
     
     private var timeOfDayData: [TimeOfDayPoint] {
-        // Use cached data if time filter hasn't changed
-        if let cached = cachedChartData["timeOfDay"] as? [TimeOfDayPoint],
-           lastTimeFilter == timeFilter {
-            return cached
-        }
-        
         let timeSlots = ["Morning", "Afternoon", "Evening", "Night"]
         var counts: [String: Int] = [:]
         
-        // Calculate new data
         for migraine in filteredMigraines {
             guard let date = migraine.startTime else { continue }
             let hour = Calendar.current.component(.hour, from: date)
@@ -566,9 +567,7 @@ struct StatisticsView: View {
             counts[timeSlot, default: 0] += 1
         }
         
-        let data = timeSlots.map { TimeOfDayPoint(timeOfDay: $0, count: counts[$0] ?? 0) }
-        cachedChartData["timeOfDay"] = data
-        return data
+        return timeSlots.map { TimeOfDayPoint(timeOfDay: $0, count: counts[$0] ?? 0) }
     }
     
     private var qualityOfLifeData: [QualityOfLifePoint] {

@@ -49,12 +49,8 @@ struct SplashScreen: View {
             }
         }
         .transition(.opacity)
-//        .frame(width: 1280, height: 800)
     }
-
-        
-        
-    }
+}
 
 
 #Preview {

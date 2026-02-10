@@ -8,7 +8,9 @@
 //
 
 import Foundation
+#if canImport(HealthKit)
 import HealthKit
+#endif
 
 @MainActor
 class HealthKitManager: ObservableObject {
@@ -18,24 +20,86 @@ class HealthKitManager: ObservableObject {
     @Published var lastError: Error?
     @Published var latestSnapshot: HealthKitSnapshot?
     
+    #if canImport(HealthKit)
     private let healthStore: HKHealthStore?
+    #endif
     private let calendar = Calendar.current
     
     /// Whether HealthKit is available on this device.
     var isAvailable: Bool {
+        #if canImport(HealthKit)
         HKHealthStore.isHealthDataAvailable()
+        #else
+        false
+        #endif
     }
     
     private init() {
+        #if canImport(HealthKit)
         if HKHealthStore.isHealthDataAvailable() {
             healthStore = HKHealthStore()
         } else {
             healthStore = nil
         }
+        #endif
     }
     
-    // MARK: - Types we read
+    // MARK: - Authorization
     
+    /// Request HealthKit read permissions.
+    func requestAuthorization() async {
+        #if canImport(HealthKit)
+        guard let healthStore = healthStore else {
+            lastError = HealthKitError.notAvailable
+            return
+        }
+        
+        do {
+            try await healthStore.requestAuthorization(toShare: [], read: readTypes)
+            isAuthorized = true
+            print("✅ HealthKit authorization granted")
+        } catch {
+            lastError = error
+            isAuthorized = false
+            print("❌ HealthKit authorization failed: \(error.localizedDescription)")
+        }
+        #else
+        lastError = HealthKitError.notAvailable
+        #endif
+    }
+    
+    // MARK: - Data Fetching
+    
+    /// Fetch all health data into a snapshot for the prediction engine.
+    func fetchSnapshot() async -> HealthKitSnapshot {
+        var snapshot = HealthKitSnapshot()
+        
+        #if canImport(HealthKit)
+        guard healthStore != nil, isAuthorized else {
+            return snapshot
+        }
+        
+        // Fetch all concurrently
+        async let sleep = getLastNightSleep()
+        async let hrv = getLatestHRV()
+        async let rhr = getRestingHeartRate()
+        async let steps = getStepsYesterday()
+        async let menstrual = getDaysSinceMenstruation()
+        
+        snapshot.sleepHours = await sleep
+        snapshot.hrv = await hrv
+        snapshot.restingHeartRate = await rhr
+        snapshot.steps = await steps
+        snapshot.daysSinceMenstruation = await menstrual
+        
+        latestSnapshot = snapshot
+        #endif
+        return snapshot
+    }
+    
+    // MARK: - HealthKit Queries
+    
+    #if canImport(HealthKit)
     private var readTypes: Set<HKObjectType> {
         var types = Set<HKObjectType>()
         
@@ -58,57 +122,8 @@ class HealthKitManager: ObservableObject {
         return types
     }
     
-    // MARK: - Authorization
-    
-    /// Request HealthKit read permissions.
-    func requestAuthorization() async {
-        guard let healthStore = healthStore else {
-            lastError = HealthKitError.notAvailable
-            return
-        }
-        
-        do {
-            try await healthStore.requestAuthorization(toShare: [], read: readTypes)
-            isAuthorized = true
-            print("✅ HealthKit authorization granted")
-        } catch {
-            lastError = error
-            isAuthorized = false
-            print("❌ HealthKit authorization failed: \(error.localizedDescription)")
-        }
-    }
-    
-    // MARK: - Data Fetching
-    
-    /// Fetch all health data into a snapshot for the prediction engine.
-    func fetchSnapshot() async -> HealthKitSnapshot {
-        var snapshot = HealthKitSnapshot()
-        
-        guard healthStore != nil, isAuthorized else {
-            return snapshot
-        }
-        
-        // Fetch all concurrently
-        async let sleep = getLastNightSleep()
-        async let hrv = getLatestHRV()
-        async let rhr = getRestingHeartRate()
-        async let steps = getStepsYesterday()
-        async let menstrual = getDaysSinceMenstruation()
-        
-        snapshot.sleepHours = await sleep
-        snapshot.hrv = await hrv
-        snapshot.restingHeartRate = await rhr
-        snapshot.steps = await steps
-        snapshot.daysSinceMenstruation = await menstrual
-        
-        latestSnapshot = snapshot
-        return snapshot
-    }
-    
-    // MARK: - Sleep
-    
     /// Total hours of sleep last night (between 6 PM yesterday and noon today).
-    func getLastNightSleep() async -> Double? {
+    private func getLastNightSleep() async -> Double? {
         guard let healthStore = healthStore,
               let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else {
             return nil
@@ -150,10 +165,8 @@ class HealthKitManager: ObservableObject {
         }
     }
     
-    // MARK: - Heart Rate Variability
-    
     /// Latest HRV value (SDNN in ms).
-    func getLatestHRV() async -> Double? {
+    private func getLatestHRV() async -> Double? {
         guard let healthStore = healthStore,
               let hrvType = HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN) else {
             return nil
@@ -181,10 +194,8 @@ class HealthKitManager: ObservableObject {
         }
     }
     
-    // MARK: - Resting Heart Rate
-    
     /// Latest resting heart rate (BPM).
-    func getRestingHeartRate() async -> Double? {
+    private func getRestingHeartRate() async -> Double? {
         guard let healthStore = healthStore,
               let rhrType = HKQuantityType.quantityType(forIdentifier: .restingHeartRate) else {
             return nil
@@ -213,10 +224,8 @@ class HealthKitManager: ObservableObject {
         }
     }
     
-    // MARK: - Steps
-    
     /// Total step count for yesterday.
-    func getStepsYesterday() async -> Int? {
+    private func getStepsYesterday() async -> Int? {
         guard let healthStore = healthStore,
               let stepsType = HKQuantityType.quantityType(forIdentifier: .stepCount) else {
             return nil
@@ -255,10 +264,8 @@ class HealthKitManager: ObservableObject {
         }
     }
     
-    // MARK: - Menstrual Cycle
-    
     /// Days since last recorded menstrual flow. Returns nil if no data.
-    func getDaysSinceMenstruation() async -> Int? {
+    private func getDaysSinceMenstruation() async -> Int? {
         guard let healthStore = healthStore,
               let menstrualType = HKObjectType.categoryType(forIdentifier: .menstrualFlow) else {
             return nil
@@ -286,6 +293,7 @@ class HealthKitManager: ObservableObject {
             return nil
         }
     }
+    #endif
 }
 
 // MARK: - Errors

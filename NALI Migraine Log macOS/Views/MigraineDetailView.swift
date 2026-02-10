@@ -12,6 +12,17 @@ struct MigraineDetailView: View {
     @State private var editedNotes: String
     @State private var editedTriggers: Set<String>
     @State private var editedMedications: Set<String>
+    @State private var editedHasAura: Bool
+    @State private var editedHasPhotophobia: Bool
+    @State private var editedHasPhonophobia: Bool
+    @State private var editedHasNausea: Bool
+    @State private var editedHasVomiting: Bool
+    @State private var editedHasWakeUpHeadache: Bool
+    @State private var editedHasTinnitus: Bool
+    @State private var editedHasVertigo: Bool
+    @State private var editedMissedWork: Bool
+    @State private var editedMissedSchool: Bool
+    @State private var editedMissedEvents: Bool
     let isEditingOnAppear: Bool
     
     init(migraine: MigraineEvent, viewModel: MigraineViewModel, isEditingOnAppear: Bool = false) {
@@ -26,6 +37,17 @@ struct MigraineDetailView: View {
         _editedNotes = State(initialValue: migraine.notes ?? "")
         _editedTriggers = State(initialValue: Set(migraine.selectedTriggerNames))
         _editedMedications = State(initialValue: Set(migraine.selectedMedicationNames))
+        _editedHasAura = State(initialValue: migraine.hasAura)
+        _editedHasPhotophobia = State(initialValue: migraine.hasPhotophobia)
+        _editedHasPhonophobia = State(initialValue: migraine.hasPhonophobia)
+        _editedHasNausea = State(initialValue: migraine.hasNausea)
+        _editedHasVomiting = State(initialValue: migraine.hasVomiting)
+        _editedHasWakeUpHeadache = State(initialValue: migraine.hasWakeUpHeadache)
+        _editedHasTinnitus = State(initialValue: migraine.hasTinnitus)
+        _editedHasVertigo = State(initialValue: migraine.hasVertigo)
+        _editedMissedWork = State(initialValue: migraine.missedWork)
+        _editedMissedSchool = State(initialValue: migraine.missedSchool)
+        _editedMissedEvents = State(initialValue: migraine.missedEvents)
     }
     
     var body: some View {
@@ -63,7 +85,18 @@ struct MigraineDetailView: View {
                     location: $editedLocation,
                     notes: $editedNotes,
                     selectedTriggers: $editedTriggers,
-                    selectedMedications: $editedMedications
+                    selectedMedications: $editedMedications,
+                    hasAura: $editedHasAura,
+                    hasPhotophobia: $editedHasPhotophobia,
+                    hasPhonophobia: $editedHasPhonophobia,
+                    hasNausea: $editedHasNausea,
+                    hasVomiting: $editedHasVomiting,
+                    hasWakeUpHeadache: $editedHasWakeUpHeadache,
+                    hasTinnitus: $editedHasTinnitus,
+                    hasVertigo: $editedHasVertigo,
+                    missedWork: $editedMissedWork,
+                    missedSchool: $editedMissedSchool,
+                    missedEvents: $editedMissedEvents
                 )
             } else {
                 ScrollView {
@@ -85,7 +118,7 @@ struct MigraineDetailView: View {
                         DetailSection(title: "Pain Details") {
                             Text("Pain Level: \(migraine.painLevel)")
                                 .foregroundColor(painLevelColor(migraine.painLevel))
-                            Text("Location: \(migraine.location)")
+                            Text("Location: \(migraine.location ?? "Not specified")")
                         }
                         
                         // Symptoms
@@ -172,17 +205,17 @@ struct MigraineDetailView: View {
             notes: editedNotes.isEmpty ? nil : editedNotes,
             triggers: Array(editedTriggers),
             medications: Array(editedMedications),
-            hasAura: migraine.hasAura,
-            hasPhotophobia: migraine.hasPhotophobia,
-            hasPhonophobia: migraine.hasPhonophobia,
-            hasNausea: migraine.hasNausea,
-            hasVomiting: migraine.hasVomiting,
-            hasWakeUpHeadache: migraine.hasWakeUpHeadache,
-            hasTinnitus: migraine.hasTinnitus,
-            hasVertigo: migraine.hasVertigo,
-            missedWork: migraine.missedWork,
-            missedSchool: migraine.missedSchool,
-            missedEvents: migraine.missedEvents
+            hasAura: editedHasAura,
+            hasPhotophobia: editedHasPhotophobia,
+            hasPhonophobia: editedHasPhonophobia,
+            hasNausea: editedHasNausea,
+            hasVomiting: editedHasVomiting,
+            hasWakeUpHeadache: editedHasWakeUpHeadache,
+            hasTinnitus: editedHasTinnitus,
+            hasVertigo: editedHasVertigo,
+            missedWork: editedMissedWork,
+            missedSchool: editedMissedSchool,
+            missedEvents: editedMissedEvents
         )
         isEditing = false
     }
@@ -281,7 +314,6 @@ struct FlowLayout: Layout {
     }
 }
 
-// Add this struct for the edit mode view
 struct EditMigraineView: View {
     @Binding var startTime: Date
     @Binding var endTime: Date?
@@ -290,6 +322,17 @@ struct EditMigraineView: View {
     @Binding var notes: String
     @Binding var selectedTriggers: Set<String>
     @Binding var selectedMedications: Set<String>
+    @Binding var hasAura: Bool
+    @Binding var hasPhotophobia: Bool
+    @Binding var hasPhonophobia: Bool
+    @Binding var hasNausea: Bool
+    @Binding var hasVomiting: Bool
+    @Binding var hasWakeUpHeadache: Bool
+    @Binding var hasTinnitus: Bool
+    @Binding var hasVertigo: Bool
+    @Binding var missedWork: Bool
+    @Binding var missedSchool: Bool
+    @Binding var missedEvents: Bool
     
     private let locations = ["Frontal", "Temporal", "Occipital", "Orbital", "Whole Head"]
     private let triggers = ["Stress", "Sleep Changes", "Weather", "Food", "Caffeine", "Alcohol", "Exercise", "Screen Time", "Hormonal", "Other"]
@@ -297,9 +340,103 @@ struct EditMigraineView: View {
     
     var body: some View {
         Form {
-            // Similar form layout as NewMigraineView but with bindings to edited values
-            // ... (add form sections similar to NewMigraineView)
+            Section("Time") {
+                DatePicker("Start Time", selection: $startTime, in: ...Date())
+                    .datePickerStyle(.field)
+                Toggle("Migraine Ended", isOn: Binding(
+                    get: { endTime != nil },
+                    set: { if $0 { endTime = Date() } else { endTime = nil } }
+                ))
+                .toggleStyle(.switch)
+                
+                if endTime != nil {
+                    DatePicker("End Time", selection: Binding(
+                        get: { endTime ?? Date() },
+                        set: { endTime = $0 }
+                    ), in: startTime...Date())
+                    .datePickerStyle(.field)
+                }
+            }
+            
+            Section("Pain Details") {
+                Slider(value: Binding(
+                    get: { Double(painLevel) },
+                    set: { painLevel = Int16($0) }
+                ), in: 1...10, step: 1) {
+                    Text("Pain Level: \(painLevel)")
+                }
+                
+                Picker("Location", selection: $location) {
+                    ForEach(locations, id: \.self) { loc in
+                        Text(loc).tag(loc)
+                    }
+                }
+            }
+            
+            Section("Symptoms") {
+                ForEach([
+                    ("Aura", $hasAura),
+                    ("Light Sensitivity", $hasPhotophobia),
+                    ("Sound Sensitivity", $hasPhonophobia),
+                    ("Nausea", $hasNausea),
+                    ("Vomiting", $hasVomiting),
+                    ("Wake up Headache", $hasWakeUpHeadache),
+                    ("Tinnitus", $hasTinnitus),
+                    ("Vertigo", $hasVertigo)
+                ], id: \.0) { title, binding in
+                    Toggle(title, isOn: binding)
+                        .toggleStyle(.switch)
+                }
+            }
+            
+            Section("Triggers") {
+                ForEach(triggers, id: \.self) { trigger in
+                    Toggle(trigger, isOn: Binding(
+                        get: { selectedTriggers.contains(trigger) },
+                        set: { isSelected in
+                            if isSelected {
+                                selectedTriggers.insert(trigger)
+                            } else {
+                                selectedTriggers.remove(trigger)
+                            }
+                        }
+                    ))
+                    .toggleStyle(.switch)
+                }
+            }
+            
+            Section("Medications") {
+                ForEach(medications, id: \.self) { medication in
+                    Toggle(medication, isOn: Binding(
+                        get: { selectedMedications.contains(medication) },
+                        set: { isSelected in
+                            if isSelected {
+                                selectedMedications.insert(medication)
+                            } else {
+                                selectedMedications.remove(medication)
+                            }
+                        }
+                    ))
+                    .toggleStyle(.switch)
+                }
+            }
+            
+            Section("Impact") {
+                Toggle("Missed Work", isOn: $missedWork)
+                    .toggleStyle(.switch)
+                Toggle("Missed School", isOn: $missedSchool)
+                    .toggleStyle(.switch)
+                Toggle("Missed Events", isOn: $missedEvents)
+                    .toggleStyle(.switch)
+            }
+            
+            Section("Notes") {
+                TextEditor(text: $notes)
+                    .frame(height: 100)
+                    .background(Color(.textBackgroundColor))
+                    .cornerRadius(8)
+            }
         }
         .formStyle(.grouped)
     }
-} 
+}

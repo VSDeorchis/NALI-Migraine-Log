@@ -9,8 +9,10 @@ struct SettingsView: View {
     @ObservedObject var viewModel: MigraineViewModel
     @Environment(\.dismiss) var dismiss
     @State private var showingMigrationAlert = false
-    @State private var showingError = false
-    @State private var errorMessage = ""
+    @State private var showingMigrationError = false
+    @State private var migrationErrorMessage = ""
+    @State private var showingExportError = false
+    @State private var exportErrorMessage = ""
     @State private var showingLocationAlert = false
     @State private var isBackfilling = false
     @State private var backfillProgress = 0
@@ -61,10 +63,15 @@ struct SettingsView: View {
             } message: {
                 Text("Your data needs to be migrated to enable iCloud sync. This may take a few moments.")
             }
-            .alert("Migration Error", isPresented: $showingError) {
+            .alert("Migration Error", isPresented: $showingMigrationError) {
                 Button("OK", role: .cancel) { }
             } message: {
-                Text(errorMessage)
+                Text(migrationErrorMessage)
+            }
+            .alert("Export Error", isPresented: $showingExportError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(exportErrorMessage)
             }
             .alert("Location Services", isPresented: $showingLocationAlert) {
                 Button("Cancel", role: .cancel) { }
@@ -388,8 +395,8 @@ struct SettingsView: View {
             try await viewModel.migrateToDifferentStore()
         } catch {
             await MainActor.run {
-                errorMessage = error.localizedDescription
-                showingError = true
+                migrationErrorMessage = error.localizedDescription
+                showingMigrationError = true
                 settings.useICloudSync = false
             }
         }
@@ -419,8 +426,8 @@ struct SettingsView: View {
         } catch {
             await MainActor.run {
                 isExporting = false
-                errorMessage = "Export failed: \(error.localizedDescription)"
-                showingError = true
+                exportErrorMessage = "Export failed: \(error.localizedDescription)"
+                showingExportError = true
             }
         }
     }
