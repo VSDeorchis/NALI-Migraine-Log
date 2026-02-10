@@ -11,6 +11,12 @@ struct SplashScreen: View {
     @State private var showDivider = false
     @State private var showPractice = false
     @State private var showFooter = false
+    @State private var showCard = false
+    
+    // Animated tagline dot states
+    @State private var dot1Glow: CGFloat = 0
+    @State private var dot2Glow: CGFloat = 0
+    @State private var dot3Glow: CGFloat = 0
     
     private var appVersion: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
@@ -28,54 +34,64 @@ struct SplashScreen: View {
             VStack {
                 Spacer()
                 
-                // Title block
-                VStack(spacing: 8) {
-                    Text("Headway")
-                        .font(.custom("Optima-Bold", size: UIFontMetrics.default.scaledValue(for: 38)))
-                        .minimumScaleFactor(0.7)
-                        .opacity(showTitle ? 1 : 0)
-                        .offset(y: showTitle ? 0 : 12)
-                    
-                    Text("Migraine Monitor and Analytics")
-                        .font(.custom("Optima-Regular", size: UIFontMetrics.default.scaledValue(for: 20)))
-                        .minimumScaleFactor(0.7)
-                        .opacity(showSubtitle ? 1 : 0)
-                        .offset(y: showSubtitle ? 0 : 8)
-                    
-                    Text("Track  ·  Predict  ·  Prevent")
-                        .font(.custom("Optima-Bold", size: UIFontMetrics.default.scaledValue(for: 14)))
-                        .minimumScaleFactor(0.7)
-                        .tracking(2)
-                        .opacity(showTagline ? 0.85 : 0)
-                        .offset(y: showTagline ? 0 : 8)
-                        .padding(.top, 4)
-                    
-                    Image(systemName: "brain.head.profile")
-                        .font(.system(size: 45))
-                        .foregroundColor(.white)
-                        .padding(.top, 15)
-                        .opacity(showIcon ? 1 : 0)
-                        .scaleEffect(showIcon ? 1 : 0.7)
-                        .accessibilityLabel("Brain icon")
-                }
-                .foregroundColor(.white)
-                .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 2)
-                
-                // Gradient divider
-                gradientDivider
-                    .padding(.vertical, 20)
-                    .opacity(showDivider ? 1 : 0)
-                    .scaleEffect(x: showDivider ? 1 : 0, y: 1)
-                    .accessibilityHidden(true)
-                
-                Text("Neurological Associates\nof Long Island, P.C.")
-                    .font(.custom("Optima-Bold", size: UIFontMetrics.default.scaledValue(for: 22)))
-                    .minimumScaleFactor(0.7)
-                    .multilineTextAlignment(.center)
+                // Frosted glass card behind main content
+                VStack(spacing: 0) {
+                    // Title block
+                    VStack(spacing: 8) {
+                        Text("Headway")
+                            .font(.custom("Optima-Bold", size: UIFontMetrics.default.scaledValue(for: 38)))
+                            .minimumScaleFactor(0.7)
+                            .opacity(showTitle ? 1 : 0)
+                            .offset(y: showTitle ? 0 : 12)
+                        
+                        Text("Migraine Monitor and Analytics")
+                            .font(.custom("Optima-Regular", size: UIFontMetrics.default.scaledValue(for: 20)))
+                            .minimumScaleFactor(0.7)
+                            .opacity(showSubtitle ? 1 : 0)
+                            .offset(y: showSubtitle ? 0 : 8)
+                        
+                        // Animated tagline with pulsing dots
+                        animatedTagline
+                            .padding(.top, 4)
+                            .opacity(showTagline ? 1 : 0)
+                            .offset(y: showTagline ? 0 : 8)
+                        
+                        Image(systemName: "brain.head.profile")
+                            .font(.system(size: 45))
+                            .foregroundColor(.white)
+                            .padding(.top, 15)
+                            .opacity(showIcon ? 1 : 0)
+                            .scaleEffect(showIcon ? 1 : 0.7)
+                            .accessibilityLabel("Brain icon")
+                    }
                     .foregroundColor(.white)
                     .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 2)
-                    .opacity(showPractice ? 1 : 0)
-                    .offset(y: showPractice ? 0 : 8)
+                    
+                    // Gradient divider
+                    gradientDivider
+                        .padding(.vertical, 20)
+                        .opacity(showDivider ? 1 : 0)
+                        .scaleEffect(x: showDivider ? 1 : 0, y: 1)
+                        .accessibilityHidden(true)
+                    
+                    Text("Neurological Associates\nof Long Island, P.C.")
+                        .font(.custom("Optima-Bold", size: UIFontMetrics.default.scaledValue(for: 22)))
+                        .minimumScaleFactor(0.7)
+                        .multilineTextAlignment(.center)
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 2)
+                        .opacity(showPractice ? 1 : 0)
+                        .offset(y: showPractice ? 0 : 8)
+                }
+                .padding(.horizontal, 28)
+                .padding(.vertical, 32)
+                .background(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                        .opacity(showCard ? 1 : 0)
+                        .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 8)
+                )
+                .padding(.horizontal, 24)
                 
                 Spacer()
                 
@@ -103,7 +119,7 @@ struct SplashScreen: View {
                 animationPhase = 1.0
             }
             
-            // Staggered entrance animations
+            // === ENTRANCE: staggered fade in ===
             withAnimation(.easeOut(duration: 0.6).delay(0.1)) {
                 showTitle = true
             }
@@ -116,6 +132,10 @@ struct SplashScreen: View {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.6)) {
                 showIcon = true
             }
+            // Frosted card fades in with the icon
+            withAnimation(.easeOut(duration: 0.6).delay(0.6)) {
+                showCard = true
+            }
             withAnimation(.easeOut(duration: 0.5).delay(0.8)) {
                 showDivider = true
             }
@@ -125,6 +145,112 @@ struct SplashScreen: View {
             withAnimation(.easeOut(duration: 0.4).delay(1.2)) {
                 showFooter = true
             }
+            
+            // Start tagline dot pulse sequence after tagline appears
+            startDotPulseAnimation()
+            
+            // === EXIT: reverse staggered fade out ===
+            // Parent removes splash at 2.0s, so start exit at ~1.5s
+            let exitStart: Double = 1.50
+            let step: Double = 0.06
+            
+            withAnimation(.easeIn(duration: 0.2).delay(exitStart)) {
+                showFooter = false
+            }
+            withAnimation(.easeIn(duration: 0.2).delay(exitStart + step)) {
+                showPractice = false
+            }
+            withAnimation(.easeIn(duration: 0.2).delay(exitStart + step * 2)) {
+                showDivider = false
+            }
+            withAnimation(.easeIn(duration: 0.2).delay(exitStart + step * 3)) {
+                showIcon = false
+            }
+            withAnimation(.easeIn(duration: 0.2).delay(exitStart + step * 4)) {
+                showTagline = false
+            }
+            withAnimation(.easeIn(duration: 0.2).delay(exitStart + step * 5)) {
+                showSubtitle = false
+            }
+            withAnimation(.easeIn(duration: 0.2).delay(exitStart + step * 6)) {
+                showTitle = false
+            }
+            withAnimation(.easeIn(duration: 0.3).delay(exitStart + step * 5)) {
+                showCard = false
+            }
+        }
+    }
+    
+    // MARK: - Animated Tagline
+    
+    private var animatedTagline: some View {
+        HStack(spacing: 0) {
+            Text("Track")
+                .font(.custom("AvenirNext-UltraLight", size: UIFontMetrics.default.scaledValue(for: 15)))
+                .minimumScaleFactor(0.7)
+                .tracking(3)
+                .foregroundColor(.white.opacity(0.8))
+            
+            taglineDot(glow: dot1Glow)
+            
+            Text("Predict")
+                .font(.custom("AvenirNext-UltraLight", size: UIFontMetrics.default.scaledValue(for: 15)))
+                .minimumScaleFactor(0.7)
+                .tracking(3)
+                .foregroundColor(.white.opacity(0.8))
+            
+            taglineDot(glow: dot2Glow)
+            
+            Text("Prevent")
+                .font(.custom("AvenirNext-UltraLight", size: UIFontMetrics.default.scaledValue(for: 15)))
+                .minimumScaleFactor(0.7)
+                .tracking(3)
+                .foregroundColor(.white.opacity(0.8))
+        }
+        .textCase(.uppercase)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Track, Predict, Prevent")
+    }
+    
+    private func taglineDot(glow: CGFloat) -> some View {
+        Text("  ·  ")
+            .font(.custom("AvenirNext-UltraLight", size: UIFontMetrics.default.scaledValue(for: 15)))
+            .foregroundColor(.white)
+            .scaleEffect(1.0 + glow * 0.5)
+            .opacity(0.6 + glow * 0.4)
+            .shadow(color: .white.opacity(glow * 0.6), radius: 4 + glow * 4)
+    }
+    
+    private func startDotPulseAnimation() {
+        // Sequential dot pulse — starts after tagline is visible
+        // Repeats every 2 seconds with a cascade across the three dots
+        let cycleDelay: Double = 0.8  // delay before first cycle
+        let dotInterval: Double = 0.25 // time between each dot's pulse
+        
+        func pulseCycle() {
+            withAnimation(.easeInOut(duration: 0.35).delay(0)) {
+                dot1Glow = 1.0
+            }
+            withAnimation(.easeInOut(duration: 0.35).delay(0.35)) {
+                dot1Glow = 0
+            }
+            withAnimation(.easeInOut(duration: 0.35).delay(dotInterval)) {
+                dot2Glow = 1.0
+            }
+            withAnimation(.easeInOut(duration: 0.35).delay(dotInterval + 0.35)) {
+                dot2Glow = 0
+            }
+            withAnimation(.easeInOut(duration: 0.35).delay(dotInterval * 2)) {
+                dot3Glow = 1.0
+            }
+            withAnimation(.easeInOut(duration: 0.35).delay(dotInterval * 2 + 0.35)) {
+                dot3Glow = 0
+            }
+        }
+        
+        // First cycle after tagline appears
+        DispatchQueue.main.asyncAfter(deadline: .now() + cycleDelay) {
+            pulseCycle()
         }
     }
     

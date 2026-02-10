@@ -107,9 +107,9 @@ struct MigraineDetailView: View {
                                 Text("Start: \(migraine.startTime!, style: .date) \(migraine.startTime!, style: .time)")
                                 if let endTime = migraine.endTime {
                                     Text("End: \(endTime, style: .date) \(endTime, style: .time)")
-                                    Text("Duration: \(duration)")
-                                } else {
-                                    Text("Status: Ongoing")
+                                    if let dur = duration {
+                                        Text("Duration: \(dur)")
+                                    }
                                 }
                             }
                         }
@@ -174,15 +174,18 @@ struct MigraineDetailView: View {
                 }
             }
         }
-        .frame(width: 500, height: 600)
+        .frame(minWidth: 450, idealWidth: 550, minHeight: 500, idealHeight: 650)
     }
     
-    private var duration: String {
-        guard let endTime = migraine.endTime else { return "Ongoing" }
-        let duration = endTime.timeIntervalSince(migraine.startTime!)
-        let hours = Int(duration) / 3600
-        let minutes = Int(duration.truncatingRemainder(dividingBy: 3600)) / 60
-        return "\(hours)h \(minutes)m"
+    private var duration: String? {
+        guard let start = migraine.startTime,
+              let endTime = migraine.endTime else { return nil }
+        let interval = endTime.timeIntervalSince(start)
+        guard interval > 0 else { return nil }
+        let hours = Int(interval) / 3600
+        let minutes = Int(interval.truncatingRemainder(dividingBy: 3600)) / 60
+        if hours > 0 { return "\(hours)h \(minutes)m" }
+        return "\(minutes)m"
     }
     
     private func painLevelColor(_ level: Int16) -> Color {

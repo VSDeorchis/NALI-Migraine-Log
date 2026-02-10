@@ -17,10 +17,10 @@ public final class PersistenceController: ObservableObject {
         return controller
     }()
     
-    let container: NSPersistentContainer
+    let container: NSPersistentCloudKitContainer
     
     private init(inMemory: Bool = false) {
-        container = NSPersistentContainer(name: "NALI_Migraine_Log")
+        container = NSPersistentCloudKitContainer(name: "NALI_Migraine_Log")
         
         if inMemory {
             container.persistentStoreDescriptions.first?.url = URL(fileURLWithPath: "/dev/null")
@@ -38,6 +38,18 @@ public final class PersistenceController: ObservableObject {
             
             for (key, value) in storeOptions {
                 description.setOption(value, forKey: key)
+            }
+            
+            // Enable CloudKit sync if user has opted in
+            if UserDefaults.standard.bool(forKey: "useICloudSync") {
+                description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
+                description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
+                    containerIdentifier: "iCloud.com.nali.migrainelog"
+                )
+                syncStatus = .syncing
+            } else {
+                // Explicitly disable CloudKit sync
+                description.cloudKitContainerOptions = nil
             }
         }
         
@@ -58,6 +70,15 @@ public final class PersistenceController: ObservableObject {
             name: NSNotification.Name.NSPersistentStoreCoordinatorStoresWillChange,
             object: container.persistentStoreCoordinator
         )
+        
+        // Listen for CloudKit remote change notifications
+        NotificationCenter.default.addObserver(
+            forName: .NSPersistentStoreRemoteChange,
+            object: container.persistentStoreCoordinator,
+            queue: .main) { [weak self] _ in
+                self?.container.viewContext.refreshAllObjects()
+                self?.syncStatus = .synced
+        }
     }
     
     private func handlePersistentStoreError(_ error: Error) {

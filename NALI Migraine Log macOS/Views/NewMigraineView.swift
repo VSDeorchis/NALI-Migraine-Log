@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(HealthKit)
+import HealthKit
+#endif
 
 struct NewMigraineView: View {
     @ObservedObject var viewModel: MigraineViewModel
@@ -22,6 +25,9 @@ struct NewMigraineView: View {
     @State private var notes = ""
     @State private var selectedTriggers: Set<String> = []
     @State private var selectedMedications: Set<String> = []
+    @ObservedObject private var healthKit = HealthKitManager.shared
+    @State private var healthSnapshot: HealthKitSnapshot?
+    @State private var isLoadingHealth = false
     
     private let locations = ["Frontal", "Temporal", "Occipital", "Orbital", "Whole Head"]
     private let triggers = ["Stress", "Sleep Changes", "Weather", "Food", "Caffeine", "Alcohol", "Exercise", "Screen Time", "Menstrual", "Other"]
@@ -40,6 +46,11 @@ struct NewMigraineView: View {
             .background(Color(.windowBackgroundColor))
             
             Form {
+                // Health Context Section (live HealthKit data)
+                if healthKit.isAvailable {
+                    healthContextSection
+                }
+                
                 Section("Time") {
                     DatePicker("Start Time", selection: $startTime, in: ...Date())
                         .datePickerStyle(.field)
@@ -177,7 +188,150 @@ struct NewMigraineView: View {
             .padding()
             .background(Color(.windowBackgroundColor))
         }
-        .frame(width: 600, height: 800)
+        .frame(minWidth: 500, idealWidth: 600, minHeight: 600, idealHeight: 800)
         .background(Color(.windowBackgroundColor))
+        .task {
+            await loadHealthData()
+        }
+    }
+    
+    // MARK: - Health Context
+    
+    private func loadHealthData() async {
+        guard healthKit.isAvailable else { return }
+        isLoadingHealth = true
+        if !healthKit.isAuthorized {
+            await healthKit.requestAuthorization()
+        }
+        if healthKit.isAuthorized {
+            healthSnapshot = await healthKit.fetchSnapshot()
+        }
+        isLoadingHealth = false
+    }
+    
+    private var healthContextSection: some View {
+        Section {
+            if isLoadingHealth {
+                HStack(spacing: 10) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Reading health data...")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            } else if !healthKit.isAuthorized {
+                HStack(spacing: 10) {
+                    Image(systemName: "heart.slash")
+                        .foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("HealthKit Not Authorized")
+                            .font(.subheadline.weight(.medium))
+                        Text("Enable in System Settings > Privacy to see health context")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            } else if let snapshot = healthSnapshot {
+                macHealthDataGrid(snapshot)
+            } else {
+                HStack(spacing: 10) {
+                    Image(systemName: "heart.text.square")
+                        .foregroundColor(.secondary)
+                    Text("No health data available")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+        } header: {
+            Label("Health Context", systemImage: "heart.fill")
+                .foregroundColor(.pink)
+        } footer: {
+            if healthSnapshot != nil {
+                Text("Live data from Apple Health — not stored with this entry.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func macHealthDataGrid(_ snapshot: HealthKitSnapshot) -> some View {
+        HStack(spacing: 16) {
+            if let sleep = snapshot.sleepHours {
+                MacHealthTile(
+                    icon: "bed.double.fill",
+                    label: "Sleep",
+                    value: String(format: "%.1f hrs", sleep),
+                    color: sleep < 5 ? .red : (sleep < 6.5 ? .orange : .green)
+                )
+            }
+            
+            if let hrv = snapshot.hrv {
+                MacHealthTile(
+                    icon: "waveform.path.ecg",
+                    label: "HRV",
+                    value: String(format: "%.0f ms", hrv),
+                    color: hrv < 20 ? .red : (hrv < 40 ? .orange : .green)
+                )
+            }
+            
+            if let rhr = snapshot.restingHeartRate {
+                MacHealthTile(
+                    icon: "heart.fill",
+                    label: "Resting HR",
+                    value: String(format: "%.0f bpm", rhr),
+                    color: .red
+                )
+            }
+            
+            if let steps = snapshot.steps {
+                MacHealthTile(
+                    icon: "figure.walk",
+                    label: "Steps",
+                    value: steps >= 1000 ? String(format: "%.1fk", Double(steps) / 1000.0) : "\(steps)",
+                    color: steps < 3000 ? .orange : (steps < 7000 ? .blue : .green)
+                )
+            }
+            
+            if let days = snapshot.daysSinceMenstruation {
+                MacHealthTile(
+                    icon: "calendar.circle.fill",
+                    label: "Menstrual",
+                    value: "\(days)d ago",
+                    color: .purple
+                )
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+// MARK: - macOS Health Tile
+
+struct MacHealthTile: View {
+    let icon: String
+    let label: String
+    let value: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(color)
+            Text(value)
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundColor(.primary)
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(color.opacity(0.08))
+        )
     }
 } 

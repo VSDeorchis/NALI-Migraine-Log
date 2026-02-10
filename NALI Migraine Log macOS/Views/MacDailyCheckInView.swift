@@ -116,7 +116,7 @@ struct MacDailyCheckInView: View {
             }
         }
         .padding(24)
-        .frame(width: 500, height: 550)
+        .frame(minWidth: 400, idealWidth: 500, minHeight: 450, idealHeight: 550)
         .onAppear { loadExisting() }
     }
     

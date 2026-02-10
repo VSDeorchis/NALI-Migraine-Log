@@ -6,6 +6,7 @@ struct AppCommands: Commands {
     @Binding var selectedTab: Int
     
     var body: some Commands {
+        // File menu
         CommandGroup(after: .newItem) {
             Button("New Migraine") {
                 showingNewMigraine = true
@@ -14,7 +15,14 @@ struct AppCommands: Commands {
             
             Divider()
             
-            Button("Settings...") {
+            Button("Export All Data…") {
+                exportAllData()
+            }
+            .keyboardShortcut("e", modifiers: [.command, .shift])
+            
+            Divider()
+            
+            Button("Settings…") {
                 if #available(macOS 14, *) {
                     NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                 } else {
@@ -24,6 +32,7 @@ struct AppCommands: Commands {
             .keyboardShortcut(",", modifiers: .command)
         }
         
+        // Sidebar
         CommandGroup(after: .sidebar) {
             Button("Toggle Sidebar") {
                 NSApp.keyWindow?.firstResponder?
@@ -32,6 +41,7 @@ struct AppCommands: Commands {
             .keyboardShortcut("s", modifiers: [.command, .control])
         }
         
+        // View menu
         CommandMenu("View") {
             Button("Refresh Data") {
                 viewModel.fetchMigraines()
@@ -66,6 +76,7 @@ struct AppCommands: Commands {
             .keyboardShortcut("5", modifiers: .command)
         }
         
+        // Help menu
         CommandMenu("Help") {
             Button("Visit Website") {
                 if let url = URL(string: "https://www.neuroli.com") {
@@ -78,6 +89,61 @@ struct AppCommands: Commands {
                     NSWorkspace.shared.open(url)
                 }
             }
+            
+            Divider()
+            
+            Text("Keyboard Shortcuts")
+                .font(.caption)
+            
+            Group {
+                Text("⌘N  New Migraine")
+                Text("⌘1-5  Switch Views")
+                Text("⌘R  Refresh Data")
+                Text("⌘I  Toggle Inspector")
+                Text("⇧⌘E  Export Data")
+                Text("⌘,  Settings")
+            }
+            .font(.caption)
+            .foregroundColor(.secondary)
         }
     }
-} 
+    
+    private func exportAllData() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.nameFieldStringValue = "Headway_Export_\(dateStamp()).csv"
+        panel.title = "Export All Migraine Data"
+        
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            
+            var csv = "Date,Time,Pain Level,Location,Duration,Triggers,Medications,Notes\n"
+            
+            for m in viewModel.migraines {
+                let date = m.startTime.map { DateFormatter.localizedString(from: $0, dateStyle: .short, timeStyle: .none) } ?? ""
+                let time = m.startTime.map { DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short) } ?? ""
+                let pain = "\(m.painLevel)"
+                let location = m.location ?? ""
+                var duration = ""
+                if let s = m.startTime, let e = m.endTime {
+                    let mins = Int(e.timeIntervalSince(s) / 60)
+                    let h = mins / 60; let min = mins % 60
+                    duration = h > 0 ? "\(h)h \(min)m" : "\(min)m"
+                }
+                let triggers = m.selectedTriggerNames.joined(separator: "; ")
+                let medications = m.selectedMedicationNames.joined(separator: "; ")
+                let notes = (m.notes ?? "").replacingOccurrences(of: "\"", with: "\"\"")
+                
+                csv += "\"\(date)\",\"\(time)\",\(pain),\"\(location)\",\"\(duration)\",\"\(triggers)\",\"\(medications)\",\"\(notes)\"\n"
+            }
+            
+            try? csv.write(to: url, atomically: true, encoding: .utf8)
+        }
+    }
+    
+    private func dateStamp() -> String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        return fmt.string(from: Date())
+    }
+}

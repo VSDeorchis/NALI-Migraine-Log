@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(HealthKit)
+import HealthKit
+#endif
 
 struct NewMigraineView: View {
     @ObservedObject var viewModel: MigraineViewModel
@@ -24,6 +27,9 @@ struct NewMigraineView: View {
     @State private var notes = ""
     @State private var showingSaveError = false
     @State private var isSaving = false
+    @ObservedObject private var healthKit = HealthKitManager.shared
+    @State private var healthSnapshot: HealthKitSnapshot?
+    @State private var isLoadingHealth = false
     
     private let medications = [
         "Tylenol (acetaminophen)",
@@ -114,6 +120,11 @@ struct NewMigraineView: View {
                 }
                 
                 Form {
+                    // Health Context Section (live HealthKit data)
+                    if healthKit.isAvailable {
+                        healthContextSection
+                    }
+                    
                     // Pain Details Section
                     Section {
                     DatePicker("Start Time", selection: $startTime)
@@ -215,6 +226,9 @@ struct NewMigraineView: View {
                     NSLog("🟣 [NewMigraineView] NewMigraineView appeared")
                     #endif
                 }
+                .task {
+                    await loadHealthData()
+                }
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {
@@ -277,6 +291,150 @@ struct NewMigraineView: View {
                 }
             }
         }
+    }
+    
+    // MARK: - Health Context
+    
+    private func loadHealthData() async {
+        guard healthKit.isAvailable else { return }
+        isLoadingHealth = true
+        if !healthKit.isAuthorized {
+            await healthKit.requestAuthorization()
+        }
+        if healthKit.isAuthorized {
+            healthSnapshot = await healthKit.fetchSnapshot()
+        }
+        isLoadingHealth = false
+    }
+    
+    private var healthContextSection: some View {
+        Section {
+            if isLoadingHealth {
+                HStack(spacing: 10) {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Reading health data...")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            } else if !healthKit.isAuthorized {
+                HStack(spacing: 10) {
+                    Image(systemName: "heart.slash")
+                        .foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("HealthKit Not Authorized")
+                            .font(.subheadline.weight(.medium))
+                        Text("Enable in Settings to see health context")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            } else if let snapshot = healthSnapshot {
+                healthDataGrid(snapshot)
+            } else {
+                HStack(spacing: 10) {
+                    Image(systemName: "heart.text.square")
+                        .foregroundColor(.secondary)
+                    Text("No health data available")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+        } header: {
+            SectionHeader(
+                title: "HEALTH CONTEXT",
+                systemImage: "heart.fill",
+                color: .pink
+            )
+        } footer: {
+            if healthSnapshot != nil {
+                Text("Live data from Apple Health — not stored with this entry.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .listRowBackground(Color(.systemGray6).opacity(0.5))
+    }
+    
+    @ViewBuilder
+    private func healthDataGrid(_ snapshot: HealthKitSnapshot) -> some View {
+        LazyVGrid(columns: [
+            GridItem(.flexible(), spacing: 12),
+            GridItem(.flexible(), spacing: 12)
+        ], spacing: 10) {
+            if let sleep = snapshot.sleepHours {
+                HealthContextTile(
+                    icon: "bed.double.fill",
+                    label: "Sleep",
+                    value: String(format: "%.1f hrs", sleep),
+                    color: sleepColor(sleep)
+                )
+            }
+            
+            if let hrv = snapshot.hrv {
+                HealthContextTile(
+                    icon: "waveform.path.ecg",
+                    label: "HRV",
+                    value: String(format: "%.0f ms", hrv),
+                    color: hrvColor(hrv)
+                )
+            }
+            
+            if let rhr = snapshot.restingHeartRate {
+                HealthContextTile(
+                    icon: "heart.fill",
+                    label: "Resting HR",
+                    value: String(format: "%.0f bpm", rhr),
+                    color: .red
+                )
+            }
+            
+            if let steps = snapshot.steps {
+                HealthContextTile(
+                    icon: "figure.walk",
+                    label: "Steps Yesterday",
+                    value: formatSteps(steps),
+                    color: stepsColor(steps)
+                )
+            }
+            
+            if let days = snapshot.daysSinceMenstruation {
+                HealthContextTile(
+                    icon: "calendar.circle.fill",
+                    label: "Menstrual Cycle",
+                    value: "\(days) days ago",
+                    color: .purple
+                )
+            }
+        }
+        .padding(.vertical, 4)
+    }
+    
+    // MARK: - Health Context Helpers
+    
+    private func sleepColor(_ hours: Double) -> Color {
+        if hours < 5 { return .red }
+        if hours < 6.5 { return .orange }
+        return .green
+    }
+    
+    private func hrvColor(_ hrv: Double) -> Color {
+        if hrv < 20 { return .red }
+        if hrv < 40 { return .orange }
+        return .green
+    }
+    
+    private func stepsColor(_ steps: Int) -> Color {
+        if steps < 3000 { return .orange }
+        if steps < 7000 { return .blue }
+        return .green
+    }
+    
+    private func formatSteps(_ steps: Int) -> String {
+        if steps >= 1000 {
+            return String(format: "%.1fk", Double(steps) / 1000.0)
+        }
+        return "\(steps)"
     }
     
     private var weatherStatusBanner: some View {
@@ -371,6 +529,42 @@ struct SectionHeader: View {
         Label(title, systemImage: systemImage)
             .font(.system(.subheadline, design: .rounded).weight(.semibold))
             .foregroundColor(color)
+    }
+}
+
+// MARK: - Health Context Tile
+
+struct HealthContextTile: View {
+    let icon: String
+    let label: String
+    let value: String
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(color)
+                .frame(width: 22)
+            
+            VStack(alignment: .leading, spacing: 1) {
+                Text(label)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                Text(value)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundColor(.primary)
+            }
+            
+            Spacer()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(color.opacity(0.08))
+        )
     }
 }
 

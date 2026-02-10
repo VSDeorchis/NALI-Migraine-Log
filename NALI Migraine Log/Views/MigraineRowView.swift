@@ -237,21 +237,18 @@ struct MigraineRowView: View {
         .padding(.vertical, 6)
     }
     
-    // Duration display
+    // Duration display — only shown when an end time is present
     private var formattedDuration: String? {
-        guard let start = migraine.startTime else { return nil }
-        if let end = migraine.endTime {
-            let interval = end.timeIntervalSince(start)
-            let hours = Int(interval / 3600)
-            let minutes = Int((interval.truncatingRemainder(dividingBy: 3600)) / 60)
-            if hours > 0 {
-                return "\(hours)h \(minutes)m"
-            } else {
-                return "\(minutes)m"
-            }
+        guard let start = migraine.startTime,
+              let end = migraine.endTime else { return nil }
+        let interval = end.timeIntervalSince(start)
+        guard interval > 0 else { return nil }
+        let hours = Int(interval / 3600)
+        let minutes = Int((interval.truncatingRemainder(dividingBy: 3600)) / 60)
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
         } else {
-            // Ongoing migraine
-            return "Ongoing"
+            return "\(minutes)m"
         }
     }
     
@@ -477,11 +474,15 @@ struct PressureChangeBadge: View {
         }
     }
     
+    private var unitSymbol: String {
+        settings.pressureUnit.symbol
+    }
+    
     var body: some View {
         HStack(spacing: 3) {
             Image(systemName: pressureChangeHPa > 0 ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
                 .font(.system(size: 12))
-            Text(String(format: "%.1f", abs(pressureChangeValue)))
+            Text(String(format: "%.1f %@", abs(pressureChangeValue), unitSymbol))
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
         }
         .foregroundColor(color)
