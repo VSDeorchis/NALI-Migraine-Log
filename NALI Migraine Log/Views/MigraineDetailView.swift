@@ -36,6 +36,7 @@ struct MigraineDetailView: View {
     @State private var tookFrovatriptan: Bool
     @State private var tookNaratriptan: Bool
     @State private var tookNurtec: Bool
+    @State private var tookSymbravo: Bool
     @State private var tookUbrelvy: Bool
     @State private var tookReyvow: Bool
     @State private var tookTrudhesa: Bool
@@ -101,6 +102,7 @@ struct MigraineDetailView: View {
         _tookFrovatriptan = State(initialValue: migraine.tookFrovatriptan)
         _tookNaratriptan = State(initialValue: migraine.tookNaratriptan)
         _tookNurtec = State(initialValue: migraine.tookNurtec)
+        _tookSymbravo = State(initialValue: migraine.tookSymbravo)
         _tookUbrelvy = State(initialValue: migraine.tookUbrelvy)
         _tookReyvow = State(initialValue: migraine.tookReyvow)
         _tookTrudhesa = State(initialValue: migraine.tookTrudhesa)
@@ -296,7 +298,7 @@ struct MigraineDetailView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(.orange)
             ) {
-                MedicationSelectionView(tookIbuprofin: $tookIbuprofin, tookExcedrin: $tookExcedrin, tookTylenol: $tookTylenol, tookSumatriptan: $tookSumatriptan, tookRizatriptan: $tookRizatriptan, tookNaproxen: $tookNaproxen, tookFrovatriptan: $tookFrovatriptan, tookNaratriptan: $tookNaratriptan, tookNurtec: $tookNurtec, tookUbrelvy: $tookUbrelvy, tookReyvow: $tookReyvow, tookTrudhesa: $tookTrudhesa, tookElyxyb: $tookElyxyb, tookOther: $tookOther, tookEletriptan: $tookEletriptan)
+                MedicationSelectionView(tookIbuprofin: $tookIbuprofin, tookExcedrin: $tookExcedrin, tookTylenol: $tookTylenol, tookSumatriptan: $tookSumatriptan, tookRizatriptan: $tookRizatriptan, tookNaproxen: $tookNaproxen, tookFrovatriptan: $tookFrovatriptan, tookNaratriptan: $tookNaratriptan, tookNurtec: $tookNurtec, tookSymbravo: $tookSymbravo, tookUbrelvy: $tookUbrelvy, tookReyvow: $tookReyvow, tookTrudhesa: $tookTrudhesa, tookElyxyb: $tookElyxyb, tookOther: $tookOther, tookEletriptan: $tookEletriptan)
             }
             .listRowBackground(Color(.systemGray6).opacity(0.5))
             
@@ -375,6 +377,7 @@ struct MigraineDetailView: View {
                             tookFrovatriptan: tookFrovatriptan,
                             tookNaratriptan: tookNaratriptan,
                             tookNurtec: tookNurtec,
+                            tookSymbravo: tookSymbravo,
                             tookUbrelvy: tookUbrelvy,
                             tookReyvow: tookReyvow,
                             tookTrudhesa: tookTrudhesa,
@@ -538,6 +541,7 @@ struct MedicationSelectionView: View {
     @Binding var tookFrovatriptan: Bool
     @Binding var tookNaratriptan: Bool
     @Binding var tookNurtec: Bool
+    @Binding var tookSymbravo: Bool
     @Binding var tookUbrelvy: Bool
     @Binding var tookReyvow: Bool
     @Binding var tookTrudhesa: Bool
@@ -552,6 +556,7 @@ struct MedicationSelectionView: View {
         "Excedrin",
         "Ubrelvy (ubrogepant)",
         "Nurtec (rimegepant)",
+        "Symbravo",
         "Sumatriptan",
         "Rizatriptan",
         "Eletriptan",
@@ -574,6 +579,7 @@ struct MedicationSelectionView: View {
                     case "Excedrin": return tookExcedrin
                     case "Ubrelvy (ubrogepant)": return tookUbrelvy
                     case "Nurtec (rimegepant)": return tookNurtec
+                    case "Symbravo": return tookSymbravo
                     case "Sumatriptan": return tookSumatriptan
                     case "Rizatriptan": return tookRizatriptan
                     case "Eletriptan": return tookEletriptan
@@ -595,6 +601,7 @@ struct MedicationSelectionView: View {
                         case "Excedrin": tookExcedrin = isSelected
                         case "Ubrelvy (ubrogepant)": tookUbrelvy = isSelected
                         case "Nurtec (rimegepant)": tookNurtec = isSelected
+                        case "Symbravo": tookSymbravo = isSelected
                         case "Sumatriptan": tookSumatriptan = isSelected
                         case "Rizatriptan": tookRizatriptan = isSelected
                         case "Eletriptan": tookEletriptan = isSelected

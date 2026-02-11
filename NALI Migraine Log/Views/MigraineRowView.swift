@@ -41,6 +41,7 @@ struct MigraineRowView: View {
         if migraine.tookFrovatriptan { medications.append("Frovatriptan") }
         if migraine.tookNaratriptan { medications.append("Naratriptan") }
         if migraine.tookNurtec { medications.append("Nurtec") }
+        if migraine.tookSymbravo { medications.append("Symbravo") }
         if migraine.tookUbrelvy { medications.append("Ubrelvy") }
         if migraine.tookReyvow { medications.append("Reyvow") }
         if migraine.tookTrudhesa { medications.append("Trudhesa") }

@@ -31,7 +31,7 @@ struct NewMigraineView: View {
     
     private let locations = ["Frontal", "Temporal", "Occipital", "Orbital", "Whole Head"]
     private let triggers = ["Stress", "Sleep Changes", "Weather", "Food", "Caffeine", "Alcohol", "Exercise", "Screen Time", "Menstrual", "Other"]
-    private let medications = ["Sumatriptan", "Rizatriptan", "Frovatriptan", "Naratriptan", "Ubrelvy", "Nurtec", "Tylenol", "Advil", "Excedrin", "Other"]
+    private let medications = ["Sumatriptan", "Rizatriptan", "Frovatriptan", "Naratriptan", "Ubrelvy", "Nurtec", "Symbravo", "Tylenol", "Advil", "Excedrin", "Other"]
     
     var body: some View {
         VStack(spacing: 0) {

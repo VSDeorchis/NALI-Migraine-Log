@@ -175,6 +175,7 @@ class MigraineViewModel: ObservableObject {
             case "Naratriptan": migraine.tookNaratriptan = true
             case "Ubrelvy": migraine.tookUbrelvy = true
             case "Nurtec": migraine.tookNurtec = true
+            case "Symbravo": migraine.tookSymbravo = true
             case "Reyvow": migraine.tookReyvow = true
             case "Trudhesa": migraine.tookTrudhesa = true
             case "Elyxyb": migraine.tookElyxyb = true
@@ -196,6 +197,7 @@ class MigraineViewModel: ObservableObject {
         migraine.tookNaratriptan = false
         migraine.tookUbrelvy = false
         migraine.tookNurtec = false
+        migraine.tookSymbravo = false
         migraine.tookReyvow = false
         migraine.tookTrudhesa = false
         migraine.tookElyxyb = false

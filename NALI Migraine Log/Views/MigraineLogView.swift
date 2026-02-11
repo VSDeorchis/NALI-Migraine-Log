@@ -217,6 +217,7 @@ struct MigraineLogView: View {
                     (searchText.localizedCaseInsensitiveContains("frovatriptan") && migraine.tookFrovatriptan) ||
                     (searchText.localizedCaseInsensitiveContains("naratriptan") && migraine.tookNaratriptan) ||
                     (searchText.localizedCaseInsensitiveContains("nurtec") && migraine.tookNurtec) ||
+                    (searchText.localizedCaseInsensitiveContains("symbravo") && migraine.tookSymbravo) ||
                     (searchText.localizedCaseInsensitiveContains("ubrelvy") && migraine.tookUbrelvy) ||
                     (searchText.localizedCaseInsensitiveContains("reyvow") && migraine.tookReyvow) ||
                     (searchText.localizedCaseInsensitiveContains("trudhesa") && migraine.tookTrudhesa) ||

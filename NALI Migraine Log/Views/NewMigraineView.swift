@@ -38,6 +38,7 @@ struct NewMigraineView: View {
         "Excedrin",
         "Ubrelvy (ubrogepant)",
         "Nurtec (rimegepant)",
+        "Symbravo",
         "Sumatriptan",
         "Rizatriptan",
         "Eletriptan",

@@ -30,6 +30,7 @@ struct WatchNewMigraineView: View {
     @State private var tookFrovatriptan = false
     @State private var tookNaratriptan = false
     @State private var tookNurtec = false
+    @State private var tookSymbravo = false
     @State private var tookUbrelvy = false
     @State private var tookReyvow = false
     @State private var tookTrudhesa = false
@@ -129,6 +130,7 @@ struct WatchNewMigraineView: View {
                 Toggle("Excedrin", isOn: $tookExcedrin)
                 Toggle("Ubrelvy (ubrogepant)", isOn: $tookUbrelvy)
                 Toggle("Nurtec (rimegepant)", isOn: $tookNurtec)
+                Toggle("Symbravo", isOn: $tookSymbravo)
                 Toggle("Sumatriptan", isOn: $tookSumatriptan)
                 Toggle("Rizatriptan", isOn: $tookRizatriptan)
                 Toggle("Eletriptan", isOn: $tookEletriptan)
@@ -232,6 +234,7 @@ struct WatchNewMigraineView: View {
                 tookFrovatriptan: tookFrovatriptan,
                 tookNaratriptan: tookNaratriptan,
                 tookNurtec: tookNurtec,
+                tookSymbravo: tookSymbravo,
                 tookUbrelvy: tookUbrelvy,
                 tookReyvow: tookReyvow,
                 tookTrudhesa: tookTrudhesa,

@@ -442,7 +442,7 @@ struct SettingsView: View {
         var csvContent = "Date,End Time,Pain Level,Location,Duration (hours),"
         csvContent += "Aura,Light Sensitivity,Sound Sensitivity,Nausea,Vomiting,Wake-up Headache,Tinnitus,Vertigo,"
         csvContent += "Stress,Lack of Sleep,Dehydration,Weather,Hormones,Alcohol,Caffeine,Food,Exercise,Screen Time,Other Trigger,"
-        csvContent += "Ibuprofen,Excedrin,Tylenol,Sumatriptan,Rizatriptan,Naproxen,Frovatriptan,Naratriptan,Nurtec,Ubrelvy,Reyvow,Trudhesa,Elyxyb,Other Med,"
+        csvContent += "Ibuprofen,Excedrin,Tylenol,Sumatriptan,Rizatriptan,Naproxen,Frovatriptan,Naratriptan,Nurtec,Symbravo,Ubrelvy,Reyvow,Trudhesa,Elyxyb,Other Med,"
         csvContent += "Missed Work,Missed School,Missed Events,"
         csvContent += "Temperature (\(settings.temperatureUnit.symbol)),Pressure (\(settings.pressureUnit.symbol)),Pressure Change 24h (\(settings.pressureUnit.symbol)),Weather Condition,"
         csvContent += "Notes\n"
@@ -497,6 +497,7 @@ struct SettingsView: View {
             row.append(migraine.tookFrovatriptan ? "Yes" : "No")
             row.append(migraine.tookNaratriptan ? "Yes" : "No")
             row.append(migraine.tookNurtec ? "Yes" : "No")
+            row.append(migraine.tookSymbravo ? "Yes" : "No")
             row.append(migraine.tookUbrelvy ? "Yes" : "No")
             row.append(migraine.tookReyvow ? "Yes" : "No")
             row.append(migraine.tookTrudhesa ? "Yes" : "No")
@@ -752,6 +753,7 @@ struct SettingsView: View {
                 if migraine.tookFrovatriptan { meds.append("Frovatriptan") }
                 if migraine.tookNaratriptan { meds.append("Naratriptan") }
                 if migraine.tookNurtec { meds.append("Nurtec") }
+                if migraine.tookSymbravo { meds.append("Symbravo") }
                 if migraine.tookUbrelvy { meds.append("Ubrelvy") }
                 if migraine.tookReyvow { meds.append("Reyvow") }
                 if migraine.tookTrudhesa { meds.append("Trudhesa") }

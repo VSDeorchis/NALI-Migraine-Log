@@ -64,6 +64,7 @@ extension MigraineEvent {
     @NSManaged public var tookFrovatriptan: Bool
     @NSManaged public var tookNaratriptan: Bool
     @NSManaged public var tookNurtec: Bool
+    @NSManaged public var tookSymbravo: Bool
     @NSManaged public var tookUbrelvy: Bool
     @NSManaged public var tookReyvow: Bool
     @NSManaged public var tookTrudhesa: Bool
@@ -119,6 +120,7 @@ extension MigraineEvent {
         if tookExcedrin { medications.append("Excedrin") }
         if tookUbrelvy { medications.append("Ubrelvy (ubrogepant)") }
         if tookNurtec { medications.append("Nurtec (rimegepant)") }
+        if tookSymbravo { medications.append("Symbravo") }
         if tookSumatriptan { medications.append("Sumatriptan") }
         if tookRizatriptan { medications.append("Rizatriptan") }
         if tookEletriptan { medications.append("Eletriptan") }
@@ -181,6 +183,7 @@ extension MigraineEvent {
             "tookExcedrin": tookExcedrin,
             "tookUbrelvy": tookUbrelvy,
             "tookNurtec": tookNurtec,
+            "tookSymbravo": tookSymbravo,
             "tookSumatriptan": tookSumatriptan,
             "tookRizatriptan": tookRizatriptan,
             "tookEletriptan": tookEletriptan,
@@ -251,6 +254,7 @@ extension MigraineEvent {
         tookExcedrin = dict["tookExcedrin"] as? Bool ?? false
         tookUbrelvy = dict["tookUbrelvy"] as? Bool ?? false
         tookNurtec = dict["tookNurtec"] as? Bool ?? false
+        tookSymbravo = dict["tookSymbravo"] as? Bool ?? false
         tookSumatriptan = dict["tookSumatriptan"] as? Bool ?? false
         tookRizatriptan = dict["tookRizatriptan"] as? Bool ?? false
         tookEletriptan = dict["tookEletriptan"] as? Bool ?? false

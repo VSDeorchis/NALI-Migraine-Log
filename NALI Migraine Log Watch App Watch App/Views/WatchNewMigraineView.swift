@@ -27,7 +27,7 @@ struct WatchNewMigraineView: View {
     
     private let locations = ["Frontal", "Temporal", "Occipital", "Orbital", "Whole Head"]
     private let triggers = ["Stress", "Lack of Sleep", "Dehydration", "Weather", "Menstrual", "Alcohol", "Caffeine", "Food", "Exercise", "Screen Time", "Other"]
-    private let medications = ["Sumatriptan", "Rizatriptan", "Frovatriptan", "Naratriptan", "Ubrelvy", "Nurtec", "Tylenol", "Advil", "Excedrin", "Other"]
+    private let medications = ["Sumatriptan", "Rizatriptan", "Frovatriptan", "Naratriptan", "Ubrelvy", "Nurtec", "Symbravo", "Tylenol", "Advil", "Excedrin", "Other"]
     
     private let totalSections = 7
     

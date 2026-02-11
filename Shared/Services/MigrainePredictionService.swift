@@ -131,6 +131,12 @@ class MigrainePredictionService: ObservableObject {
         healthData: HealthKitSnapshot? = nil,
         dailyCheckIn: DailyCheckInData? = nil
     ) -> [HourlyRiskForecast] {
+        // Don't generate a forecast with no migraine history
+        guard !migraines.isEmpty else {
+            hourlyForecast = []
+            return []
+        }
+        
         let now = Date()
         let upcoming = forecastHours
             .filter { $0.date >= now }
@@ -156,7 +162,8 @@ class MigrainePredictionService: ObservableObject {
                 migraines: migraines,
                 currentWeather: snapshot,
                 healthData: healthData,
-                dailyCheckIn: dailyCheckIn
+                dailyCheckIn: dailyCheckIn,
+                referenceDate: hour.date
             )
             
             let score = computeRuleBasedScore(features: features, migraines: migraines)
@@ -178,6 +185,20 @@ class MigrainePredictionService: ObservableObject {
         features: MigraineFeatureVector,
         migraines: [MigraineEvent]
     ) -> MigraineRiskScore {
+        
+        // ── Insufficient data guard ────────────────────────────────
+        // With no migraine history, we have no basis for a meaningful prediction.
+        if migraines.isEmpty {
+            return MigraineRiskScore(
+                overallRisk: 0.0,
+                riskLevel: .low,
+                topFactors: [],
+                recommendations: ["Log your first migraine to start building your personal risk profile."],
+                confidence: 0.0,
+                predictionSource: .ruleBased,
+                timestamp: Date()
+            )
+        }
         
         var totalRisk: Double = 0.0
         var factors: [RiskFactor] = []

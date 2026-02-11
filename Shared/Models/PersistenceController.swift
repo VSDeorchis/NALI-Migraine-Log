@@ -46,7 +46,7 @@ public final class PersistenceController: ObservableObject {
                 description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
                     containerIdentifier: "iCloud.com.nali.migrainelog"
                 )
-                syncStatus = .syncing
+                syncStatus = .syncing(0.0)
             } else {
                 // Explicitly disable CloudKit sync
                 description.cloudKitContainerOptions = nil
@@ -77,7 +77,7 @@ public final class PersistenceController: ObservableObject {
             object: container.persistentStoreCoordinator,
             queue: .main) { [weak self] _ in
                 self?.container.viewContext.refreshAllObjects()
-                self?.syncStatus = .synced
+                self?.syncStatus = .enabled
         }
     }
     

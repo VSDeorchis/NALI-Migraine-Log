@@ -83,6 +83,7 @@ class DataMigrationHelper {
                     migraine.tookFrovatriptan = oldMigraine.medications.contains("Frovatriptan")
                     migraine.tookNaratriptan = oldMigraine.medications.contains("Naratriptan")
                     migraine.tookNurtec = oldMigraine.medications.contains("Nurtec")
+                    migraine.tookSymbravo = oldMigraine.medications.contains("Symbravo")
                     migraine.tookUbrelvy = oldMigraine.medications.contains("Ubrelvy")
                     migraine.tookReyvow = oldMigraine.medications.contains("Reyvow")
                     migraine.tookTrudhesa = oldMigraine.medications.contains("Trudhesa")

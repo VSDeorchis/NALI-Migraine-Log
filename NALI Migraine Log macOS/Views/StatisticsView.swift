@@ -171,6 +171,7 @@ struct StatisticsView: View {
             if migraine.tookEletriptan { abortiveCount += 1 }
             if migraine.tookUbrelvy { abortiveCount += 1 }
             if migraine.tookNurtec { abortiveCount += 1 }
+            if migraine.tookSymbravo { abortiveCount += 1 }
             if migraine.tookReyvow { abortiveCount += 1 }
             if migraine.tookTrudhesa { abortiveCount += 1 }
             return count + abortiveCount

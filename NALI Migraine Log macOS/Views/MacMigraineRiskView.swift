@@ -23,34 +23,39 @@ struct MacMigraineRiskView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // Risk gauge
-                riskGaugeCard
-                
-                // Data source badges
-                dataSourceBadges
-                
-                // Contributing factors
-                if let risk = predictionService.currentRisk,
-                   !risk.topFactors.isEmpty {
-                    contributingFactorsCard(risk.topFactors)
+                if viewModel.migraines.isEmpty {
+                    // No data state
+                    insufficientDataCard
+                } else {
+                    // Risk gauge
+                    riskGaugeCard
+                    
+                    // Data source badges
+                    dataSourceBadges
+                    
+                    // Contributing factors
+                    if let risk = predictionService.currentRisk,
+                       !risk.topFactors.isEmpty {
+                        contributingFactorsCard(risk.topFactors)
+                    }
+                    
+                    // 24-hour forecast
+                    if !predictionService.hourlyForecast.isEmpty {
+                        hourlyForecastChart
+                    }
+                    
+                    // Recommendations
+                    if let risk = predictionService.currentRisk,
+                       !risk.recommendations.isEmpty {
+                        recommendationsCard(risk.recommendations)
+                    }
+                    
+                    // Quick actions
+                    quickActionsRow
+                    
+                    // Model status
+                    modelStatusCard
                 }
-                
-                // 24-hour forecast
-                if !predictionService.hourlyForecast.isEmpty {
-                    hourlyForecastChart
-                }
-                
-                // Recommendations
-                if let risk = predictionService.currentRisk,
-                   !risk.recommendations.isEmpty {
-                    recommendationsCard(risk.recommendations)
-                }
-                
-                // Quick actions
-                quickActionsRow
-                
-                // Model status
-                modelStatusCard
             }
             .padding()
         }
@@ -300,34 +305,94 @@ struct MacMigraineRiskView: View {
         )
     }
     
+    // MARK: - Insufficient Data
+    
+    private var insufficientDataCard: some View {
+        VStack(spacing: 20) {
+            Spacer()
+                .frame(height: 40)
+            
+            Image(systemName: "chart.line.text.clipboard")
+                .font(.system(size: 56))
+                .foregroundColor(.secondary.opacity(0.5))
+            
+            Text("Not Enough Data")
+                .font(.title2.weight(.semibold))
+            
+            Text("Log your first migraine to start building your personal risk profile. The prediction engine learns from your history to identify patterns and forecast risk.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+            
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Log at least 1 migraine to see basic risk", systemImage: "1.circle")
+                Label("5+ entries unlock pattern detection", systemImage: "5.circle")
+                Label("15+ entries enable machine learning", systemImage: "15.circle")
+            }
+            .font(.subheadline)
+            .foregroundColor(.secondary)
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(NSColor.controlBackgroundColor))
+            )
+            
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+    
     // MARK: - 24-Hour Forecast Chart
+    
+    private struct TimePeriodRisk: Identifiable {
+        let id = UUID()
+        let label: String
+        let risk: Double
+        
+        var color: Color {
+            switch risk {
+            case 0..<0.25: return .green
+            case 0.25..<0.50: return .yellow
+            case 0.50..<0.75: return .orange
+            default: return .red
+            }
+        }
+    }
+    
+    private var timePeriodRisks: [TimePeriodRisk] {
+        let hours = predictionService.hourlyForecast
+        guard !hours.isEmpty else { return [] }
+        
+        let periods: [(label: String, range: ClosedRange<Int>)] = [
+            ("Night",      0...3),
+            ("Early AM",   4...7),
+            ("Morning",    8...11),
+            ("Afternoon",  12...15),
+            ("Evening",    16...19),
+            ("Late Night", 20...23),
+        ]
+        
+        return periods.compactMap { period in
+            let matching = hours.filter { period.range.contains($0.hour) }
+            guard !matching.isEmpty else { return nil }
+            let avgRisk = matching.map(\.risk).reduce(0, +) / Double(matching.count)
+            return TimePeriodRisk(label: period.label, risk: avgRisk)
+        }
+    }
     
     private var hourlyForecastChart: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("24-Hour Risk Forecast", systemImage: "chart.xyaxis.line")
+            Label("24-Hour Risk Forecast", systemImage: "chart.bar.fill")
                 .font(.headline)
             
-            Chart(predictionService.hourlyForecast) { hour in
-                AreaMark(
-                    x: .value("Hour", formatHour(hour.hour)),
-                    y: .value("Risk", hour.risk * 100)
+            Chart(timePeriodRisks) { period in
+                BarMark(
+                    x: .value("Period", period.label),
+                    y: .value("Risk", period.risk * 100)
                 )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [riskColor(for: hour.risk).opacity(0.3), riskColor(for: hour.risk).opacity(0.05)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .interpolationMethod(.catmullRom)
-                
-                LineMark(
-                    x: .value("Hour", formatHour(hour.hour)),
-                    y: .value("Risk", hour.risk * 100)
-                )
-                .foregroundStyle(riskColor(for: hour.risk))
-                .interpolationMethod(.catmullRom)
-                .lineStyle(StrokeStyle(lineWidth: 2))
+                .foregroundStyle(period.color.gradient)
+                .cornerRadius(6)
             }
             .chartYScale(domain: 0...100)
             .chartYAxis {
@@ -342,7 +407,7 @@ struct MacMigraineRiskView: View {
                 }
             }
             .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: 6)) { _ in
+                AxisMarks { _ in
                     AxisValueLabel()
                         .font(.caption2)
                 }

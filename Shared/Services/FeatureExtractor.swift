@@ -15,16 +15,18 @@ class FeatureExtractor {
     
     // MARK: - Public API
     
-    /// Build a feature vector for the current moment using historical migraine data,
+    /// Build a feature vector for the given moment using historical migraine data,
     /// the latest weather forecast, and optional HealthKit / daily check-in data.
+    /// - Parameter referenceDate: The point in time to evaluate. Defaults to now.
     func extractFeatures(
         migraines: [MigraineEvent],
         currentWeather: WeatherSnapshot?,
         healthData: HealthKitSnapshot? = nil,
-        dailyCheckIn: DailyCheckInData? = nil
+        dailyCheckIn: DailyCheckInData? = nil,
+        referenceDate: Date = Date()
     ) -> MigraineFeatureVector {
         
-        let now = Date()
+        let now = referenceDate
         var features = MigraineFeatureVector()
         
         // ── Temporal ──────────────────────────────────────────────

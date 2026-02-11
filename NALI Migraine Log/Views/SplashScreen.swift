@@ -186,35 +186,36 @@ struct SplashScreen: View {
     private var animatedTagline: some View {
         HStack(spacing: 0) {
             Text("Track")
-                .font(.custom("AvenirNext-UltraLight", size: UIFontMetrics.default.scaledValue(for: 15)))
+                .font(.custom("AvenirNext-Regular", size: UIFontMetrics.default.scaledValue(for: 16)))
                 .minimumScaleFactor(0.7)
                 .tracking(3)
-                .foregroundColor(.white.opacity(0.8))
+                .foregroundColor(.white)
             
             taglineDot(glow: dot1Glow)
             
             Text("Predict")
-                .font(.custom("AvenirNext-UltraLight", size: UIFontMetrics.default.scaledValue(for: 15)))
+                .font(.custom("AvenirNext-Regular", size: UIFontMetrics.default.scaledValue(for: 16)))
                 .minimumScaleFactor(0.7)
                 .tracking(3)
-                .foregroundColor(.white.opacity(0.8))
+                .foregroundColor(.white)
             
             taglineDot(glow: dot2Glow)
             
             Text("Prevent")
-                .font(.custom("AvenirNext-UltraLight", size: UIFontMetrics.default.scaledValue(for: 15)))
+                .font(.custom("AvenirNext-Regular", size: UIFontMetrics.default.scaledValue(for: 16)))
                 .minimumScaleFactor(0.7)
                 .tracking(3)
-                .foregroundColor(.white.opacity(0.8))
+                .foregroundColor(.white)
         }
         .textCase(.uppercase)
+        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 1)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Track, Predict, Prevent")
     }
     
     private func taglineDot(glow: CGFloat) -> some View {
         Text("  ·  ")
-            .font(.custom("AvenirNext-UltraLight", size: UIFontMetrics.default.scaledValue(for: 15)))
+            .font(.custom("AvenirNext-Regular", size: UIFontMetrics.default.scaledValue(for: 16)))
             .foregroundColor(.white)
             .scaleEffect(1.0 + glow * 0.5)
             .opacity(0.6 + glow * 0.4)

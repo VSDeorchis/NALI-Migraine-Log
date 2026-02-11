@@ -87,6 +87,7 @@ class MigraineViewModel: NSObject, ObservableObject {
         "Frovatriptan",
         "Naratriptan",
         "Nurtec",
+        "Symbravo",
         "Ubrelvy",
         "Reyvow",
         "Trudhesa",
@@ -295,6 +296,7 @@ class MigraineViewModel: NSObject, ObservableObject {
             migraine.tookFrovatriptan = medications.contains("Frovatriptan")
             migraine.tookNaratriptan = medications.contains("Naratriptan")
             migraine.tookNurtec = medications.contains("Nurtec")
+            migraine.tookSymbravo = medications.contains("Symbravo")
             migraine.tookUbrelvy = medications.contains("Ubrelvy")
             migraine.tookReyvow = medications.contains("Reyvow")
             migraine.tookTrudhesa = medications.contains("Trudhesa")
@@ -631,6 +633,7 @@ class MigraineViewModel: NSObject, ObservableObject {
         tookFrovatriptan: Bool,
         tookNaratriptan: Bool,
         tookNurtec: Bool,
+        tookSymbravo: Bool,
         tookUbrelvy: Bool,
         tookReyvow: Bool,
         tookTrudhesa: Bool,
@@ -669,6 +672,7 @@ class MigraineViewModel: NSObject, ObservableObject {
             migraine.tookFrovatriptan = tookFrovatriptan
             migraine.tookNaratriptan = tookNaratriptan
             migraine.tookNurtec = tookNurtec
+            migraine.tookSymbravo = tookSymbravo
             migraine.tookUbrelvy = tookUbrelvy
             migraine.tookReyvow = tookReyvow
             migraine.tookTrudhesa = tookTrudhesa
@@ -792,6 +796,7 @@ class MigraineViewModel: NSObject, ObservableObject {
             if migraine.tookFrovatriptan { print("    - Frovatriptan") }
             if migraine.tookNaratriptan { print("    - Naratriptan") }
             if migraine.tookNurtec { print("    - Nurtec") }
+            if migraine.tookSymbravo { print("    - Symbravo") }
             if migraine.tookUbrelvy { print("    - Ubrelvy") }
             if migraine.tookReyvow { print("    - Reyvow") }
             if migraine.tookTrudhesa { print("    - Trudhesa") }
@@ -856,6 +861,7 @@ class MigraineViewModel: NSObject, ObservableObject {
             if migraine.tookFrovatriptan { medicationCounts["Frovatriptan", default: 0] += 1 }
             if migraine.tookNaratriptan { medicationCounts["Naratriptan", default: 0] += 1 }
             if migraine.tookNurtec { medicationCounts["Nurtec", default: 0] += 1 }
+            if migraine.tookSymbravo { medicationCounts["Symbravo", default: 0] += 1 }
             if migraine.tookUbrelvy { medicationCounts["Ubrelvy", default: 0] += 1 }
             if migraine.tookReyvow { medicationCounts["Reyvow", default: 0] += 1 }
             if migraine.tookTrudhesa { medicationCounts["Trudhesa", default: 0] += 1 }
@@ -1234,6 +1240,7 @@ class MigraineViewModel: NSObject, ObservableObject {
         case "Frovatriptan": return migraine.tookFrovatriptan
         case "Naratriptan": return migraine.tookNaratriptan
         case "Nurtec": return migraine.tookNurtec
+        case "Symbravo": return migraine.tookSymbravo
         case "Ubrelvy": return migraine.tookUbrelvy
         case "Reyvow": return migraine.tookReyvow
         case "Trudhesa": return migraine.tookTrudhesa
@@ -1318,6 +1325,7 @@ class MigraineViewModel: NSObject, ObservableObject {
         migraine.tookFrovatriptan = medications.contains("Frovatriptan")
         migraine.tookNaratriptan = medications.contains("Naratriptan")
         migraine.tookNurtec = medications.contains("Nurtec")
+        migraine.tookSymbravo = medications.contains("Symbravo")
         migraine.tookUbrelvy = medications.contains("Ubrelvy")
         migraine.tookReyvow = medications.contains("Reyvow")
         migraine.tookTrudhesa = medications.contains("Trudhesa")

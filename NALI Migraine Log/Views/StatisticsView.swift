@@ -42,6 +42,7 @@ struct StatisticsView: View {
                     case "Frovatriptan": return migraine.tookFrovatriptan
                     case "Naratriptan": return migraine.tookNaratriptan
                     case "Nurtec": return migraine.tookNurtec
+                    case "Symbravo": return migraine.tookSymbravo
                     case "Ubrelvy": return migraine.tookUbrelvy
                     case "Reyvow": return migraine.tookReyvow
                     case "Trudhesa": return migraine.tookTrudhesa
@@ -685,6 +686,7 @@ struct StatisticsView: View {
             if migraine.tookFrovatriptan { count += 1 }
             if migraine.tookNaratriptan { count += 1 }
             if migraine.tookNurtec { count += 1 }
+            if migraine.tookSymbravo { count += 1 }
             if migraine.tookUbrelvy { count += 1 }
             if migraine.tookReyvow { count += 1 }
             if migraine.tookTrudhesa { count += 1 }
@@ -843,6 +845,7 @@ struct StatisticsView: View {
                     if migraine.tookFrovatriptan { counts["Frovatriptan", default: 0] += 1 }
                     if migraine.tookNaratriptan { counts["Naratriptan", default: 0] += 1 }
                     if migraine.tookNurtec { counts["Nurtec", default: 0] += 1 }
+                    if migraine.tookSymbravo { counts["Symbravo", default: 0] += 1 }
                     if migraine.tookUbrelvy { counts["Ubrelvy", default: 0] += 1 }
                     if migraine.tookReyvow { counts["Reyvow", default: 0] += 1 }
                     if migraine.tookTrudhesa { counts["Trudhesa", default: 0] += 1 }
