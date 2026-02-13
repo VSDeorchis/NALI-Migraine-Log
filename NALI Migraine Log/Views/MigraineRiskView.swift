@@ -645,12 +645,15 @@ struct MigraineRiskView: View {
         }
         
         // 3. Calculate risk
-        _ = await predictionService.calculateRiskScore(
+        let riskScore = await predictionService.calculateRiskScore(
             migraines: viewModel.migraines,
             currentWeather: weatherSnapshot,
             healthData: healthData,
             dailyCheckIn: DailyCheckInData.loadToday()
         )
+        
+        // 4. Send computed risk to Apple Watch so both show the same value
+        WatchConnectivityManager.shared.sendRiskScore(riskScore)
     }
     
     private func formatHour(_ hour: Int) -> String {

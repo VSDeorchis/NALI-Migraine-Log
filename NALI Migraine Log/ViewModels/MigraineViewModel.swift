@@ -992,27 +992,12 @@ class MigraineViewModel: NSObject, ObservableObject {
         do {
             try viewContext.save()
             
-            // Simulate sync progress (replace with actual sync progress monitoring)
-            var progress = 0.0
-            Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] timer in
-                guard let self = self else {
-                    timer.invalidate()
-                    return
-                }
-                
-                progress += 0.1
-                if progress >= 1.0 {
-                    timer.invalidate()
-                    DispatchQueue.main.async {
-                        self.syncStatus = .enabled
-                        self.lastSyncTime = Date()
-                        self.pendingChanges = 0
-                    }
-                } else {
-                    DispatchQueue.main.async {
-                        self.syncStatus = .syncing(progress)
-                    }
-                }
+            // Mark sync as complete after a short delay
+            // (Avoids rapid @Published updates that cause excessive re-renders)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.syncStatus = .enabled
+                self?.lastSyncTime = Date()
+                self?.pendingChanges = 0
             }
         } catch {
             syncStatus = .error("Sync failed: \(error.localizedDescription)")
@@ -1345,8 +1330,14 @@ class MigraineViewModel: NSObject, ObservableObject {
 // Add NSFetchedResultsController delegate
 extension MigraineViewModel: NSFetchedResultsControllerDelegate {
     func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
+        let newMigraines = controller.fetchedObjects as? [MigraineEvent] ?? []
         DispatchQueue.main.async { [weak self] in
-            self?.migraines = controller.fetchedObjects as? [MigraineEvent] ?? []
+            guard let self = self else { return }
+            // Only publish when data actually changed to avoid unnecessary re-renders
+            if newMigraines.count != self.migraines.count ||
+               newMigraines.map({ $0.objectID }) != self.migraines.map({ $0.objectID }) {
+                self.migraines = newMigraines
+            }
         }
     }
 } 

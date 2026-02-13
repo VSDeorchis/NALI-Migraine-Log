@@ -10,8 +10,72 @@ import SwiftUI
 struct WatchMigraineRiskView: View {
     @ObservedObject var viewModel: MigraineViewModel
     @StateObject private var predictionService = MigrainePredictionService.shared
+    @ObservedObject private var connectivity = WatchConnectivityManager.shared
     @State private var isRefreshing = false
     @State private var lastRefresh: Date?
+    
+    /// True when we have a recent synced risk from iPhone (less than 30 min old)
+    private var hasFreshSyncedRisk: Bool {
+        guard let ts = connectivity.syncedRiskTimestamp,
+              connectivity.syncedRiskPercentage != nil else { return false }
+        return Date().timeIntervalSince(ts) < 1800 // 30 minutes
+    }
+    
+    /// Effective risk percentage to display (prefer iPhone-synced value)
+    private var displayRiskPercentage: Int {
+        if hasFreshSyncedRisk, let synced = connectivity.syncedRiskPercentage {
+            return synced
+        }
+        return predictionService.currentRisk?.riskPercentage ?? 0
+    }
+    
+    /// Effective risk level string
+    private var displayRiskLevel: String {
+        if hasFreshSyncedRisk, let synced = connectivity.syncedRiskLevel {
+            return synced
+        }
+        return predictionService.currentRisk?.riskLevel.rawValue ?? "Low"
+    }
+    
+    /// Effective risk color
+    private var displayRiskColor: Color {
+        switch displayRiskLevel {
+        case "Very High": return .red
+        case "High": return .orange
+        case "Moderate": return .yellow
+        default: return .green
+        }
+    }
+    
+    /// Effective recommendations
+    private var displayRecommendations: [String] {
+        if hasFreshSyncedRisk, let recs = connectivity.syncedRiskRecommendations, !recs.isEmpty {
+            return Array(recs.prefix(2))
+        }
+        return Array((predictionService.currentRisk?.recommendations ?? []).prefix(2))
+    }
+    
+    /// Effective factors for display
+    private var displayFactors: [RiskFactor] {
+        if hasFreshSyncedRisk, let factorsData = connectivity.syncedRiskFactors {
+            return factorsData.compactMap { dict -> RiskFactor? in
+                guard let name = dict["name"] as? String,
+                      let contribution = dict["contribution"] as? Double,
+                      let icon = dict["icon"] as? String else { return nil }
+                let detail = dict["detail"] as? String ?? ""
+                return RiskFactor(name: name, contribution: contribution, icon: icon, color: .orange, detail: detail)
+            }
+        }
+        return Array((predictionService.currentRisk?.topFactors ?? []).prefix(3))
+    }
+    
+    /// Last updated time
+    private var displayLastUpdated: Date? {
+        if hasFreshSyncedRisk, let ts = connectivity.syncedRiskTimestamp {
+            return ts
+        }
+        return lastRefresh
+    }
     
     var body: some View {
         ScrollView {
@@ -20,15 +84,13 @@ struct WatchMigraineRiskView: View {
                 riskGauge
                 
                 // Top factors
-                if let risk = predictionService.currentRisk,
-                   !risk.topFactors.isEmpty {
-                    topFactorsSection(risk.topFactors)
+                if !displayFactors.isEmpty {
+                    topFactorsSection(displayFactors)
                 }
                 
                 // Top recommendations
-                if let risk = predictionService.currentRisk,
-                   !risk.recommendations.isEmpty {
-                    recommendationsSection(Array(risk.recommendations.prefix(2)))
+                if !displayRecommendations.isEmpty {
+                    recommendationsSection(displayRecommendations)
                 }
                 
                 // Refresh button
@@ -50,9 +112,16 @@ struct WatchMigraineRiskView: View {
                 .disabled(isRefreshing)
                 .padding(.top, 4)
                 
+                // Data source indicator
+                if hasFreshSyncedRisk {
+                    Label("Synced from iPhone", systemImage: "iphone")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                }
+                
                 // Last updated
-                if let lastRefresh = lastRefresh {
-                    Text("Updated \(lastRefresh, style: .relative) ago")
+                if let updated = displayLastUpdated {
+                    Text("Updated \(updated, style: .relative) ago")
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                 }
@@ -68,11 +137,14 @@ struct WatchMigraineRiskView: View {
     // MARK: - Risk Gauge
     
     private var riskGauge: some View {
-        VStack(spacing: 6) {
-            if predictionService.isCalculating && predictionService.currentRisk == nil {
+        let hasData = hasFreshSyncedRisk || predictionService.currentRisk != nil
+        let riskFraction = Double(displayRiskPercentage) / 100.0
+        
+        return VStack(spacing: 6) {
+            if predictionService.isCalculating && !hasData {
                 ProgressView("Analyzing...")
                     .frame(height: 100)
-            } else if let risk = predictionService.currentRisk {
+            } else if hasData {
                 ZStack {
                     // Background ring
                     Circle()
@@ -81,22 +153,22 @@ struct WatchMigraineRiskView: View {
                     
                     // Risk arc
                     Circle()
-                        .trim(from: 0, to: risk.overallRisk)
+                        .trim(from: 0, to: riskFraction)
                         .stroke(
-                            risk.riskLevel.color,
+                            displayRiskColor,
                             style: StrokeStyle(lineWidth: 10, lineCap: .round)
                         )
                         .frame(width: 100, height: 100)
                         .rotationEffect(.degrees(-90))
-                        .animation(.easeInOut(duration: 0.8), value: risk.overallRisk)
+                        .animation(.easeInOut(duration: 0.8), value: riskFraction)
                     
                     // Center content
                     VStack(spacing: 2) {
-                        Text("\(risk.riskPercentage)%")
+                        Text("\(displayRiskPercentage)%")
                             .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundColor(risk.riskLevel.color)
+                            .foregroundColor(displayRiskColor)
                         
-                        Text(risk.riskLevel.rawValue)
+                        Text(displayRiskLevel)
                             .font(.system(size: 10, weight: .semibold, design: .rounded))
                             .foregroundColor(.secondary)
                     }
@@ -105,9 +177,9 @@ struct WatchMigraineRiskView: View {
                 
                 // Risk level label with icon
                 HStack(spacing: 4) {
-                    Image(systemName: risk.riskLevel.icon)
+                    Image(systemName: iconForRiskLevel(displayRiskLevel))
                         .font(.system(size: 12))
-                        .foregroundColor(risk.riskLevel.color)
+                        .foregroundColor(displayRiskColor)
                     Text("Migraine Risk")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundColor(.secondary)
@@ -127,6 +199,15 @@ struct WatchMigraineRiskView: View {
                 }
                 .frame(height: 100)
             }
+        }
+    }
+    
+    private func iconForRiskLevel(_ level: String) -> String {
+        switch level {
+        case "Very High": return "xmark.shield.fill"
+        case "High": return "exclamationmark.triangle.fill"
+        case "Moderate": return "exclamationmark.shield.fill"
+        default: return "checkmark.shield.fill"
         }
     }
     
@@ -218,8 +299,11 @@ struct WatchMigraineRiskView: View {
             lastRefresh = Date()
         }
         
-        // On watchOS, we skip weather forecast and HealthKit for simplicity
-        // and use rule-based prediction from migraine history alone
+        // Request fresh risk data from the iPhone (which has weather + HealthKit)
+        connectivity.requestFullSync()
+        
+        // Also compute a local fallback from migraine history alone,
+        // used only if we don't have a fresh synced score from iPhone
         _ = await predictionService.calculateRiskScore(
             migraines: viewModel.migraines,
             currentWeather: nil,

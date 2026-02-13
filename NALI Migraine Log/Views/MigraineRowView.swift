@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 struct MigraineRowView: View {
-    @ObservedObject var viewModel: MigraineViewModel
+    let viewModel: MigraineViewModel
     @ObservedObject private var settings = SettingsManager.shared
     let migraine: MigraineEvent
     
@@ -78,12 +78,7 @@ struct MigraineRowView: View {
     }
     
     var body: some View {
-        #if DEBUG
-        let _ = NSLog("🔷 [MigraineRowView] body computed for migraine: \(migraine.id?.uuidString ?? "nil")")
-        let _ = NSLog("🔷 [MigraineRowView] hasWeatherData: \(migraine.hasWeatherData)")
-        #endif
-        
-        return VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
             // Header row with date and pain level
             HStack(alignment: .center, spacing: 12) {
                 // Pain level indicator circle
@@ -152,37 +147,32 @@ struct MigraineRowView: View {
             }
             .padding(.bottom, 8)
             
-            // Symptoms row (horizontal list of symptom names)
-            if !primarySymptoms.isEmpty {
+            // Symptoms row (horizontally scrollable)
+            if !primarySymptoms.isEmpty || migraine.hasWeatherData {
                 HStack(spacing: 6) {
-                    ForEach(primarySymptoms, id: \.self) { symptom in
-                        Text(symptom)
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundColor(.purple)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.purple.opacity(0.12))
-                            .clipShape(Capsule())
+                    if !primarySymptoms.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(primarySymptoms, id: \.self) { symptom in
+                                    Text(symptom)
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundColor(.purple)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color.purple.opacity(0.12))
+                                        .clipShape(Capsule())
+                                }
+                            }
+                        }
                     }
                     
-                    // Pressure change indicator
+                    // Pressure change indicator (pinned, not scrolled)
                     if migraine.hasWeatherData {
                         PressureChangeBadge(
                             pressureChangeHPa: migraine.weatherPressureChange24h,
                             settings: settings
                         )
                     }
-                    
-                    Spacer()
-                }
-            } else if migraine.hasWeatherData {
-                // Show pressure even if no symptoms
-                HStack {
-                    PressureChangeBadge(
-                        pressureChangeHPa: migraine.weatherPressureChange24h,
-                        settings: settings
-                    )
-                    Spacer()
                 }
             }
             
@@ -204,7 +194,7 @@ struct MigraineRowView: View {
             }
             
             // Notes preview (if available)
-            if let userNotes = viewModel.getUserNotes(from: migraine),
+            if let userNotes = migraine.notes,
                !userNotes.isEmpty {
                 Text(userNotes)
                     .font(.system(size: 12))
@@ -232,8 +222,8 @@ struct MigraineRowView: View {
                     lineWidth: 1.5
                 )
         )
-        .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
-        .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+        .compositingGroup()
+        .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 3)
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
     }
@@ -260,7 +250,7 @@ struct MigraineRowView: View {
         migraine.hasTinnitus || migraine.hasVertigo
     }
     
-    // Primary symptoms to display on cards (the most common/important ones)
+    // All symptoms to display on cards (scrollable so all fit)
     private var primarySymptoms: [String] {
         var symptoms: [String] = []
         if migraine.hasAura { symptoms.append("Aura") }
@@ -268,6 +258,9 @@ struct MigraineRowView: View {
         if migraine.hasPhonophobia { symptoms.append("Phonophobia") }
         if migraine.hasNausea { symptoms.append("Nausea") }
         if migraine.hasVomiting { symptoms.append("Vomiting") }
+        if migraine.hasWakeUpHeadache { symptoms.append("Wake-up HA") }
+        if migraine.hasTinnitus { symptoms.append("Tinnitus") }
+        if migraine.hasVertigo { symptoms.append("Vertigo") }
         return symptoms
     }
     

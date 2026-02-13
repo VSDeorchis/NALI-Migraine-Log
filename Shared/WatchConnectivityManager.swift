@@ -15,6 +15,13 @@ class WatchConnectivityManager: NSObject, ObservableObject {
     @Published var isReachable = false
     @Published var lastSyncTime: Date?
     
+    // Synced risk score from iPhone (used by watchOS)
+    @Published var syncedRiskPercentage: Int?
+    @Published var syncedRiskLevel: String?
+    @Published var syncedRiskFactors: [[String: Any]]?
+    @Published var syncedRiskRecommendations: [String]?
+    @Published var syncedRiskTimestamp: Date?
+    
     private var deletedMigraineIds: Set<UUID> = []
     private let deletedIdsKey = "com.neuroli.deletedMigraineIds"
     
@@ -76,11 +83,16 @@ class WatchConnectivityManager: NSObject, ObservableObject {
                 return migraine.toWatchSyncDictionary()
             }
             
-            let applicationContext: [String: Any] = [
+            var applicationContext: [String: Any] = [
                 "migraineData": migraineData,
                 "deletedIds": Array(deletedMigraineIds.map { $0.uuidString }),
                 "syncTime": Date().timeIntervalSince1970
             ]
+            
+            // Include pending risk data if available
+            if let pendingRisk = UserDefaults.standard.dictionary(forKey: "pendingRiskPayload") {
+                applicationContext["riskUpdate"] = pendingRisk
+            }
             
             try session.updateApplicationContext(applicationContext)
             
@@ -101,12 +113,60 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         }
     }
     
+    #if os(iOS)
+    /// Send the computed risk score to the Watch so both platforms show the same value.
+    func sendRiskScore(_ riskScore: MigraineRiskScore) {
+        guard session.activationState == .activated else { return }
+        
+        let factorsData: [[String: Any]] = riskScore.topFactors.prefix(3).map { factor in
+            [
+                "name": factor.name,
+                "contribution": factor.contribution,
+                "icon": factor.icon,
+                "detail": factor.detail
+            ]
+        }
+        
+        let riskPayload: [String: Any] = [
+            "riskPercentage": riskScore.riskPercentage,
+            "riskLevel": riskScore.riskLevel.rawValue,
+            "factors": factorsData,
+            "recommendations": Array(riskScore.recommendations.prefix(3)),
+            "confidence": riskScore.confidence,
+            "timestamp": Date().timeIntervalSince1970
+        ]
+        
+        // Send as a message for immediate delivery if reachable
+        if session.isReachable {
+            session.sendMessage(["riskUpdate": riskPayload], replyHandler: nil) { error in
+                print("Error sending risk to Watch: \(error.localizedDescription)")
+            }
+        }
+        
+        // Also include in the next application context update so the Watch gets it eventually
+        UserDefaults.standard.set(riskPayload, forKey: "pendingRiskPayload")
+    }
+    #endif
+    
     #if os(watchOS)
     /// Request full sync from the paired iPhone
     func requestFullSync() {
         guard session.isReachable else { return }
         session.sendMessage(["requestSync": true], replyHandler: nil) { error in
             print("Error requesting sync: \(error)")
+        }
+    }
+    
+    /// Process incoming risk score data from iPhone
+    private func processRiskData(_ riskPayload: [String: Any]) {
+        DispatchQueue.main.async { [weak self] in
+            self?.syncedRiskPercentage = riskPayload["riskPercentage"] as? Int
+            self?.syncedRiskLevel = riskPayload["riskLevel"] as? String
+            self?.syncedRiskFactors = riskPayload["factors"] as? [[String: Any]]
+            self?.syncedRiskRecommendations = riskPayload["recommendations"] as? [String]
+            if let timestamp = riskPayload["timestamp"] as? TimeInterval {
+                self?.syncedRiskTimestamp = Date(timeIntervalSince1970: timestamp)
+            }
         }
     }
     #endif
@@ -239,21 +299,33 @@ extension WatchConnectivityManager: WCSessionDelegate {
     }
     
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
-        guard let migraineDataArray = applicationContext["migraineData"] as? [[String: Any]],
-              let deletedIds = applicationContext["deletedIds"] as? [String] else {
-            print("Invalid data format")
-            return
+        // Process migraine data
+        if let migraineDataArray = applicationContext["migraineData"] as? [[String: Any]],
+           let deletedIds = applicationContext["deletedIds"] as? [String] {
+            context.perform { [weak self] in
+                self?.processMigraineData(migraineDataArray, deletedIds: deletedIds)
+            }
         }
         
-        context.perform { [weak self] in
-            self?.processMigraineData(migraineDataArray, deletedIds: deletedIds)
+        // Process risk data (watchOS receives from iOS)
+        #if os(watchOS)
+        if let riskPayload = applicationContext["riskUpdate"] as? [String: Any] {
+            processRiskData(riskPayload)
         }
+        #endif
     }
     
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
         if message["requestSync"] as? Bool == true {
             handleSyncRequest()
         }
+        
+        // Process risk data sent via message (watchOS receives from iOS)
+        #if os(watchOS)
+        if let riskPayload = message["riskUpdate"] as? [String: Any] {
+            processRiskData(riskPayload)
+        }
+        #endif
     }
     
     #if os(iOS)
