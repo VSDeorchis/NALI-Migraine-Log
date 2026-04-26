@@ -444,12 +444,12 @@ struct SettingsView: View {
     // the ExternalUUID-keyed delete-then-write path inside
     // `HealthKitManager.writeMigraineToHealth`). The whole section is
     // hidden on devices that don't have HealthKit (iPad without Health,
-    // simulators without Health framework, etc.) — there's nothing the
-    // user can do there.
+    // simulators without Health framework, etc.) and on iOS versions
+    // below 17 where headache writes are unavailable.
 
     @ViewBuilder
     private var appleHealthSection: some View {
-        if healthKitManager.isAvailable {
+        if #available(iOS 17.0, *), healthKitManager.isAvailable {
             Section {
                 Toggle(isOn: Binding(
                     get: { healthKitManager.isHealthSyncEnabled },
@@ -537,7 +537,7 @@ struct SettingsView: View {
         if #available(iOS 17.0, *) {
             let (written, failed) = await healthKitManager.backfillMigrainesToHealth(viewModel.migraines)
             if failed > 0 {
-                healthBackfillResult = "Synced \(written) entries to Apple Health. \(failed) entries could not be synced (missing date or id)."
+                healthBackfillResult = "Synced \(written) entries to Apple Health. \(failed) entries could not be synced."
             } else {
                 healthBackfillResult = "Synced \(written) \(written == 1 ? "entry" : "entries") to Apple Health."
             }

@@ -14,8 +14,9 @@ import CoreData
 enum AppDestination: Int, CaseIterable, Identifiable {
     case log = 0
     case calendar = 1
-    case analytics = 2
-    case about = 3
+    case predict = 2
+    case analytics = 3
+    case about = 4
 
     var id: Int { rawValue }
 
@@ -23,6 +24,7 @@ enum AppDestination: Int, CaseIterable, Identifiable {
         switch self {
         case .log: return "Log"
         case .calendar: return "Calendar"
+        case .predict: return "Predict"
         case .analytics: return "Analytics"
         case .about: return "About"
         }
@@ -32,6 +34,7 @@ enum AppDestination: Int, CaseIterable, Identifiable {
         switch self {
         case .log: return "list.bullet"
         case .calendar: return "calendar"
+        case .predict: return "brain.head.profile"
         case .analytics: return "chart.bar"
         case .about: return "info.circle"
         }
@@ -39,20 +42,15 @@ enum AppDestination: Int, CaseIterable, Identifiable {
 }
 
 struct iOSContentView: View {
-    @StateObject private var viewModel: MigraineViewModel
+    @ObservedObject var viewModel: MigraineViewModel
     @StateObject private var connectivityManager = WatchConnectivityManager.shared
-    @State private var selectedDestination: AppDestination = .log
+    @State private var selectedDestination: AppDestination? = .log
     @State private var showingNewMigraine = false
 
     /// `.regular` ≈ iPad in any orientation, plus iPhone Plus/Pro Max in
     /// landscape. We only swap to the sidebar in that case; everything
     /// else (compact iPhone) keeps the familiar bottom tab bar.
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-
-    init() {
-        let context = PersistenceController.shared.container.viewContext
-        _viewModel = StateObject(wrappedValue: MigraineViewModel(context: context))
-    }
 
     var body: some View {
         Group {
@@ -72,7 +70,10 @@ struct iOSContentView: View {
     // MARK: - iPhone (compact)
 
     private var iPhoneTabLayout: some View {
-        TabView(selection: $selectedDestination) {
+        TabView(selection: Binding(
+            get: { selectedDestination ?? .log },
+            set: { selectedDestination = $0 }
+        )) {
             ForEach(AppDestination.allCases) { destination in
                 destinationView(for: destination)
                     .tabItem {
@@ -91,24 +92,19 @@ struct iOSContentView: View {
     /// each destination keeps its own back stack untouched.
     private var iPadSplitLayout: some View {
         NavigationSplitView {
-            List(selection: Binding(
-                get: { Optional(selectedDestination) },
-                set: { newValue in
-                    if let value = newValue { selectedDestination = value }
-                }
-            )) {
+            List(selection: $selectedDestination) {
                 ForEach(AppDestination.allCases) { destination in
-                    NavigationLink(value: destination) {
-                        Label(destination.title, systemImage: destination.systemImage)
-                    }
+                    Label(destination.title, systemImage: destination.systemImage)
                     .tag(destination)
                 }
             }
             .navigationTitle("Headway")
             .listStyle(.sidebar)
         } detail: {
-            destinationView(for: selectedDestination)
-                .id(selectedDestination)
+            if let selectedDestination {
+                destinationView(for: selectedDestination)
+                    .id(selectedDestination)
+            }
         }
     }
 
@@ -119,6 +115,7 @@ struct iOSContentView: View {
         switch destination {
         case .log:       MigraineLogView(viewModel: viewModel)
         case .calendar:  CalendarView(viewModel: viewModel)
+        case .predict:   MigraineRiskView(viewModel: viewModel)
         case .analytics: StatisticsView(viewModel: viewModel)
         case .about:     AboutView()
         }
@@ -127,6 +124,6 @@ struct iOSContentView: View {
 
 #Preview {
     let context = PersistenceController.preview.container.viewContext
-    return iOSContentView()
+    return iOSContentView(viewModel: MigraineViewModel(context: context))
         .environment(\.managedObjectContext, context)
 }

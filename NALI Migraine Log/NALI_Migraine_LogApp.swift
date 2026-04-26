@@ -6,18 +6,14 @@
 //
 
 import SwiftUI
-import WatchConnectivity
-import CoreData
 
 @main
 struct NALI_Migraine_LogApp: App {
     @StateObject private var viewModel: MigraineViewModel
-    @StateObject private var connectivityManager = WatchConnectivityManager.shared
     @StateObject private var settings = SettingsManager.shared
     @StateObject private var locationManager = LocationManager.shared
     @State private var showingSplash = true
     @State private var hasAcceptedDisclaimer = UserDefaults.standard.bool(forKey: Constants.hasAcceptedDisclaimer)
-    @State private var showingSettings = false
     @Environment(\.scenePhase) private var scenePhase
     let persistenceController = PersistenceController.shared
     
@@ -81,42 +77,13 @@ struct NALI_Migraine_LogApp: App {
                             }
                         }
                 } else {
-                    TabView {
-                        MigraineLogView(viewModel: viewModel)
-                            .tabItem {
-                                Label("Log", systemImage: "list.bullet")
-                            }
-                        
-                        CalendarView(viewModel: viewModel)
-                            .tabItem {
-                                Label("Calendar", systemImage: "calendar")
-                            }
-                        
-                        MigraineRiskView(viewModel: viewModel)
-                            .tabItem {
-                                Label("Predict", systemImage: "brain.head.profile")
-                            }
-                        
-                        StatisticsView(viewModel: viewModel)
-                            .tabItem {
-                                Label("Analytics", systemImage: "chart.bar")
-                            }
-                        
-                        AboutView()
-                            .tabItem {
-                                Label("About", systemImage: "info.circle")
-                            }
-                    }
-                    .environmentObject(connectivityManager)
-                    .environmentObject(locationManager)
-                    .sheet(isPresented: $showingSettings) {
-                        SettingsView(viewModel: viewModel)
-                    }
-                    .onAppear {
-                        AppLogger.ui.debug("Main TabView appeared")
-                        // Request location permission on first launch
-                        locationManager.requestPermission()
-                    }
+                    iOSContentView(viewModel: viewModel)
+                        .environmentObject(locationManager)
+                        .onAppear {
+                            AppLogger.ui.debug("Main navigation appeared")
+                            // Request location permission on first launch
+                            locationManager.requestPermission()
+                        }
                 }
             }
             .preferredColorScheme(settings.colorScheme.colorScheme)
@@ -147,6 +114,7 @@ struct NALI_Migraine_LogApp: App {
             // try again on its next run.
             Task { @MainActor in
                 await NotificationManager.shared.cancelReengagementNotifications()
+                viewModel.fetchMigraines()
                 await NotificationManager.shared.reconcileAllNotifications(
                     migraines: viewModel.migraines,
                     forecast: WeatherForecastService.shared.next(hours: 24)
