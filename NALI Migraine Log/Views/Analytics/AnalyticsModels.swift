@@ -97,46 +97,68 @@ enum AnalyticsMetric: String, CaseIterable, Identifiable, Hashable {
     case topTrigger
     case topMedication
     case missedDays
+    case sleepCorrelation
+    case hrvCorrelation
+    case cyclePhase
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .total:           return "Total"
-        case .averagePain:     return "Avg Pain"
-        case .severeDays:      return "Severe Days"
-        case .averageDuration: return "Avg Duration"
-        case .streak:          return "Streak"
-        case .topTrigger:      return "Top Trigger"
-        case .topMedication:   return "Top Medication"
-        case .missedDays:      return "Days Missed"
+        case .total:             return "Total"
+        case .averagePain:       return "Avg Pain"
+        case .severeDays:        return "Severe Days"
+        case .averageDuration:   return "Avg Duration"
+        case .streak:            return "Streak"
+        case .topTrigger:        return "Top Trigger"
+        case .topMedication:     return "Top Medication"
+        case .missedDays:        return "Days Missed"
+        case .sleepCorrelation:  return "Sleep & Migraines"
+        case .hrvCorrelation:    return "HRV & Migraines"
+        case .cyclePhase:        return "Cycle & Migraines"
         }
     }
 
     /// SF Symbol shown in the tile header.
     var systemImage: String {
         switch self {
-        case .total:           return "number.square.fill"
-        case .averagePain:     return "waveform.path.ecg"
-        case .severeDays:      return "exclamationmark.triangle.fill"
-        case .averageDuration: return "clock.fill"
-        case .streak:          return "flame.fill"
-        case .topTrigger:      return "bolt.fill"
-        case .topMedication:   return "pill.fill"
-        case .missedDays:      return "calendar.badge.exclamationmark"
+        case .total:             return "number.square.fill"
+        case .averagePain:       return "waveform.path.ecg"
+        case .severeDays:        return "exclamationmark.triangle.fill"
+        case .averageDuration:   return "clock.fill"
+        case .streak:            return "flame.fill"
+        case .topTrigger:        return "bolt.fill"
+        case .topMedication:     return "pill.fill"
+        case .missedDays:        return "calendar.badge.exclamationmark"
+        case .sleepCorrelation:  return "bed.double.fill"
+        case .hrvCorrelation:    return "heart.text.square.fill"
+        case .cyclePhase:        return "drop.circle.fill"
         }
     }
 
     var accent: Color {
         switch self {
-        case .total:           return Color(red: 68/255, green: 130/255, blue: 180/255)
-        case .averagePain:     return .pink
-        case .severeDays:      return .red
-        case .averageDuration: return .indigo
-        case .streak:          return .green
-        case .topTrigger:      return .blue
-        case .topMedication:   return .purple
-        case .missedDays:      return .orange
+        case .total:             return Color(red: 68/255, green: 130/255, blue: 180/255)
+        case .averagePain:       return .pink
+        case .severeDays:        return .red
+        case .averageDuration:   return .indigo
+        case .streak:            return .green
+        case .topTrigger:        return .blue
+        case .topMedication:     return .purple
+        case .missedDays:        return .orange
+        case .sleepCorrelation:  return Color(red: 80/255, green: 110/255, blue: 200/255)
+        case .hrvCorrelation:    return .teal
+        case .cyclePhase:        return Color(red: 200/255, green: 80/255, blue: 110/255)
+        }
+    }
+    
+    /// True when this metric requires HealthKit data — used by the
+    /// dashboard to skip showing tiles for these on devices/locales
+    /// where HealthKit isn't authorized.
+    var requiresHealthKit: Bool {
+        switch self {
+        case .sleepCorrelation, .hrvCorrelation, .cyclePhase: return true
+        default: return false
         }
     }
 }

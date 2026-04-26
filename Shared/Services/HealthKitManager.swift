@@ -373,6 +373,211 @@ class HealthKitManager: ObservableObject {
         }
     }
 
+    // MARK: - Historical fetches (for analytics correlations)
+    //
+    // These differ from the snapshot fetchers above in two ways:
+    //   • they accept an explicit window rather than always reading "last
+    //     night" / "yesterday", so the Analytics dashboard can correlate
+    //     migraines with the matching sleep/HRV samples; and
+    //   • they return arrays of timestamped samples rather than a single
+    //     scalar, so views can plot a time series with migraine markers.
+    //
+    // All methods no-op (return []) when HealthKit is unavailable or the
+    // user hasn't granted authorization — the same defensive pattern used
+    // by the snapshot fetchers.
+    
+    /// Per-night total sleep hours over the supplied window. Each night is
+    /// keyed by the calendar morning it ended on, so "the night before
+    /// Monday May 5" returns a sample with `night = May 5 00:00`.
+    ///
+    /// The query window for each night is 6 PM the previous day → noon
+    /// of the keyed day, matching `getLastNightSleep()`'s definition.
+    /// Nights without any logged "asleep" samples are omitted.
+    func fetchSleepHoursPerNight(in interval: DateInterval) async -> [SleepNightSample] {
+        #if canImport(HealthKit)
+        guard let healthStore = healthStore, isAuthorized else { return [] }
+        guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else {
+            return []
+        }
+        
+        let predicate = HKQuery.predicateForSamples(
+            withStart: calendar.date(byAdding: .hour, value: -6, to: interval.start) ?? interval.start,
+            end: calendar.date(byAdding: .hour, value: 12, to: interval.end) ?? interval.end,
+            options: .strictStartDate
+        )
+        
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.categorySample(type: sleepType, predicate: predicate)],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .forward)]
+        )
+        
+        do {
+            let samples = try await descriptor.result(for: healthStore)
+            
+            var totals: [Date: TimeInterval] = [:]
+            for sample in samples {
+                guard sample.value > 0 else { continue }
+                let nightKey = nightKey(forSampleEndingAt: sample.endDate)
+                totals[nightKey, default: 0] += sample.endDate.timeIntervalSince(sample.startDate)
+            }
+            
+            return totals
+                .filter { $0.value > 0 }
+                .map { SleepNightSample(night: $0.key, hours: $0.value / 3600.0) }
+                .sorted { $0.night < $1.night }
+        } catch {
+            AppLogger.health.error("HealthKit historical sleep fetch error: \(error.localizedDescription, privacy: .public)")
+            return []
+        }
+        #else
+        return []
+        #endif
+    }
+    
+    /// Menstrual-flow events recorded inside the supplied window. Each
+    /// returned event represents a single sample (one calendar day in
+    /// HealthKit's data model). The cycle-phase analytics treat the
+    /// *first* event of each cycle as the period start — `MenstrualEvent`
+    /// includes a precomputed `isCycleStart` flag so callers don't have
+    /// to re-derive the gap analysis.
+    ///
+    /// We deliberately do NOT gate this on `HKBiologicalSex` —
+    /// menstrual tracking in Apple Health is exposed to all users, and
+    /// the migraine correlation card on the dashboard appears only when
+    /// real samples exist (data-driven gating, not identity-driven).
+    func fetchMenstrualEvents(in interval: DateInterval) async -> [MenstrualEvent] {
+        #if canImport(HealthKit)
+        guard let healthStore = healthStore, isAuthorized else { return [] }
+        guard let menstrualType = HKObjectType.categoryType(forIdentifier: .menstrualFlow) else {
+            return []
+        }
+        
+        // Pad the start so a flow event that began before the window
+        // but spans into it can still anchor a cycle day calculation.
+        let paddedStart = calendar.date(byAdding: .day, value: -45, to: interval.start) ?? interval.start
+        let predicate = HKQuery.predicateForSamples(
+            withStart: paddedStart,
+            end: interval.end,
+            options: .strictStartDate
+        )
+        
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.categorySample(type: menstrualType, predicate: predicate)],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .forward)]
+        )
+        
+        do {
+            let samples = try await descriptor.result(for: healthStore)
+            // HealthKit records a sample per logged day; "cycle start"
+            // = the first day after a gap of ≥ 2 calendar days. We
+            // pre-tag the events so the analytics layer doesn't have
+            // to redo the gap analysis on every render.
+            var events: [MenstrualEvent] = []
+            var lastDay: Date?
+            for sample in samples {
+                let day = calendar.startOfDay(for: sample.startDate)
+                let isStart: Bool = {
+                    guard let last = lastDay else { return true }
+                    let gapDays = calendar.dateComponents([.day], from: last, to: day).day ?? 0
+                    return gapDays >= 2
+                }()
+                events.append(MenstrualEvent(date: day, isCycleStart: isStart))
+                lastDay = day
+            }
+            return events
+        } catch {
+            AppLogger.health.error("HealthKit menstrual history fetch error: \(error.localizedDescription, privacy: .public)")
+            return []
+        }
+        #else
+        return []
+        #endif
+    }
+    
+    /// True when the user has logged at least one menstrual-flow sample
+    /// in the past 365 days. Used to gate the cycle-phase correlation
+    /// card on the Analytics dashboard (data-driven, not gender-driven).
+    /// Cheap because we cap the limit at 1 — the query short-circuits
+    /// after the first match.
+    func hasAnyMenstrualHistory() async -> Bool {
+        #if canImport(HealthKit)
+        guard let healthStore = healthStore, isAuthorized else { return false }
+        guard let menstrualType = HKObjectType.categoryType(forIdentifier: .menstrualFlow) else {
+            return false
+        }
+        
+        let yearAgo = calendar.date(byAdding: .year, value: -1, to: Date()) ?? Date()
+        let predicate = HKQuery.predicateForSamples(
+            withStart: yearAgo,
+            end: Date(),
+            options: .strictStartDate
+        )
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.categorySample(type: menstrualType, predicate: predicate)],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)],
+            limit: 1
+        )
+        
+        do {
+            let samples = try await descriptor.result(for: healthStore)
+            return !samples.isEmpty
+        } catch {
+            AppLogger.health.error("HealthKit menstrual probe error: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+        #else
+        return false
+        #endif
+    }
+    
+    /// All HRV-SDNN samples (in milliseconds) recorded inside the supplied
+    /// window. Returned in chronological order — callers are expected to
+    /// downsample (rolling average, daily median, etc.) for plotting.
+    func fetchHRVSamples(in interval: DateInterval) async -> [HRVPoint] {
+        #if canImport(HealthKit)
+        guard let healthStore = healthStore, isAuthorized else { return [] }
+        guard let hrvType = HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN) else {
+            return []
+        }
+        
+        let predicate = HKQuery.predicateForSamples(
+            withStart: interval.start,
+            end: interval.end,
+            options: .strictStartDate
+        )
+        
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.quantitySample(type: hrvType, predicate: predicate)],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .forward)]
+        )
+        
+        do {
+            let samples = try await descriptor.result(for: healthStore)
+            let unit = HKUnit.secondUnit(with: .milli)
+            return samples.map { HRVPoint(date: $0.startDate, valueMs: $0.quantity.doubleValue(for: unit)) }
+        } catch {
+            AppLogger.health.error("HealthKit historical HRV fetch error: \(error.localizedDescription, privacy: .public)")
+            return []
+        }
+        #else
+        return []
+        #endif
+    }
+    
+    /// Map a sleep sample's `endDate` onto the calendar morning we
+    /// attribute the night to. End times after noon spill over to the
+    /// next day — fine for matching against migraines the same morning,
+    /// less useful for night-shift workers (acceptable tradeoff for v1).
+    private func nightKey(forSampleEndingAt end: Date) -> Date {
+        let dayStart = calendar.startOfDay(for: end)
+        let hour = calendar.component(.hour, from: end)
+        if hour < 12 {
+            return dayStart
+        } else {
+            return calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
+        }
+    }
+    
     // MARK: - Writing migraines back to Health
     //
     // The flow is always: delete-by-UUID → write-fresh. This keeps edits
@@ -528,6 +733,35 @@ class HealthKitManager: ObservableObject {
         #endif
     }
     #endif
+}
+
+// MARK: - Historical sample value types
+
+/// One night of total sleep, used by the Analytics correlation views.
+/// `night` is the calendar morning that the sleep ended on — i.e. the
+/// "day of" sleep, the day a migraine logged that morning would
+/// correlate with.
+struct SleepNightSample: Identifiable, Hashable, Sendable {
+    var id: Date { night }
+    let night: Date
+    let hours: Double
+}
+
+/// One HRV-SDNN reading from HealthKit, in milliseconds.
+struct HRVPoint: Identifiable, Hashable, Sendable {
+    var id: Date { date }
+    let date: Date
+    let valueMs: Double
+}
+
+/// One day of menstrual flow logged in HealthKit. `isCycleStart` is
+/// pre-derived by the fetch (a sample that follows a ≥ 2-day gap is
+/// treated as the start of a new cycle), so the analytics layer can
+/// walk a list of these without re-doing the gap analysis.
+struct MenstrualEvent: Identifiable, Hashable, Sendable {
+    var id: Date { date }
+    let date: Date
+    let isCycleStart: Bool
 }
 
 // MARK: - Errors
