@@ -136,24 +136,75 @@ struct StatisticsView: View {
     private var summaryStatsView: some View {
         VStack(spacing: 20) {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
-                StatBox(
-                    title: "\(timeFilter.rawValue) Total",
-                    value: String(totalMigraines),
-                    trend: totalTrend
+                tileLink(
+                    metric: .total,
+                    StatBox(
+                        title: "\(timeFilter.rawValue) Total",
+                        value: String(totalMigraines),
+                        trend: totalTrend
+                    )
                 )
-                StatBox(
-                    title: "Avg Pain",
-                    value: String(format: "%.1f", averagePain),
-                    trend: painTrend
+                tileLink(
+                    metric: .averagePain,
+                    StatBox(
+                        title: "Avg Pain",
+                        value: String(format: "%.1f", averagePain),
+                        trend: painTrend
+                    )
                 )
-                StatBox(title: "Avg Duration", value: formatDuration(averageDuration))
-                StatBox(title: "Abortives Used", value: String(abortivesUsed))
+                tileLink(
+                    metric: .severeDays,
+                    StatBox(
+                        title: "Severe Days",
+                        value: String(severePainDays),
+                        subtitle: severePainDays > 0 ? "Pain ≥ 7" : nil
+                    )
+                )
+                tileLink(
+                    metric: .streak,
+                    StatBox(
+                        title: "Migraine-free",
+                        value: streakDisplayValue,
+                        subtitle: streakDisplaySubtitle
+                    )
+                )
+                tileLink(
+                    metric: .averageDuration,
+                    StatBox(title: "Avg Duration", value: formatDuration(averageDuration))
+                )
+                tileLink(
+                    metric: .topTrigger,
+                    StatBox(
+                        title: "Top Trigger",
+                        value: topTriggerDisplayValue,
+                        subtitle: topTriggerDisplaySubtitle
+                    )
+                )
+                tileLink(
+                    metric: .missedDays,
+                    StatBox(
+                        title: "Days Missed",
+                        value: String(totalImpactDays),
+                        subtitle: totalImpactDays > 0 ? "work / school / events" : nil
+                    )
+                )
+                tileLink(
+                    metric: .topMedication,
+                    StatBox(title: "Abortives Used", value: String(abortivesUsed))
+                )
             }
             .padding(.horizontal)
-            
-            // Impact summary
-            impactSummaryView
         }
+    }
+    
+    /// Wraps a `StatBox` in a `NavigationLink` whose value drives the
+    /// per-metric drill-down handled by `AnalyticsMetricDetailView`.
+    private func tileLink<Content: View>(metric: AnalyticsMetric, _ content: Content) -> some View {
+        NavigationLink(value: metric) {
+            content
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens \(metric.title) details")
     }
     
     // MARK: - Impact Summary
@@ -276,13 +327,101 @@ struct StatisticsView: View {
     
     private var chartsView: some View {
         LazyVStack(spacing: 20) {
-            monthlyDistributionChart
             painLevelDistributionChart
-            commonTriggersChart
-            medicationUsageChart
-            timeOfDayDistributionChart
-            qualityOfLifeImpactChart
+            trendsSection
+            insightsSection
+            impactSummaryView
             weatherCorrelationButton
+        }
+    }
+    
+    // MARK: - New dashboard sections
+    
+    /// Heatmap + monthly distribution, the two charts that benefit most from
+    /// living above the fold. The heatmap uses a 60-day window so the
+    /// rendered grid stays roughly square on iPhone — long-range exploration
+    /// happens via the year filter or per-metric drill-downs.
+    private var trendsSection: some View {
+        ChartSection(title: "") {
+            VStack(alignment: .leading, spacing: 20) {
+                SeverityHeatmapView(cells: heatmapCells)
+                Divider()
+                    .padding(.horizontal, -8)
+                monthlyDistributionInline
+            }
+        }
+    }
+    
+    /// Auto-generated narrative insights drawn from the filtered period.
+    /// Hidden entirely when no signal is strong enough — keeps the screen
+    /// quiet on light data sets.
+    private var insightsSection: some View {
+        AnalyticsInsightsView(
+            insights: AnalyticsInsightGenerator.generate(
+                for: filteredMigraines,
+                currentStreak: currentMigraineFreeStreak
+            )
+        )
+    }
+    
+    /// Subset of `dailyPainCells` covering the heatmap window. Computed
+    /// off the unfiltered `viewModel.migraines` so multi-month time filters
+    /// (year/range) still see migraine-free days outside the filter.
+    private var heatmapCells: [DailyPainCell] {
+        let cal = Calendar.current
+        let end = cal.startOfDay(for: Date())
+        let start: Date = {
+            switch timeFilter {
+            case .week:
+                return cal.date(byAdding: .day, value: -27, to: end) ?? end
+            case .month:
+                return cal.date(byAdding: .day, value: -41, to: end) ?? end
+            case .year:
+                let y = cal.date(byAdding: .day, value: -89, to: end) ?? end
+                return y
+            case .range:
+                let clampedStart = cal.startOfDay(for: customStartDate)
+                let clampedEnd   = cal.startOfDay(for: customEndDate)
+                let span = cal.dateComponents([.day], from: clampedStart, to: clampedEnd).day ?? 0
+                if span > 90 {
+                    return cal.date(byAdding: .day, value: -89, to: clampedEnd) ?? clampedStart
+                }
+                return clampedStart
+            }
+        }()
+        let interval = DateInterval(start: start, end: end)
+        return viewModel.migraines.dailyPainCells(in: interval)
+    }
+    
+    /// Compact monthly bar chart used inside the Trends card. Identical
+    /// data to `monthlyDistributionChart` but unwrapped from its own
+    /// `ChartSection` so it nests cleanly under the heatmap.
+    private var monthlyDistributionInline: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Migraines per month", systemImage: "calendar")
+                .font(.headline)
+                .foregroundStyle(.blue)
+            if monthlyData.isEmpty {
+                Text("No data for this period.")
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+            } else {
+                Chart(monthlyData) { point in
+                    BarMark(
+                        x: .value("Month", point.month, unit: .month),
+                        y: .value("Count", point.count)
+                    )
+                    .foregroundStyle(monthlyBarColor(count: point.count).gradient)
+                    .cornerRadius(6)
+                }
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .month)) { value in
+                        AxisValueLabel(format: .dateTime.month(.abbreviated))
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                    }
+                }
+                .frame(height: 160)
+            }
         }
     }
     
@@ -383,7 +522,15 @@ struct StatisticsView: View {
     var body: some View {
         NavigationStack {
             statisticsContent
-                .navigationTitle("Analytics")
+                .navigationTitle("Overview")
+                .navigationDestination(for: AnalyticsMetric.self) { metric in
+                    AnalyticsMetricDetailView(
+                        viewModel: viewModel,
+                        metric: metric,
+                        migraines: filteredMigraines,
+                        periodLabel: periodLabel
+                    )
+                }
                 .navigationDestination(isPresented: $showingMonthDetail) {
                     if let month = selectedMonth {
                         MonthDetailView(viewModel: viewModel, month: month)
@@ -652,6 +799,82 @@ struct StatisticsView: View {
             counts[Int(migraine.painLevel), default: 0] += 1
         }
         return (1...10).map { PainLevelPoint(level: $0, count: counts[$0] ?? 0) }
+    }
+    
+    // MARK: - Severity / streak metrics
+    
+    /// Distribution across the four clinical severity buckets — replaces the
+    /// previous 1-10 histogram on the dashboard. Always emits one entry per
+    /// bucket so the chart layout stays stable regardless of dataset size.
+    private var severityBucketData: [SeverityBucketPoint] {
+        filteredMigraines.severityBucketDistribution
+    }
+    
+    /// Days in the *currently filtered period* on which at least one
+    /// migraine reached pain level 7+. Counts unique calendar days so a
+    /// patient with two severe migraines on the same day sees "1", not "2".
+    private var severePainDays: Int {
+        filteredMigraines.severePainDays()
+    }
+    
+    /// Days since the most recent migraine across the *full* history (not
+    /// just the filtered window) — a streak resets the moment a migraine is
+    /// logged regardless of which time filter is active.
+    private var currentMigraineFreeStreak: Int? {
+        viewModel.migraines.currentMigraineFreeStreak()
+    }
+    
+    /// Big-number portion of the streak tile, e.g. "12" or "—" when the user
+    /// has never logged a migraine.
+    private var streakDisplayValue: String {
+        guard let streak = currentMigraineFreeStreak else { return "—" }
+        return String(streak)
+    }
+    
+    /// Subtitle under the streak number, e.g. "days" or "no entries yet".
+    private var streakDisplaySubtitle: String? {
+        guard let streak = currentMigraineFreeStreak else { return "no entries yet" }
+        return streak == 1 ? "day" : "days"
+    }
+    
+    /// Top trigger across the filtered period, or `nil` when no triggers
+    /// were logged. Computed once per redraw and reused by both the KPI
+    /// tile and the upcoming insights cards.
+    private var topTriggerInfo: (trigger: MigraineTrigger, count: Int)? {
+        filteredMigraines.topTrigger
+    }
+    
+    /// Big-number portion of the Top Trigger tile.
+    private var topTriggerDisplayValue: String {
+        topTriggerInfo?.trigger.displayName ?? "—"
+    }
+    
+    /// Subtitle under the trigger name, e.g. "5 logs" or "no data yet".
+    private var topTriggerDisplaySubtitle: String? {
+        guard let info = topTriggerInfo else { return "no data yet" }
+        return info.count == 1 ? "1 log" : "\(info.count) logs"
+    }
+    
+    /// Cumulative life-impact days inside the filtered period — drives the
+    /// "Days Missed" tile. Days are counted independently per category to
+    /// match the existing Life Impact card decomposition.
+    private var totalImpactDays: Int {
+        filteredMigraines.totalImpactDays
+    }
+    
+    /// Human-readable description of the active filter window. Surfaced
+    /// in detail-screen headers so users always know which slice of data
+    /// they're drilling into.
+    private var periodLabel: String {
+        switch timeFilter {
+        case .week:  return "Past 7 days"
+        case .month: return "Past 30 days"
+        case .year:  return "Year \(selectedYear)"
+        case .range:
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            return "\(formatter.string(from: customStartDate)) – \(formatter.string(from: customEndDate))"
+        }
     }
     
     private var timeOfDayData: [TimeOfDayPoint] {
@@ -983,8 +1206,85 @@ struct StatisticsView: View {
         }
     }
     
+    /// New top-level severity chart for the dashboard. Replaces the old
+    /// 10-bin histogram, which is now reachable via drill-down only.
     private var painLevelDistributionChart: some View {
-        ChartSection(title: "Pain Level Distribution") {
+        ChartSection(title: "") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    Label("Severity Distribution", systemImage: "thermometer.medium")
+                        .font(.headline)
+                        .foregroundStyle(.red)
+                    Spacer()
+                    if severePainDays > 0 {
+                        Text("\(severePainDays) severe day\(severePainDays == 1 ? "" : "s")")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.horizontal, 4)
+                
+                Chart(severityBucketData) { point in
+                    BarMark(
+                        x: .value("Severity", point.bucket.title),
+                        y: .value("Count", point.count)
+                    )
+                    .foregroundStyle(point.bucket.color.gradient)
+                    .cornerRadius(8)
+                    .annotation(position: .top, alignment: .center, spacing: 4) {
+                        if point.count > 0 {
+                            Text(String(point.count))
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks(position: .bottom) { value in
+                        AxisValueLabel {
+                            if let bucketTitle = value.as(String.self),
+                               let bucket = SeverityBucket.allCases.first(where: { $0.title == bucketTitle }) {
+                                VStack(spacing: 2) {
+                                    Text(bucket.title)
+                                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                        .foregroundStyle(Color.primary)
+                                    Text(bucket.rangeDescription)
+                                        .font(.system(size: 10, weight: .regular, design: .rounded))
+                                        .foregroundStyle(Color.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading) { value in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
+                            .foregroundStyle(Color.gray.opacity(0.3))
+                        AxisValueLabel()
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(Color.secondary)
+                    }
+                }
+                .chartPlotStyle { plotArea in
+                    plotArea
+                        .background(Color(.systemGray6).opacity(0.3))
+                        .cornerRadius(12)
+                }
+                .frame(height: 200)
+                .accessibilityLabel("Severity distribution")
+                .accessibilityValue(
+                    severityBucketData
+                        .filter { $0.count > 0 }
+                        .map { "\($0.count) \($0.bucket.title.lowercased())" }
+                        .joined(separator: ", ")
+                )
+            }
+        }
+    }
+    
+    /// Legacy 10-bin pain histogram, retained for the severity drill-down.
+    private var painLevelHistogramChart: some View {
+        ChartSection(title: "Pain Level Distribution (1-10)") {
             Chart(painLevelData) { point in
                 BarMark(
                     x: .value("Pain Level", point.level),
@@ -994,7 +1294,7 @@ struct StatisticsView: View {
                 .cornerRadius(8)
             }
             .chartXAxis {
-                AxisMarks(values: .automatic) { value in
+                AxisMarks(values: Array(1...10)) { value in
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
                         .foregroundStyle(Color.gray.opacity(0.3))
                     AxisTick(stroke: StrokeStyle(lineWidth: 1))
@@ -1186,6 +1486,7 @@ struct ChartSection<Content: View>: View {
 struct StatBox: View {
     let title: String
     let value: String
+    var subtitle: String? = nil
     var trend: TrendDirection? = nil
     
     enum TrendDirection {
@@ -1207,6 +1508,16 @@ struct StatBox: View {
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundColor(Color(red: 68/255, green: 130/255, blue: 180/255))
                 .minimumScaleFactor(0.7)
+                .lineLimit(1)
+            
+            if let subtitle = subtitle {
+                Text(subtitle)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
             
             if let trend = trend {
                 trendLabel(trend)

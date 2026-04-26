@@ -312,12 +312,12 @@ class MigraineViewModel: NSObject, ObservableObject {
             // prompt. Done only on the *initial* successful save (not on
             // subsequent weather/edit saves) so that a single user action
             // produces a single +1 — see `ReviewPromptCoordinator.swift`
-            // for the full gating policy. Wrapped in `assumeIsolated`
-            // because the coordinator is `@MainActor`-isolated and this
-            // method itself isn't.
-            MainActor.assumeIsolated {
-                ReviewPromptCoordinator.recordEntryLogged()
-            }
+            // for the full gating policy. The enclosing function is
+            // `@MainActor async`, and `recordEntryLogged()` has no actor
+            // isolation, so a direct synchronous call is correct here —
+            // wrapping in `MainActor.assumeIsolated { … }` from an async
+            // context is what triggered the Swift 6 strictness warning.
+            ReviewPromptCoordinator.recordEntryLogged()
 
             // Mirror to Apple Health as a `.headache` sample if the user
             // has opted in via Settings. Fully no-ops when disabled or

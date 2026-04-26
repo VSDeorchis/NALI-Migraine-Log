@@ -19,6 +19,7 @@ The app combines a manual logging UI with a hybrid risk-prediction engine (rule-
 │
 ├── NALI Migraine Log/                       # iOS app (synchronized root group; ALSO consumed by macOS + Watch targets)
 │   ├── Views/, ViewModels/, Utilities/      # iOS-specific UI (incl. EnjoymentPromptView + FeedbackFormView, both #if os(iOS))
+│   ├── Views/Analytics/                     # Dashboard subviews: AnalyticsModels, AnalyticsComputations, SeverityHeatmapView, AnalyticsInsightsView, AnalyticsMetricDetailView
 │   ├── AppIntents/LogMigraineIntent.swift   # Siri / Shortcuts entry point — iOS-only, scoped via #if os(iOS)
 │   ├── iOSContentView.swift                 # Adaptive root: TabView on iPhone, NavigationSplitView (sidebar+detail) on iPad
 │   ├── PrivacyInfo.xcprivacy                # Privacy manifest (one per .app bundle)
@@ -68,6 +69,7 @@ The three app targets all share `NALI Migraine Log/` as a synchronized root grou
 | **Review prompt** | `Shared/Services/ReviewPromptCoordinator.swift` + iOS `Views/EnjoymentPromptView.swift` | "Enjoying Headway?" pre-prompt that gates Apple's `requestReview`. Tracks tenure (≥7 days), entries logged (≥5), and per-outcome cooldowns (180d after Yes, 365d after No) in `UserDefaults`. iOS-only UI; macOS uses an unconditional "Rate" menu command instead. |
 | **In-app feedback** | iOS `Views/FeedbackFormView.swift` | Routes the "Not really" path of the enjoyment prompt to a category + star + free-text form, then hands off to `MFMailComposeViewController` (clipboard fallback if mail isn't configured). All iOS-only — guarded by `#if os(iOS)` so the file is a no-op on macOS/watchOS targets. |
 | **Adaptive root layout** | `NALI Migraine Log/iOSContentView.swift` | Single source of truth for top-level navigation. The four destinations (`Log`, `Calendar`, `Analytics`, `About`) live in one `AppDestination` enum that drives both the iPhone `TabView` and the iPad `NavigationSplitView` sidebar. Adding a fifth destination is a one-line enum-case change. |
+| **Analytics dashboard** | `NALI Migraine Log/Views/StatisticsView.swift` + `Views/Analytics/*` | "Overview"-style KPI grid (8 tiles) that drills into per-metric detail screens via `NavigationLink(value:)` + `navigationDestination(for: AnalyticsMetric.self)`. Replaces the old 1-10 pain histogram with a 4-bucket severity bar chart (Mild / Moderate / Severe / Extreme); adds a 60–90 day severity heatmap and an auto-generated insights section. Pure-data metric helpers (`severityBucketDistribution`, `currentMigraineFreeStreak`, `topTrigger`, `dailyPainCells(in:)`, `mostCommonWeekday`) live as `Array where Element == MigraineEvent` extensions in `AnalyticsComputations.swift` so they're trivially unit-testable. |
 | **Contact / app metadata** | `Shared/AppContactInfo.swift` | Single source of truth for the App Store ID, support email (`support@cicgconsulting.com`), practice website (`neuroli.com`), and privacy-policy URL. All four entry points (iOS About, iOS Settings, macOS About, macOS Help menu) read from here so updating any of them is a one-line edit. |
 
 ---
@@ -205,6 +207,23 @@ When the user enables **Settings → Apple Health → Sync to Apple Health**, ev
 - **Severity mapping**: app's 1–10 pain scale → `HKCategoryValueSeverity` (1–3 mild, 4–6 moderate, 7–9 severe, 10 unspecified→severe).
 - **Permissions are revocable**: the user can disable HealthKit in **Settings → Privacy & Security → Health**. Our `writeTypes` request is wrapped in a `do/catch` and logs at `.error` level on denial; we do not crash and we do not retry.
 - **Privacy description**: `NSHealthUpdateUsageDescription` is required in iOS `Info.plist` *in addition* to `NSHealthShareUsageDescription`. App Store review rejects builds that write without the second key.
+
+---
+
+## Analytics dashboard
+
+The Analytics tab (titled **"Overview"** at the top) is structured as a tap-to-drill-down dashboard rather than a flat scroll of charts.
+
+- **Top of screen — KPI grid (8 tiles, 2 × 4):**
+  - *Total*, *Avg Pain*, *Severe Days* (unique days with pain ≥ 7), *Migraine-free* streak (days since last logged migraine, full history)
+  - *Avg Duration*, *Top Trigger*, *Days Missed* (cumulative work + school + events), *Abortives Used*
+  - Every tile is a `NavigationLink(value: AnalyticsMetric)`. The destination is `AnalyticsMetricDetailView`, switched on the metric, which reuses the legacy bar/pie/line charts in a focused single-metric layout.
+- **Severity Distribution chart (replaces the old 10-bin pain histogram):** four buckets — *Mild* (1-3), *Moderate* (4-6), *Severe* (7-8), *Extreme* (9-10). Counts annotate each bar; bucket subtitles preserve the underlying numeric range.
+- **Trends section:** a calendar-style severity heatmap (60-day window for week/month, 90-day for year/range) plus a compact "migraines per month" bar chart. The heatmap honours `Calendar.firstWeekday` for localized layout.
+- **Insights section:** auto-generated cards from `AnalyticsInsightGenerator.generate(...)`. The generator only emits a card when the underlying signal is strong enough to be useful (e.g. ≥30% trigger share, ≥7-day streak, ≥50% severe-pain proportion). Cap is four cards.
+- **Bottom:** existing Life Impact card + Weather Correlation deep-link, unchanged.
+
+All metric helpers used by the dashboard are pure functions on `[MigraineEvent]` (see `Views/Analytics/AnalyticsComputations.swift`) — adding a new tile is `enum AnalyticsMetric { case foo }` + a computed property + a switch case in `AnalyticsMetricDetailView`. Nothing needs to round-trip through Core Data.
 
 ---
 
