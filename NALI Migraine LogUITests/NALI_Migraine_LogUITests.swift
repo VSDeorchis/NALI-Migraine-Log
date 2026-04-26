@@ -49,7 +49,7 @@ final class NALI_Migraine_LogUITests: XCTestCase {
         app.tabBars.buttons["Calendar"].tap()
         XCTAssertTrue(app.navigationBars["Calendar"].exists)
         
-        app.tabBars.buttons["Statistics"].tap()
-        XCTAssertTrue(app.navigationBars["Statistics"].exists)
+        app.tabBars.buttons["Analytics"].tap()
+        XCTAssertTrue(app.navigationBars["Analytics"].exists)
     }
 }

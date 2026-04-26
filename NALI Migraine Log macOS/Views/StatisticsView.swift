@@ -106,7 +106,7 @@ struct StatisticsView: View {
                 .padding()
             }
         }
-        .navigationTitle("Statistics")
+        .navigationTitle("Analytics")
     }
     
     // Add computed properties for data processing

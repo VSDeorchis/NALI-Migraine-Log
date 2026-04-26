@@ -28,6 +28,8 @@
 		AAFE000200000000000A0006 /* MigrationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0006 /* MigrationCoordinator.swift */; };
 		AAFE000200000000000A0007 /* ReviewPromptCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0007 /* ReviewPromptCoordinator.swift */; };
 		AAFE000200000000000A0008 /* AppContactInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0008 /* AppContactInfo.swift */; };
+		AAFE000200000000000A0009 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0009 /* NotificationManager.swift */; };
+		AAFE000200000000000A000A /* BackgroundTaskScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A000A /* BackgroundTaskScheduler.swift */; };
 		AAFE000300000000000A0001 /* FeatureExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0001 /* FeatureExtractor.swift */; };
 		AAFE000300000000000A0002 /* WeatherForecastService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0002 /* WeatherForecastService.swift */; };
 		AAFE000300000000000A0003 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0003 /* HealthKitManager.swift */; };
@@ -36,6 +38,8 @@
 		AAFE000300000000000A0006 /* MigrationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0006 /* MigrationCoordinator.swift */; };
 		AAFE000300000000000A0007 /* ReviewPromptCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0007 /* ReviewPromptCoordinator.swift */; };
 		AAFE000300000000000A0008 /* AppContactInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0008 /* AppContactInfo.swift */; };
+		AAFE000300000000000A0009 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0009 /* NotificationManager.swift */; };
+		AAFE000300000000000A000A /* BackgroundTaskScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A000A /* BackgroundTaskScheduler.swift */; };
 		AAFE000400000000000A0001 /* FeatureExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0001 /* FeatureExtractor.swift */; };
 		AAFE000400000000000A0002 /* WeatherForecastService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0002 /* WeatherForecastService.swift */; };
 		AAFE000400000000000A0003 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0003 /* HealthKitManager.swift */; };
@@ -44,6 +48,8 @@
 		AAFE000400000000000A0006 /* MigrationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0006 /* MigrationCoordinator.swift */; };
 		AAFE000400000000000A0007 /* ReviewPromptCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0007 /* ReviewPromptCoordinator.swift */; };
 		AAFE000400000000000A0008 /* AppContactInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0008 /* AppContactInfo.swift */; };
+		AAFE000400000000000A0009 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0009 /* NotificationManager.swift */; };
+		AAFE000400000000000A000A /* BackgroundTaskScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A000A /* BackgroundTaskScheduler.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -134,6 +140,8 @@
 		AAFE000100000000000A0006 /* MigrationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationCoordinator.swift; sourceTree = "<group>"; };
 		AAFE000100000000000A0007 /* ReviewPromptCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPromptCoordinator.swift; sourceTree = "<group>"; };
 		AAFE000100000000000A0008 /* AppContactInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContactInfo.swift; sourceTree = "<group>"; };
+		AAFE000100000000000A0009 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
+		AAFE000100000000000A000A /* BackgroundTaskScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTaskScheduler.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -354,6 +362,8 @@
 				AAFE000100000000000A0005 /* AppLogger.swift */,
 				AAFE000100000000000A0006 /* MigrationCoordinator.swift */,
 				AAFE000100000000000A0007 /* ReviewPromptCoordinator.swift */,
+				AAFE000100000000000A0009 /* NotificationManager.swift */,
+				AAFE000100000000000A000A /* BackgroundTaskScheduler.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -730,6 +740,8 @@
 				AAFE000200000000000A0006 /* MigrationCoordinator.swift in Sources */,
 				AAFE000200000000000A0007 /* ReviewPromptCoordinator.swift in Sources */,
 				AAFE000200000000000A0008 /* AppContactInfo.swift in Sources */,
+				AAFE000200000000000A0009 /* NotificationManager.swift in Sources */,
+				AAFE000200000000000A000A /* BackgroundTaskScheduler.swift in Sources */,
 				69C15B1F2D59B28E002BAA7E /* NALI_Migraine_Log.xcdatamodeld in Sources */,
 				69A6B47C2D59BA2500AD2CFA /* WatchConnectivityManager.swift in Sources */,
 			);
@@ -765,6 +777,8 @@
 				AAFE000300000000000A0006 /* MigrationCoordinator.swift in Sources */,
 				AAFE000300000000000A0007 /* ReviewPromptCoordinator.swift in Sources */,
 				AAFE000300000000000A0008 /* AppContactInfo.swift in Sources */,
+				AAFE000300000000000A0009 /* NotificationManager.swift in Sources */,
+				AAFE000300000000000A000A /* BackgroundTaskScheduler.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -798,6 +812,8 @@
 				AAFE000400000000000A0006 /* MigrationCoordinator.swift in Sources */,
 				AAFE000400000000000A0007 /* ReviewPromptCoordinator.swift in Sources */,
 				AAFE000400000000000A0008 /* AppContactInfo.swift in Sources */,
+				AAFE000400000000000A0009 /* NotificationManager.swift in Sources */,
+				AAFE000400000000000A000A /* BackgroundTaskScheduler.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

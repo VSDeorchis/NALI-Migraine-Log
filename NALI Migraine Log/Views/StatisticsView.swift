@@ -383,7 +383,7 @@ struct StatisticsView: View {
     var body: some View {
         NavigationStack {
             statisticsContent
-                .navigationTitle("Statistics")
+                .navigationTitle("Analytics")
                 .navigationDestination(isPresented: $showingMonthDetail) {
                     if let month = selectedMonth {
                         MonthDetailView(viewModel: viewModel, month: month)
