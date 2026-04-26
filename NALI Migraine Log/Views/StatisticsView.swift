@@ -27,58 +27,26 @@ struct StatisticsView: View {
     
     @ViewBuilder
     private func medicationNavigationView() -> some View {
-        if let medication = selectedMedication {
+        if let medicationName = selectedMedication,
+           let medication = MigraineMedication(displayName: medicationName) {
             FilteredMigraineListView(
                 viewModel: viewModel,
-                title: "Migraines with \(medication)",
-                migraines: filteredMigraines.filter { migraine in
-                    switch medication {
-                    case "Ibuprofen": return migraine.tookIbuprofin
-                    case "Excedrin": return migraine.tookExcedrin
-                    case "Tylenol": return migraine.tookTylenol
-                    case "Sumatriptan": return migraine.tookSumatriptan
-                    case "Rizatriptan": return migraine.tookRizatriptan
-                    case "Naproxen": return migraine.tookNaproxen
-                    case "Frovatriptan": return migraine.tookFrovatriptan
-                    case "Naratriptan": return migraine.tookNaratriptan
-                    case "Nurtec": return migraine.tookNurtec
-                    case "Symbravo": return migraine.tookSymbravo
-                    case "Ubrelvy": return migraine.tookUbrelvy
-                    case "Reyvow": return migraine.tookReyvow
-                    case "Trudhesa": return migraine.tookTrudhesa
-                    case "Elyxyb": return migraine.tookElyxyb
-                    case "Other": return migraine.tookOther
-                    default: return false
-                    }
-                }
+                title: "Migraines with \(medicationName)",
+                migraines: filteredMigraines.filter { $0.medications.contains(medication) }
             )
         } else {
             EmptyView()
         }
     }
-    
+
     @ViewBuilder
     private func triggerNavigationView() -> some View {
-        if let trigger = selectedTrigger {
+        if let triggerName = selectedTrigger,
+           let trigger = MigraineTrigger(displayName: triggerName) {
             FilteredMigraineListView(
                 viewModel: viewModel,
-                title: "Migraines with \(trigger)",
-                migraines: filteredMigraines.filter { migraine in
-                    switch trigger {
-                    case "Stress": return migraine.isTriggerStress
-                    case "Lack of Sleep": return migraine.isTriggerLackOfSleep
-                    case "Dehydration": return migraine.isTriggerDehydration
-                    case "Weather": return migraine.isTriggerWeather
-                    case "Menstrual": return migraine.isTriggerHormones
-                    case "Alcohol": return migraine.isTriggerAlcohol
-                    case "Caffeine": return migraine.isTriggerCaffeine
-                    case "Food": return migraine.isTriggerFood
-                    case "Exercise": return migraine.isTriggerExercise
-                    case "Screen Time": return migraine.isTriggerScreenTime
-                    case "Other": return migraine.isTriggerOther
-                    default: return false
-                    }
-                }
+                title: "Migraines with \(triggerName)",
+                migraines: filteredMigraines.filter { $0.triggers.contains(trigger) }
             )
         } else {
             EmptyView()
@@ -440,16 +408,16 @@ struct StatisticsView: View {
                     viewModel.fetchMigraines()
                     lastUpdateTime = Date()
                 }
-                .onChange(of: viewModel.migraines) { _ in
+                .onChange(of: viewModel.migraines) {
                     lastUpdateTime = Date()
                 }
-                .onChange(of: timeFilter) { _ in
+                .onChange(of: timeFilter) {
                     lastUpdateTime = Date()
                 }
-                .onChange(of: customStartDate) { _ in
+                .onChange(of: customStartDate) {
                     lastUpdateTime = Date()
                 }
-                .onChange(of: customEndDate) { _ in
+                .onChange(of: customEndDate) {
                     lastUpdateTime = Date()
                 }
         }
@@ -675,25 +643,7 @@ struct StatisticsView: View {
     }
     
     private var abortivesUsed: Int {
-        filteredMigraines.reduce(0) { total, migraine in
-            var count = 0
-            if migraine.tookIbuprofin { count += 1 }
-            if migraine.tookExcedrin { count += 1 }
-            if migraine.tookTylenol { count += 1 }
-            if migraine.tookSumatriptan { count += 1 }
-            if migraine.tookRizatriptan { count += 1 }
-            if migraine.tookNaproxen { count += 1 }
-            if migraine.tookFrovatriptan { count += 1 }
-            if migraine.tookNaratriptan { count += 1 }
-            if migraine.tookNurtec { count += 1 }
-            if migraine.tookSymbravo { count += 1 }
-            if migraine.tookUbrelvy { count += 1 }
-            if migraine.tookReyvow { count += 1 }
-            if migraine.tookTrudhesa { count += 1 }
-            if migraine.tookElyxyb { count += 1 }
-            if migraine.tookOther { count += 1 }
-            return total + count
-        }
+        filteredMigraines.reduce(0) { $0 + $1.medications.count }
     }
     
     private var painLevelData: [PainLevelPoint] {
@@ -748,22 +698,15 @@ struct StatisticsView: View {
                     .foregroundStyle(.blue)
                     .padding(.horizontal)
                 
-                let triggerData = filteredMigraines.reduce(into: [String: Int]()) { counts, migraine in
-                    if migraine.isTriggerStress { counts["Stress", default: 0] += 1 }
-                    if migraine.isTriggerLackOfSleep { counts["Lack of Sleep", default: 0] += 1 }
-                    if migraine.isTriggerDehydration { counts["Dehydration", default: 0] += 1 }
-                    if migraine.isTriggerWeather { counts["Weather", default: 0] += 1 }
-                    if migraine.isTriggerHormones { counts["Menstrual", default: 0] += 1 }
-                    if migraine.isTriggerAlcohol { counts["Alcohol", default: 0] += 1 }
-                    if migraine.isTriggerCaffeine { counts["Caffeine", default: 0] += 1 }
-                    if migraine.isTriggerFood { counts["Food", default: 0] += 1 }
-                    if migraine.isTriggerExercise { counts["Exercise", default: 0] += 1 }
-                    if migraine.isTriggerScreenTime { counts["Screen Time", default: 0] += 1 }
-                    if migraine.isTriggerOther { counts["Other", default: 0] += 1 }
-            }
-            .map { TriggerPoint(trigger: $0.key, count: $0.value) }
-            .sorted { $0.count > $1.count }
-                .filter { $0.count > 0 }
+                let triggerData = filteredMigraines
+                    .reduce(into: [MigraineTrigger: Int]()) { counts, migraine in
+                        for trigger in migraine.triggers {
+                            counts[trigger, default: 0] += 1
+                        }
+                    }
+                    .map { TriggerPoint(trigger: $0.key.displayName, count: $0.value) }
+                    .sorted { $0.count > $1.count }
+                    .filter { $0.count > 0 }
                 
                 if triggerData.isEmpty {
                     Text("No trigger data for selected period")
@@ -835,26 +778,15 @@ struct StatisticsView: View {
                     .foregroundStyle(.purple)
                     .padding(.horizontal)
                 
-                let medicationData = filteredMigraines.reduce(into: [String: Int]()) { counts, migraine in
-                    if migraine.tookIbuprofin { counts["Ibuprofen", default: 0] += 1 }
-                    if migraine.tookExcedrin { counts["Excedrin", default: 0] += 1 }
-                    if migraine.tookTylenol { counts["Tylenol", default: 0] += 1 }
-                    if migraine.tookSumatriptan { counts["Sumatriptan", default: 0] += 1 }
-                    if migraine.tookRizatriptan { counts["Rizatriptan", default: 0] += 1 }
-                    if migraine.tookNaproxen { counts["Naproxen", default: 0] += 1 }
-                    if migraine.tookFrovatriptan { counts["Frovatriptan", default: 0] += 1 }
-                    if migraine.tookNaratriptan { counts["Naratriptan", default: 0] += 1 }
-                    if migraine.tookNurtec { counts["Nurtec", default: 0] += 1 }
-                    if migraine.tookSymbravo { counts["Symbravo", default: 0] += 1 }
-                    if migraine.tookUbrelvy { counts["Ubrelvy", default: 0] += 1 }
-                    if migraine.tookReyvow { counts["Reyvow", default: 0] += 1 }
-                    if migraine.tookTrudhesa { counts["Trudhesa", default: 0] += 1 }
-                    if migraine.tookElyxyb { counts["Elyxyb", default: 0] += 1 }
-                    if migraine.tookOther { counts["Other", default: 0] += 1 }
-            }
-            .map { MedicationPoint(medication: $0.key, count: $0.value) }
-            .sorted { $0.count > $1.count }
-                .filter { $0.count > 0 }
+                let medicationData = filteredMigraines
+                    .reduce(into: [MigraineMedication: Int]()) { counts, migraine in
+                        for medication in migraine.medications {
+                            counts[medication, default: 0] += 1
+                        }
+                    }
+                    .map { MedicationPoint(medication: $0.key.displayName, count: $0.value) }
+                    .sorted { $0.count > $1.count }
+                    .filter { $0.count > 0 }
                 
                 if medicationData.isEmpty {
                     Text("No medication data for selected period")

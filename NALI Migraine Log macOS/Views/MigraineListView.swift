@@ -81,8 +81,12 @@ struct MigraineListView: View {
         if !searchText.isEmpty {
             result = result.filter { migraine in
                 let notesMatch = migraine.notes?.localizedCaseInsensitiveContains(searchText) ?? false
-                let medicationsMatch = migraine.selectedMedicationNames.contains { $0.localizedCaseInsensitiveContains(searchText) }
-                let triggersMatch = migraine.selectedTriggerNames.contains { $0.localizedCaseInsensitiveContains(searchText) }
+                let medicationsMatch = migraine.medications.contains { medication in
+                    medication.searchKeywords.contains { $0.localizedCaseInsensitiveContains(searchText) }
+                }
+                let triggersMatch = migraine.triggers.contains { trigger in
+                    trigger.searchKeywords.contains { $0.localizedCaseInsensitiveContains(searchText) }
+                }
                 let locationMatch = migraine.location?.localizedCaseInsensitiveContains(searchText) ?? false
                 return notesMatch || medicationsMatch || triggersMatch || locationMatch
             }
@@ -228,7 +232,7 @@ struct MigraineListView: View {
             .width(min: 80, ideal: 100)
             
             TableColumn("Triggers") { (migraine: MigraineEvent) in
-                let triggers = migraine.selectedTriggerNames
+                let triggers = migraine.orderedTriggers.map(\.displayName)
                 if triggers.isEmpty {
                     Text("—")
                         .font(.caption)
@@ -392,8 +396,8 @@ struct MigraineListView: View {
                 let pain = "\(m.painLevel)"
                 let location = m.location ?? ""
                 let duration = formattedDuration(for: m) ?? ""
-                let triggers = m.selectedTriggerNames.joined(separator: "; ")
-                let medications = m.selectedMedicationNames.joined(separator: "; ")
+                let triggers = m.orderedTriggers.map(\.displayName).joined(separator: "; ")
+                let medications = m.orderedMedications.map(\.fullDisplayName).joined(separator: "; ")
                 var symptoms: [String] = []
                 if m.hasAura { symptoms.append("Aura") }
                 if m.hasPhotophobia { symptoms.append("Photophobia") }
@@ -467,7 +471,7 @@ struct MigraineListView: View {
         }
         
         y -= 10
-        let triggers = migraine.selectedTriggerNames
+        let triggers = migraine.orderedTriggers.map(\.displayName)
         if !triggers.isEmpty {
             drawText("Triggers:", font: headerFont, at: CGPoint(x: leftMargin, y: y))
             y -= 18
@@ -475,7 +479,7 @@ struct MigraineListView: View {
             y -= 20
         }
         
-        let meds = migraine.selectedMedicationNames
+        let meds = migraine.orderedMedications.map(\.fullDisplayName)
         if !meds.isEmpty {
             drawText("Medications:", font: headerFont, at: CGPoint(x: leftMargin, y: y))
             y -= 18
@@ -516,8 +520,8 @@ struct MigraineInspectorView: View {
     @State private var editedPainLevel: Int16
     @State private var editedLocation: String
     @State private var editedNotes: String
-    @State private var editedTriggers: Set<String>
-    @State private var editedMedications: Set<String>
+    @State private var editedTriggers: Set<MigraineTrigger>
+    @State private var editedMedications: Set<MigraineMedication>
     @State private var editedHasAura: Bool
     @State private var editedHasPhotophobia: Bool
     @State private var editedHasPhonophobia: Bool
@@ -539,8 +543,8 @@ struct MigraineInspectorView: View {
         _editedPainLevel = State(initialValue: migraine.painLevel)
         _editedLocation = State(initialValue: migraine.location ?? "")
         _editedNotes = State(initialValue: migraine.notes ?? "")
-        _editedTriggers = State(initialValue: Set(migraine.selectedTriggerNames))
-        _editedMedications = State(initialValue: Set(migraine.selectedMedicationNames))
+        _editedTriggers = State(initialValue: migraine.triggers)
+        _editedMedications = State(initialValue: migraine.medications)
         _editedHasAura = State(initialValue: migraine.hasAura)
         _editedHasPhotophobia = State(initialValue: migraine.hasPhotophobia)
         _editedHasPhonophobia = State(initialValue: migraine.hasPhonophobia)
@@ -680,12 +684,12 @@ struct MigraineInspectorView: View {
                 }
                 
                 // Triggers
-                let triggers = migraine.selectedTriggerNames
+                let triggers = migraine.orderedTriggers
                 if !triggers.isEmpty {
                     InspectorSection(title: "Triggers", icon: "bolt.fill") {
                         FlowLayout {
-                            ForEach(triggers, id: \.self) { trigger in
-                                Text(trigger)
+                            ForEach(triggers) { trigger in
+                                Text(trigger.displayName)
                                     .font(.caption)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
@@ -697,12 +701,12 @@ struct MigraineInspectorView: View {
                 }
                 
                 // Medications
-                let meds = migraine.selectedMedicationNames
+                let meds = migraine.orderedMedications
                 if !meds.isEmpty {
                     InspectorSection(title: "Medications", icon: "pill.fill") {
                         FlowLayout {
-                            ForEach(meds, id: \.self) { med in
-                                Text(med)
+                            ForEach(meds) { med in
+                                Text(med.fullDisplayName)
                                     .font(.caption)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
@@ -816,8 +820,8 @@ struct MigraineInspectorView: View {
         editedPainLevel = migraine.painLevel
         editedLocation = migraine.location ?? ""
         editedNotes = migraine.notes ?? ""
-        editedTriggers = Set(migraine.selectedTriggerNames)
-        editedMedications = Set(migraine.selectedMedicationNames)
+        editedTriggers = migraine.triggers
+        editedMedications = migraine.medications
         editedHasAura = migraine.hasAura
         editedHasPhotophobia = migraine.hasPhotophobia
         editedHasPhonophobia = migraine.hasPhonophobia
@@ -839,8 +843,8 @@ struct MigraineInspectorView: View {
             painLevel: editedPainLevel,
             location: editedLocation,
             notes: editedNotes.isEmpty ? nil : editedNotes,
-            triggers: Array(editedTriggers),
-            medications: Array(editedMedications),
+            triggers: editedTriggers,
+            medications: editedMedications,
             hasAura: editedHasAura,
             hasPhotophobia: editedHasPhotophobia,
             hasPhonophobia: editedHasPhonophobia,

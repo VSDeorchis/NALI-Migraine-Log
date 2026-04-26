@@ -79,19 +79,45 @@ struct AppCommands: Commands {
         // Help menu
         CommandMenu("Help") {
             Button("Visit Website") {
-                if let url = URL(string: "https://www.neuroli.com") {
-                    NSWorkspace.shared.open(url)
-                }
+                NSWorkspace.shared.open(AppContactInfo.websiteURL)
             }
-            
+
             Button("Contact Support") {
-                if let url = URL(string: "tel:5164664700") {
+                if let url = URL(string: "tel:\(AppContactInfo.supportPhoneRaw)") {
                     NSWorkspace.shared.open(url)
                 }
             }
-            
+
             Divider()
-            
+
+            // App Store + feedback. macOS doesn't have an in-app review
+            // sheet equivalent we want to ship right now (SwiftUI's
+            // `requestReview` action exists on macOS but the UX is much
+            // less polished than on iOS), so both buttons here are
+            // unconditional out-bound jumps. The "Send Feedback" path
+            // uses a `mailto:` URL rather than the iOS in-app form
+            // because AppKit/macOS users overwhelmingly prefer their
+            // own configured mail client over an in-app composer.
+            Button("Rate Headway on the App Store") {
+                NSWorkspace.shared.open(AppContactInfo.appStoreWriteReviewURL)
+            }
+
+            Button("Send Feedback…") {
+                let subject = "\(AppContactInfo.feedbackEmailSubjectPrefix) (macOS)"
+                let mailto = "mailto:\(AppContactInfo.feedbackEmailAddress)?subject=\(subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? subject)"
+                if let url = URL(string: mailto) {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+
+            Divider()
+
+            Button("Privacy Policy") {
+                NSWorkspace.shared.open(AppContactInfo.privacyPolicyURL)
+            }
+
+            Divider()
+
             Text("Keyboard Shortcuts")
                 .font(.caption)
             
@@ -130,8 +156,8 @@ struct AppCommands: Commands {
                     let h = mins / 60; let min = mins % 60
                     duration = h > 0 ? "\(h)h \(min)m" : "\(min)m"
                 }
-                let triggers = m.selectedTriggerNames.joined(separator: "; ")
-                let medications = m.selectedMedicationNames.joined(separator: "; ")
+                let triggers = m.orderedTriggers.map(\.displayName).joined(separator: "; ")
+                let medications = m.orderedMedications.map(\.fullDisplayName).joined(separator: "; ")
                 let notes = (m.notes ?? "").replacingOccurrences(of: "\"", with: "\"\"")
                 
                 csv += "\"\(date)\",\"\(time)\",\(pain),\"\(location)\",\"\(duration)\",\"\(triggers)\",\"\(medications)\",\"\(notes)\"\n"

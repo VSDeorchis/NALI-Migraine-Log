@@ -62,6 +62,16 @@ struct AboutView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .lineSpacing(3)
+
+                    Link(destination: AppContactInfo.privacyPolicyURL) {
+                        HStack(spacing: 4) {
+                            Text("View Privacy Policy")
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.caption)
+                        }
+                        .font(.subheadline)
+                    }
+                    .padding(.top, 2)
                 }
                 
                 Divider()

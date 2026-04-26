@@ -66,7 +66,7 @@ struct WeatherLocationEditorView: View {
                 
                 Section(header: Text("Fetch Weather for Location")) {
                     Toggle("Use Current Location", isOn: $useCurrentLocation)
-                        .onChange(of: useCurrentLocation) { newValue in
+                        .onChange(of: useCurrentLocation) { _, newValue in
                             if newValue, let coords = locationManager.currentCoordinates {
                                 latitude = String(format: "%.4f", coords.latitude)
                                 longitude = String(format: "%.4f", coords.longitude)

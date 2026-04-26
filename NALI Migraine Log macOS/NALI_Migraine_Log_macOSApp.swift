@@ -19,6 +19,11 @@ struct NALI_Migraine_Log_macOSApp: App {
     init() {
         let context = PersistenceController.shared.container.viewContext
         _viewModel = StateObject(wrappedValue: MigraineViewModel(context: context))
+
+        // Per-launch version-change check. Empty step registry today, but
+        // the hook is wired so any future data backfill can land as a
+        // single edit to `MigrationCoordinator.upgradeSteps`.
+        MigrationCoordinator.runLaunchSequence(context: context)
     }
     
     var body: some Scene {

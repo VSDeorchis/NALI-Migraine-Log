@@ -533,20 +533,55 @@ class MigrainePredictionService: ObservableObject {
         do {
             let compiledURL = try MLModel.compileModel(at: modelURL)
             let model = try MLModel(contentsOf: compiledURL)
-            
+
             let input = try MLDictionaryFeatureProvider(dictionary: features.toDictionary())
             let prediction = try model.prediction(from: input)
-            
-            // The model should output "migraineRisk" as a Double
-            guard let riskValue = prediction.featureValue(for: "migraineRisk")?.doubleValue else {
+
+            // The trained model is an `MLBoostedTreeClassifier` whose
+            // `targetColumn` is "hadMigraine" (Int64 0/1). It emits two output
+            // features:
+            //   • `predictedFeatureName`        — the predicted class label
+            //   • `predictedProbabilitiesName`  — `[label: probability]` dict
+            //
+            // Previously this code asked for a feature named "migraineRisk"
+            // that the classifier never produces, so the guard always failed
+            // and ML scoring was silently disabled. The risk score we actually
+            // want is `P(hadMigraine == 1)`, which lives in the probabilities
+            // dictionary under the Int64 key `1`.
+            let probabilitiesName = model.modelDescription.predictedProbabilitiesName
+                ?? "hadMigraineProbability"
+
+            guard let probsValue = prediction.featureValue(for: probabilitiesName),
+                  probsValue.type == .dictionary else {
+                AppLogger.prediction.warning("CoreML prediction missing probabilities feature '\(probabilitiesName, privacy: .public)'")
+                modelStatus = .mlFailed
                 return nil
             }
-            
+
+            // `dictionaryValue` is `[AnyHashable: NSNumber]`, so subscript
+            // already returns `NSNumber?` — no `as? NSNumber` needed (the
+            // compiler warns it's a no-op cast).
+            let probsDict = probsValue.dictionaryValue
+            // Try the common key encodings the classifier may emit, in order:
+            // Int64-as-NSNumber (default for integer labels), Int-as-NSNumber,
+            // and stringified "1" for string-labeled models.
+            let positiveProbability: Double? =
+                probsDict[NSNumber(value: Int64(1))]?.doubleValue
+                ?? probsDict[NSNumber(value: 1)]?.doubleValue
+                ?? probsDict["1" as NSString]?.doubleValue
+
+            guard let riskValue = positiveProbability else {
+                let keyList = probsDict.keys.map { "\($0)" }.joined(separator: ", ")
+                AppLogger.prediction.warning("CoreML prediction probabilities missing class '1' (keys: \(keyList, privacy: .public))")
+                modelStatus = .mlFailed
+                return nil
+            }
+
             let clampedRisk = min(max(riskValue, 0.0), 1.0)
             let level = RiskLevel.from(risk: clampedRisk)
-            
+
             modelStatus = .mlActive(confidence: 0.75)
-            
+
             return MigraineRiskScore(
                 overallRisk: clampedRisk,
                 riskLevel: level,
@@ -557,7 +592,7 @@ class MigrainePredictionService: ObservableObject {
                 timestamp: Date()
             )
         } catch {
-            print("⚠️ CoreML prediction failed: \(error.localizedDescription)")
+            AppLogger.prediction.error("CoreML prediction failed: \(error.localizedDescription, privacy: .public)")
             modelStatus = .mlFailed
             return nil
         }
@@ -633,14 +668,14 @@ class MigrainePredictionService: ObservableObject {
             UserDefaults.standard.set(Date(), forKey: lastTrainKey)
             modelStatus = .mlActive(confidence: 0.70)
             
-            print("✅ ML model trained successfully with \(trainingData.count) samples")
+            AppLogger.prediction.info("ML model trained successfully with \(trainingData.count, privacy: .public) samples")
         } catch {
-            print("⚠️ ML training failed: \(error.localizedDescription)")
+            AppLogger.prediction.error("ML training failed: \(error.localizedDescription, privacy: .public)")
             modelStatus = .mlFailed
         }
         #else
         // CreateML not available on this platform (watchOS)
-        print("ℹ️ ML training is not available on this platform")
+        AppLogger.prediction.debug("ML training is not available on this platform")
         #endif
     }
     

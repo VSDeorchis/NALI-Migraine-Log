@@ -72,33 +72,42 @@ class FeatureExtractor {
         }
         
         // ── Trigger frequencies ───────────────────────────────────
+        // Map each model feature to the canonical enum case so adding a new
+        // trigger only requires touching one place (the enum + the feature
+        // vector struct), not a parallel boolean ladder.
         let total = Double(max(migraines.count, 1))
-        
-        features.triggerStressFreq       = Double(migraines.filter(\.isTriggerStress).count)       / total
-        features.triggerSleepFreq        = Double(migraines.filter(\.isTriggerLackOfSleep).count)   / total
-        features.triggerDehydrationFreq  = Double(migraines.filter(\.isTriggerDehydration).count)   / total
-        features.triggerWeatherFreq      = Double(migraines.filter(\.isTriggerWeather).count)       / total
-        features.triggerHormonesFreq     = Double(migraines.filter(\.isTriggerHormones).count)      / total
-        features.triggerAlcoholFreq      = Double(migraines.filter(\.isTriggerAlcohol).count)       / total
-        features.triggerCaffeineFreq     = Double(migraines.filter(\.isTriggerCaffeine).count)      / total
-        features.triggerFoodFreq         = Double(migraines.filter(\.isTriggerFood).count)          / total
-        features.triggerExerciseFreq     = Double(migraines.filter(\.isTriggerExercise).count)      / total
-        features.triggerScreenTimeFreq   = Double(migraines.filter(\.isTriggerScreenTime).count)    / total
-        
+        func freq(of trigger: MigraineTrigger) -> Double {
+            Double(migraines.filter { $0.triggers.contains(trigger) }.count) / total
+        }
+
+        features.triggerStressFreq      = freq(of: .stress)
+        features.triggerSleepFreq       = freq(of: .lackOfSleep)
+        features.triggerDehydrationFreq = freq(of: .dehydration)
+        features.triggerWeatherFreq     = freq(of: .weather)
+        features.triggerHormonesFreq    = freq(of: .menstrual)
+        features.triggerAlcoholFreq     = freq(of: .alcohol)
+        features.triggerCaffeineFreq    = freq(of: .caffeine)
+        features.triggerFoodFreq        = freq(of: .food)
+        features.triggerExerciseFreq    = freq(of: .exercise)
+        features.triggerScreenTimeFreq  = freq(of: .screenTime)
+
         // ── Medication rebound risk ───────────────────────────────
         let recentMigraines = migraines.filter {
             guard let d = $0.startTime else { return false }
             return d >= sevenDaysAgo
         }
-        
-        features.triptanUsesLast7Days = recentMigraines.filter {
-            $0.tookSumatriptan || $0.tookRizatriptan || $0.tookEletriptan ||
-            $0.tookNaratriptan || $0.tookFrovatriptan
-        }.count
-        
-        features.nsaidUsesLast7Days = recentMigraines.filter {
-            $0.tookIbuprofin || $0.tookNaproxen || $0.tookExcedrin
-        }.count
+
+        let triptans: Set<MigraineMedication> = [
+            .sumatriptan, .rizatriptan, .eletriptan, .naratriptan, .frovatriptan
+        ]
+        let nsaids: Set<MigraineMedication> = [.ibuprofin, .naproxen, .excedrin]
+
+        features.triptanUsesLast7Days = recentMigraines
+            .filter { !$0.medications.isDisjoint(with: triptans) }
+            .count
+        features.nsaidUsesLast7Days = recentMigraines
+            .filter { !$0.medications.isDisjoint(with: nsaids) }
+            .count
         
         // ── HealthKit (optional) ──────────────────────────────────
         if let health = healthData {

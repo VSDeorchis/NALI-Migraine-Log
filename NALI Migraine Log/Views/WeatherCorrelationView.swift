@@ -546,9 +546,7 @@ struct WeatherCorrelationView: View {
                 .padding(.horizontal, 32)
             
             Button(action: {
-                Task {
-                    await LocationManager.shared.requestPermission()
-                }
+                LocationManager.shared.requestPermission()
             }) {
                 Label("Enable Location Services", systemImage: "location.fill")
                     .padding()

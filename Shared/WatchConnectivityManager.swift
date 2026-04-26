@@ -4,12 +4,23 @@ import WatchConnectivity
 import CoreData
 import SwiftUI
 
+/// Bridge between the iOS and watchOS apps via `WCSession`.
+///
+/// **Concurrency model (Swift 6-clean):**
+/// The class is `@MainActor` so every read/write of `@Published` state and
+/// every Core Data operation against `viewContext` runs on the main thread.
+/// All Apple framework callbacks (`WCSessionDelegate`, `Timer`,
+/// `WCSession.sendMessage` errorHandlers) are `nonisolated` and **must** hop
+/// to MainActor before touching `self`. This satisfies the Swift 6 strict
+/// concurrency model (no actor crossing without an explicit `await`) and
+/// also prevents the very-real data race where the previous version dispatched
+/// `sendMigraineData()` (a MainActor method that fetches via `viewContext`,
+/// itself main-thread-only) onto a background `DispatchQueue`.
 @MainActor
 class WatchConnectivityManager: NSObject, ObservableObject {
     static let shared = WatchConnectivityManager()
     private let session: WCSession
     private let context: NSManagedObjectContext
-    private let syncQueue = DispatchQueue(label: "com.neuroli.sync", qos: .userInitiated)
     
     @Published var isPaired = false
     @Published var isReachable = false
@@ -31,14 +42,18 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         super.init()
         
         if WCSession.isSupported() {
-            print("WCSession is supported")
+            AppLogger.watch.debug("WCSession is supported")
             session.delegate = self
             session.activate()
             
             #if os(iOS)
-            // Schedule more frequent syncs for Watch connectivity
+            // Schedule more frequent syncs for Watch connectivity. The Timer
+            // callback is non-isolated, so we must hop back to MainActor
+            // before touching `self` (Swift 6 enforces this).
             Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-                self?.checkAndSyncData()
+                Task { @MainActor [weak self] in
+                    self?.checkAndSyncData()
+                }
             }
             #endif
         }
@@ -53,13 +68,16 @@ class WatchConnectivityManager: NSObject, ObservableObject {
     func checkAndSyncData() {
         #if os(iOS)
         guard session.activationState == .activated else {
-            print("Session not activated")
+            AppLogger.watch.debug("Session not activated")
             return
         }
         
-        syncQueue.async { [weak self] in
-            self?.sendMigraineData()
-        }
+        // Previously dispatched onto a background `syncQueue`, but
+        // `sendMigraineData()` reads `viewContext` (main-thread-only) and
+        // mutates `@Published` state. Running it on a background queue was
+        // a latent thread-safety bug and is forbidden under Swift 6. Run
+        // inline; we're already on the MainActor.
+        sendMigraineData()
         #endif
     }
     
@@ -78,8 +96,11 @@ class WatchConnectivityManager: NSObject, ObservableObject {
     func sendMigraineData() {
         do {
             let migraines = try context.fetch(NSFetchRequest<MigraineEvent>(entityName: "MigraineEvent"))
+            // Drop entries without an `id` — they can't be reconciled on the
+            // other side. We don't need the unwrapped value beyond the guard,
+            // so check existence with a boolean rather than binding.
             let migraineData = migraines.compactMap { migraine -> [String: Any]? in
-                guard let id = migraine.id else { return nil }
+                guard migraine.id != nil else { return nil }
                 return migraine.toWatchSyncDictionary()
             }
             
@@ -96,18 +117,19 @@ class WatchConnectivityManager: NSObject, ObservableObject {
             
             try session.updateApplicationContext(applicationContext)
             
-            DispatchQueue.main.async { [weak self] in
-                self?.lastSyncTime = Date()
-                print("Successfully synced \(migraineData.count) migraines and \(self?.deletedMigraineIds.count ?? 0) deletions")
-            }
+            // Already on MainActor — no `DispatchQueue.main.async` hop needed.
+            lastSyncTime = Date()
+            let count = migraineData.count
+            let deletes = deletedMigraineIds.count
+            AppLogger.watch.info("Successfully synced \(count, privacy: .public) migraines and \(deletes, privacy: .public) deletions")
             
         } catch {
-            print("Error syncing data: \(error)")
+            AppLogger.watch.error("Error syncing data: \(error.localizedDescription, privacy: .public)")
             
             // If updating application context fails, try sending as a message
             if session.isReachable {
                 session.sendMessage(["requestSync": true], replyHandler: nil) { error in
-                    print("Error sending sync request: \(error)")
+                    AppLogger.watch.error("Error sending sync request: \(error.localizedDescription, privacy: .public)")
                 }
             }
         }
@@ -139,7 +161,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         // Send as a message for immediate delivery if reachable
         if session.isReachable {
             session.sendMessage(["riskUpdate": riskPayload], replyHandler: nil) { error in
-                print("Error sending risk to Watch: \(error.localizedDescription)")
+                AppLogger.watch.error("Error sending risk to Watch: \(error.localizedDescription, privacy: .public)")
             }
         }
         
@@ -153,29 +175,26 @@ class WatchConnectivityManager: NSObject, ObservableObject {
     func requestFullSync() {
         guard session.isReachable else { return }
         session.sendMessage(["requestSync": true], replyHandler: nil) { error in
-            print("Error requesting sync: \(error)")
+            AppLogger.watch.error("Error requesting sync: \(error.localizedDescription, privacy: .public)")
         }
     }
     
-    /// Process incoming risk score data from iPhone
+    /// Process incoming risk score data from iPhone. Already on MainActor —
+    /// the caller must guarantee that.
     private func processRiskData(_ riskPayload: [String: Any]) {
-        DispatchQueue.main.async { [weak self] in
-            self?.syncedRiskPercentage = riskPayload["riskPercentage"] as? Int
-            self?.syncedRiskLevel = riskPayload["riskLevel"] as? String
-            self?.syncedRiskFactors = riskPayload["factors"] as? [[String: Any]]
-            self?.syncedRiskRecommendations = riskPayload["recommendations"] as? [String]
-            if let timestamp = riskPayload["timestamp"] as? TimeInterval {
-                self?.syncedRiskTimestamp = Date(timeIntervalSince1970: timestamp)
-            }
+        syncedRiskPercentage = riskPayload["riskPercentage"] as? Int
+        syncedRiskLevel = riskPayload["riskLevel"] as? String
+        syncedRiskFactors = riskPayload["factors"] as? [[String: Any]]
+        syncedRiskRecommendations = riskPayload["recommendations"] as? [String]
+        if let timestamp = riskPayload["timestamp"] as? TimeInterval {
+            syncedRiskTimestamp = Date(timeIntervalSince1970: timestamp)
         }
     }
     #endif
     
-    // Handle incoming sync requests
+    // Handle incoming sync requests. Already on MainActor.
     func handleSyncRequest() {
-        syncQueue.async { [weak self] in
-            self?.sendMigraineData()
-        }
+        sendMigraineData()
     }
     
     private func processMigraineData(_ migraineDataArray: [[String: Any]], deletedIds: [String]) {
@@ -195,7 +214,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
                         context.delete(migraine)
                     }
                 } catch {
-                    print("Error processing deletion: \(error)")
+                    AppLogger.watch.error("Error processing deletion: \(error.localizedDescription, privacy: .public)")
                 }
             }
         }
@@ -245,104 +264,134 @@ class WatchConnectivityManager: NSObject, ObservableObject {
                 migraine.missedEvents = migraineData["missedEvents"] as? Bool ?? false
                 
             } catch {
-                print("Error processing migraine data: \(error)")
+                AppLogger.watch.error("Error processing migraine data: \(error.localizedDescription, privacy: .public)")
             }
         }
         
         // Save changes
         do {
             try context.save()
-            print("Successfully processed \(migraineDataArray.count) migraines")
+            AppLogger.watch.info("Successfully processed \(migraineDataArray.count, privacy: .public) migraines")
         } catch {
-            print("Error saving context: \(error)")
+            AppLogger.watch.error("Error saving context: \(error.localizedDescription, privacy: .public)")
             context.rollback()
         }
     }
     
-    // Add debug logging to track data flow
+    // Add debug logging to track data flow. Note: the migraine dictionary
+    // contains user-entered notes/locations, so it is NEVER logged in cleartext;
+    // only counts and reachability flags are marked `.public`.
     func sendMigraineData(_ migraine: MigraineEvent) {
-        print("Attempting to send migraine data to Watch")
+        AppLogger.watch.debug("Attempting to send migraine data to Watch")
         guard WCSession.default.isReachable else {
-            print("Watch is not reachable")
+            AppLogger.watch.debug("Watch is not reachable")
             return
         }
         
         let migraineData = migraine.toWatchSyncDictionary()
-        print("Converted migraine to dictionary: \(migraineData)")
+        AppLogger.watch.debug("Converted migraine to dictionary (\(migraineData.count, privacy: .public) keys)")
         
-        WCSession.default.sendMessage(migraineData, replyHandler: { reply in
-            print("✅ Migraine data sent successfully")
+        WCSession.default.sendMessage(migraineData, replyHandler: { _ in
+            AppLogger.watch.info("Migraine data sent successfully")
         }, errorHandler: { error in
-            print("❌ Error sending migraine data: \(error.localizedDescription)")
+            AppLogger.watch.error("Error sending migraine data: \(error.localizedDescription, privacy: .public)")
         })
     }
 }
 
+// MARK: - WCSessionDelegate
+//
+// Every method here is called by the WatchConnectivity framework on a
+// background queue. Marking the methods `nonisolated` makes the conformance
+// legal under Swift 6 strict-concurrency (no implicit MainActor crossing),
+// and we then explicitly hop to `@MainActor` inside each method before
+// touching any `self` state. Values captured into the `Task` (session flags,
+// payload dictionaries, primitives) are all Sendable.
 extension WatchConnectivityManager: WCSessionDelegate {
-    func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
-        DispatchQueue.main.async { [weak self] in
-            if let error = error {
-                print("Session activation failed: \(error.localizedDescription)")
+    nonisolated func session(_ session: WCSession,
+                             activationDidCompleteWith activationState: WCSessionActivationState,
+                             error: Error?) {
+        // Read sendable session state up-front so we don't reach back into
+        // `session` from inside the MainActor task (it isn't Sendable).
+        let isPaired: Bool
+        let isReachable: Bool
+        #if os(iOS)
+        isPaired = session.isPaired
+        isReachable = session.isReachable
+        #else
+        isPaired = false
+        isReachable = session.isReachable
+        #endif
+        let activationError = error
+
+        Task { @MainActor [weak self] in
+            if let activationError {
+                AppLogger.watch.error("Session activation failed: \(activationError.localizedDescription, privacy: .public)")
                 return
             }
-            
-            print("Session activated successfully")
+            AppLogger.watch.info("Session activated successfully")
             #if os(iOS)
-            self?.isPaired = session.isPaired
-            self?.isReachable = session.isReachable
+            self?.isPaired = isPaired
+            self?.isReachable = isReachable
             self?.checkAndSyncData()
             #else
-            // Watch app should request data when activated
             self?.handleSyncRequest()
             #endif
         }
     }
     
-    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
-        // Process migraine data
-        if let migraineDataArray = applicationContext["migraineData"] as? [[String: Any]],
-           let deletedIds = applicationContext["deletedIds"] as? [String] {
-            context.perform { [weak self] in
-                self?.processMigraineData(migraineDataArray, deletedIds: deletedIds)
+    nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+        // The application context dictionary is plain `[String: Any]` (sent
+        // across processes by the OS as plist data), so it's safe to capture
+        // into the MainActor hop. Core Data work happens inside on the
+        // main-thread-bound `viewContext`.
+        let appContext = applicationContext
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if let migraineDataArray = appContext["migraineData"] as? [[String: Any]],
+               let deletedIds = appContext["deletedIds"] as? [String] {
+                self.processMigraineData(migraineDataArray, deletedIds: deletedIds)
             }
+            #if os(watchOS)
+            if let riskPayload = appContext["riskUpdate"] as? [String: Any] {
+                self.processRiskData(riskPayload)
+            }
+            #endif
         }
-        
-        // Process risk data (watchOS receives from iOS)
-        #if os(watchOS)
-        if let riskPayload = applicationContext["riskUpdate"] as? [String: Any] {
-            processRiskData(riskPayload)
-        }
-        #endif
     }
     
-    func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
-        if message["requestSync"] as? Bool == true {
-            handleSyncRequest()
+    nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        let payload = message
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if payload["requestSync"] as? Bool == true {
+                self.handleSyncRequest()
+            }
+            #if os(watchOS)
+            if let riskPayload = payload["riskUpdate"] as? [String: Any] {
+                self.processRiskData(riskPayload)
+            }
+            #endif
         }
-        
-        // Process risk data sent via message (watchOS receives from iOS)
-        #if os(watchOS)
-        if let riskPayload = message["riskUpdate"] as? [String: Any] {
-            processRiskData(riskPayload)
-        }
-        #endif
     }
     
     #if os(iOS)
-    func sessionDidBecomeInactive(_ session: WCSession) {
-        print("Session became inactive")
+    nonisolated func sessionDidBecomeInactive(_ session: WCSession) {
+        AppLogger.watch.debug("Session became inactive")
     }
     
-    func sessionDidDeactivate(_ session: WCSession) {
-        print("Session deactivated, reactivating...")
+    nonisolated func sessionDidDeactivate(_ session: WCSession) {
+        AppLogger.watch.debug("Session deactivated, reactivating...")
         session.activate()
     }
     
-    func sessionWatchStateDidChange(_ session: WCSession) {
-        DispatchQueue.main.async { [weak self] in
-            self?.isPaired = session.isPaired
-            self?.isReachable = session.isReachable
-            if session.isPaired && session.isReachable {
+    nonisolated func sessionWatchStateDidChange(_ session: WCSession) {
+        let isPaired = session.isPaired
+        let isReachable = session.isReachable
+        Task { @MainActor [weak self] in
+            self?.isPaired = isPaired
+            self?.isReachable = isReachable
+            if isPaired && isReachable {
                 self?.checkAndSyncData()
             }
         }

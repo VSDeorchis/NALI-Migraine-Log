@@ -13,36 +13,8 @@ struct MigraineDetailView: View {
     @State private var painLevel: Int
     @State private var location: String
     
-    // Trigger booleans
-    @State private var isTriggerStress: Bool
-    @State private var isTriggerLackOfSleep: Bool
-    @State private var isTriggerDehydration: Bool
-    @State private var isTriggerWeather: Bool
-    @State private var isTriggerHormones: Bool
-    @State private var isTriggerAlcohol: Bool
-    @State private var isTriggerCaffeine: Bool
-    @State private var isTriggerFood: Bool
-    @State private var isTriggerExercise: Bool
-    @State private var isTriggerScreenTime: Bool
-    @State private var isTriggerOther: Bool
-    
-    // Medication booleans
-    @State private var tookIbuprofin: Bool
-    @State private var tookExcedrin: Bool
-    @State private var tookTylenol: Bool
-    @State private var tookSumatriptan: Bool
-    @State private var tookRizatriptan: Bool
-    @State private var tookNaproxen: Bool
-    @State private var tookFrovatriptan: Bool
-    @State private var tookNaratriptan: Bool
-    @State private var tookNurtec: Bool
-    @State private var tookSymbravo: Bool
-    @State private var tookUbrelvy: Bool
-    @State private var tookReyvow: Bool
-    @State private var tookTrudhesa: Bool
-    @State private var tookElyxyb: Bool
-    @State private var tookOther: Bool
-    @State private var tookEletriptan: Bool = false
+    @State private var triggers: Set<MigraineTrigger>
+    @State private var medications: Set<MigraineMedication>
     
     // Other booleans
     @State private var hasAura: Bool
@@ -79,36 +51,8 @@ struct MigraineDetailView: View {
         _painLevel = State(initialValue: Int(migraine.painLevel))
         _location = State(initialValue: migraine.location ?? "")
         
-        // Initialize trigger booleans
-        _isTriggerStress = State(initialValue: migraine.isTriggerStress)
-        _isTriggerLackOfSleep = State(initialValue: migraine.isTriggerLackOfSleep)
-        _isTriggerDehydration = State(initialValue: migraine.isTriggerDehydration)
-        _isTriggerWeather = State(initialValue: migraine.isTriggerWeather)
-        _isTriggerHormones = State(initialValue: migraine.isTriggerHormones)
-        _isTriggerAlcohol = State(initialValue: migraine.isTriggerAlcohol)
-        _isTriggerCaffeine = State(initialValue: migraine.isTriggerCaffeine)
-        _isTriggerFood = State(initialValue: migraine.isTriggerFood)
-        _isTriggerExercise = State(initialValue: migraine.isTriggerExercise)
-        _isTriggerScreenTime = State(initialValue: migraine.isTriggerScreenTime)
-        _isTriggerOther = State(initialValue: migraine.isTriggerOther)
-        
-        // Initialize medication booleans
-        _tookIbuprofin = State(initialValue: migraine.tookIbuprofin)
-        _tookExcedrin = State(initialValue: migraine.tookExcedrin)
-        _tookTylenol = State(initialValue: migraine.tookTylenol)
-        _tookSumatriptan = State(initialValue: migraine.tookSumatriptan)
-        _tookRizatriptan = State(initialValue: migraine.tookRizatriptan)
-        _tookNaproxen = State(initialValue: migraine.tookNaproxen)
-        _tookFrovatriptan = State(initialValue: migraine.tookFrovatriptan)
-        _tookNaratriptan = State(initialValue: migraine.tookNaratriptan)
-        _tookNurtec = State(initialValue: migraine.tookNurtec)
-        _tookSymbravo = State(initialValue: migraine.tookSymbravo)
-        _tookUbrelvy = State(initialValue: migraine.tookUbrelvy)
-        _tookReyvow = State(initialValue: migraine.tookReyvow)
-        _tookTrudhesa = State(initialValue: migraine.tookTrudhesa)
-        _tookElyxyb = State(initialValue: migraine.tookElyxyb)
-        _tookOther = State(initialValue: migraine.tookOther)
-        _tookEletriptan = State(initialValue: migraine.tookEletriptan)
+        _triggers = State(initialValue: migraine.triggers)
+        _medications = State(initialValue: migraine.medications)
         
         // Initialize other booleans
         _hasAura = State(initialValue: migraine.hasAura)
@@ -283,22 +227,22 @@ struct MigraineDetailView: View {
             .listRowBackground(Color(.systemGray6).opacity(0.5))
             
             // Triggers Section
-            Section(header: 
+            Section(header:
                 Label("TRIGGERS", systemImage: "bolt.circle")
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(.orange)
             ) {
-                TriggerSelectionView(isTriggerStress: $isTriggerStress, isTriggerLackOfSleep: $isTriggerLackOfSleep, isTriggerDehydration: $isTriggerDehydration, isTriggerWeather: $isTriggerWeather, isTriggerHormones: $isTriggerHormones, isTriggerAlcohol: $isTriggerAlcohol, isTriggerCaffeine: $isTriggerCaffeine, isTriggerFood: $isTriggerFood, isTriggerExercise: $isTriggerExercise, isTriggerScreenTime: $isTriggerScreenTime, isTriggerOther: $isTriggerOther)
+                TriggerSelectionView(selection: $triggers)
             }
             .listRowBackground(Color(.systemGray6).opacity(0.5))
-            
+
             // Medications Section
-            Section(header: 
+            Section(header:
                 Label("MEDICATIONS", systemImage: "pills.circle")
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(.orange)
             ) {
-                MedicationSelectionView(tookIbuprofin: $tookIbuprofin, tookExcedrin: $tookExcedrin, tookTylenol: $tookTylenol, tookSumatriptan: $tookSumatriptan, tookRizatriptan: $tookRizatriptan, tookNaproxen: $tookNaproxen, tookFrovatriptan: $tookFrovatriptan, tookNaratriptan: $tookNaratriptan, tookNurtec: $tookNurtec, tookSymbravo: $tookSymbravo, tookUbrelvy: $tookUbrelvy, tookReyvow: $tookReyvow, tookTrudhesa: $tookTrudhesa, tookElyxyb: $tookElyxyb, tookOther: $tookOther, tookEletriptan: $tookEletriptan)
+                MedicationSelectionView(selection: $medications)
             }
             .listRowBackground(Color(.systemGray6).opacity(0.5))
             
@@ -346,17 +290,8 @@ struct MigraineDetailView: View {
                             endTime: endTime,
                             painLevel: Int16(painLevel),
                             location: location,
-                            isTriggerStress: isTriggerStress,
-                            isTriggerLackOfSleep: isTriggerLackOfSleep,
-                            isTriggerDehydration: isTriggerDehydration,
-                            isTriggerWeather: isTriggerWeather,
-                            isTriggerHormones: isTriggerHormones,
-                            isTriggerAlcohol: isTriggerAlcohol,
-                            isTriggerCaffeine: isTriggerCaffeine,
-                            isTriggerFood: isTriggerFood,
-                            isTriggerExercise: isTriggerExercise,
-                            isTriggerScreenTime: isTriggerScreenTime,
-                            isTriggerOther: isTriggerOther,
+                            triggers: triggers,
+                            medications: medications,
                             hasAura: hasAura,
                             hasPhotophobia: hasPhotophobia,
                             hasPhonophobia: hasPhonophobia,
@@ -368,22 +303,6 @@ struct MigraineDetailView: View {
                             missedWork: missedWork,
                             missedSchool: missedSchool,
                             missedEvents: missedEvents,
-                            tookIbuprofin: tookIbuprofin,
-                            tookExcedrin: tookExcedrin,
-                            tookTylenol: tookTylenol,
-                            tookSumatriptan: tookSumatriptan,
-                            tookRizatriptan: tookRizatriptan,
-                            tookNaproxen: tookNaproxen,
-                            tookFrovatriptan: tookFrovatriptan,
-                            tookNaratriptan: tookNaratriptan,
-                            tookNurtec: tookNurtec,
-                            tookSymbravo: tookSymbravo,
-                            tookUbrelvy: tookUbrelvy,
-                            tookReyvow: tookReyvow,
-                            tookTrudhesa: tookTrudhesa,
-                            tookElyxyb: tookElyxyb,
-                            tookOther: tookOther,
-                            tookEletriptan: tookEletriptan,
                             notes: notes
                         )
                         dismiss()
@@ -451,79 +370,16 @@ struct MigraineDetailView: View {
 }
 
 struct TriggerSelectionView: View {
-    @Binding var isTriggerStress: Bool
-    @Binding var isTriggerLackOfSleep: Bool
-    @Binding var isTriggerDehydration: Bool
-    @Binding var isTriggerWeather: Bool
-    @Binding var isTriggerHormones: Bool
-    @Binding var isTriggerAlcohol: Bool
-    @Binding var isTriggerCaffeine: Bool
-    @Binding var isTriggerFood: Bool
-    @Binding var isTriggerExercise: Bool
-    @Binding var isTriggerScreenTime: Bool
-    @Binding var isTriggerOther: Bool
-    
-    private let triggers = [
-        "Stress",
-        "Lack of Sleep",
-        "Dehydration",
-        "Weather",
-        "Menstrual",
-        "Alcohol",
-        "Caffeine",
-        "Food",
-        "Exercise",
-        "Screen Time",
-        "Other"
-    ]
-    
+    @Binding var selection: Set<MigraineTrigger>
+
     var body: some View {
-        ForEach(triggers, id: \.self) { trigger in
-            Toggle(trigger, isOn: Binding(
-                get: {
-                    trigger == "Stress" ? isTriggerStress :
-                    trigger == "Lack of Sleep" ? isTriggerLackOfSleep :
-                    trigger == "Dehydration" ? isTriggerDehydration :
-                    trigger == "Weather" ? isTriggerWeather :
-                    trigger == "Menstrual" ? isTriggerHormones :
-                    trigger == "Alcohol" ? isTriggerAlcohol :
-                    trigger == "Caffeine" ? isTriggerCaffeine :
-                    trigger == "Food" ? isTriggerFood :
-                    trigger == "Exercise" ? isTriggerExercise :
-                    trigger == "Screen Time" ? isTriggerScreenTime :
-                    isTriggerOther
-                },
-                set: { isSelected in
+        ForEach(MigraineTrigger.allCases) { trigger in
+            Toggle(trigger.displayName, isOn: Binding(
+                get: { selection.contains(trigger) },
+                set: { isOn in
                     withAnimation {
-                        if isSelected {
-                            switch trigger {
-                            case "Stress": isTriggerStress = true
-                            case "Lack of Sleep": isTriggerLackOfSleep = true
-                            case "Dehydration": isTriggerDehydration = true
-                            case "Weather": isTriggerWeather = true
-                            case "Menstrual": isTriggerHormones = true
-                            case "Alcohol": isTriggerAlcohol = true
-                            case "Caffeine": isTriggerCaffeine = true
-                            case "Food": isTriggerFood = true
-                            case "Exercise": isTriggerExercise = true
-                            case "Screen Time": isTriggerScreenTime = true
-                            default: isTriggerOther = true
-                            }
-                        } else {
-                            switch trigger {
-                            case "Stress": isTriggerStress = false
-                            case "Lack of Sleep": isTriggerLackOfSleep = false
-                            case "Dehydration": isTriggerDehydration = false
-                            case "Weather": isTriggerWeather = false
-                            case "Menstrual": isTriggerHormones = false
-                            case "Alcohol": isTriggerAlcohol = false
-                            case "Caffeine": isTriggerCaffeine = false
-                            case "Food": isTriggerFood = false
-                            case "Exercise": isTriggerExercise = false
-                            case "Screen Time": isTriggerScreenTime = false
-                            default: isTriggerOther = false
-                            }
-                        }
+                        if isOn { selection.insert(trigger) }
+                        else    { selection.remove(trigger) }
                     }
                 }
             ))
@@ -532,87 +388,16 @@ struct TriggerSelectionView: View {
 }
 
 struct MedicationSelectionView: View {
-    @Binding var tookIbuprofin: Bool
-    @Binding var tookExcedrin: Bool
-    @Binding var tookTylenol: Bool
-    @Binding var tookSumatriptan: Bool
-    @Binding var tookRizatriptan: Bool
-    @Binding var tookNaproxen: Bool
-    @Binding var tookFrovatriptan: Bool
-    @Binding var tookNaratriptan: Bool
-    @Binding var tookNurtec: Bool
-    @Binding var tookSymbravo: Bool
-    @Binding var tookUbrelvy: Bool
-    @Binding var tookReyvow: Bool
-    @Binding var tookTrudhesa: Bool
-    @Binding var tookElyxyb: Bool
-    @Binding var tookOther: Bool
-    @Binding var tookEletriptan: Bool
-    
-    private let medications = [
-        "Tylenol (acetaminophen)",
-        "Ibuprofen",
-        "Naproxen",
-        "Excedrin",
-        "Ubrelvy (ubrogepant)",
-        "Nurtec (rimegepant)",
-        "Symbravo",
-        "Sumatriptan",
-        "Rizatriptan",
-        "Eletriptan",
-        "Naratriptan",
-        "Frovatriptan",
-        "Reyvow (lasmiditan)",
-        "Trudhesa (dihydroergotamine)",
-        "Elyxyb",
-        "Other"
-    ]
-    
+    @Binding var selection: Set<MigraineMedication>
+
     var body: some View {
-        ForEach(medications, id: \.self) { medication in
-            Toggle(medication, isOn: Binding(
-                get: {
-                    switch medication {
-                    case "Tylenol (acetaminophen)": return tookTylenol
-                    case "Ibuprofen": return tookIbuprofin
-                    case "Naproxen": return tookNaproxen
-                    case "Excedrin": return tookExcedrin
-                    case "Ubrelvy (ubrogepant)": return tookUbrelvy
-                    case "Nurtec (rimegepant)": return tookNurtec
-                    case "Symbravo": return tookSymbravo
-                    case "Sumatriptan": return tookSumatriptan
-                    case "Rizatriptan": return tookRizatriptan
-                    case "Eletriptan": return tookEletriptan
-                    case "Naratriptan": return tookNaratriptan
-                    case "Frovatriptan": return tookFrovatriptan
-                    case "Reyvow (lasmiditan)": return tookReyvow
-                    case "Trudhesa (dihydroergotamine)": return tookTrudhesa
-                    case "Elyxyb": return tookElyxyb
-                    case "Other": return tookOther
-                    default: return false
-                    }
-                },
-                set: { isSelected in
+        ForEach(MigraineMedication.allCases) { medication in
+            Toggle(medication.fullDisplayName, isOn: Binding(
+                get: { selection.contains(medication) },
+                set: { isOn in
                     withAnimation {
-                        switch medication {
-                        case "Tylenol (acetaminophen)": tookTylenol = isSelected
-                        case "Ibuprofen": tookIbuprofin = isSelected
-                        case "Naproxen": tookNaproxen = isSelected
-                        case "Excedrin": tookExcedrin = isSelected
-                        case "Ubrelvy (ubrogepant)": tookUbrelvy = isSelected
-                        case "Nurtec (rimegepant)": tookNurtec = isSelected
-                        case "Symbravo": tookSymbravo = isSelected
-                        case "Sumatriptan": tookSumatriptan = isSelected
-                        case "Rizatriptan": tookRizatriptan = isSelected
-                        case "Eletriptan": tookEletriptan = isSelected
-                        case "Naratriptan": tookNaratriptan = isSelected
-                        case "Frovatriptan": tookFrovatriptan = isSelected
-                        case "Reyvow (lasmiditan)": tookReyvow = isSelected
-                        case "Trudhesa (dihydroergotamine)": tookTrudhesa = isSelected
-                        case "Elyxyb": tookElyxyb = isSelected
-                        case "Other": tookOther = isSelected
-                        default: break
-                        }
+                        if isOn { selection.insert(medication) }
+                        else    { selection.remove(medication) }
                     }
                 }
             ))

@@ -19,28 +19,63 @@ struct SettingsView: View {
     @State private var backfillTotal = 0
     @State private var showingBackfillAlert = false
     @State private var backfillResult = ""
-    
+
+    // Recovery file states — surfaces `PersistenceController.lastRecoveryFileDefaultsKey`
+    // when a corrupted Core Data store has been moved aside, so the user can
+    // share it with support before the OS reclaims temp/Documents storage.
+    @State private var recoveryFileURL: URL?
+    @State private var recoveryFileModificationDate: Date?
+    @State private var recoveryFileSizeBytes: Int64?
+    @State private var showingRecoveryShareSheet = false
+    @State private var showingRecoveryDismissConfirm = false
+
     // Export states
     @State private var showingExportWarning = false
     @State private var showingExportSheet = false
     @State private var exportURL: URL?
     @State private var isExporting = false
     @State private var exportFormat: ExportFormat = .csv
+
+    // Help & Feedback — drives the in-app feedback sheet. The "Rate
+    // on App Store" button doesn't need a state var because it's a
+    // straight `Link` to the App Store deep link.
+    @State private var showingFeedbackForm = false
     
     enum ExportFormat: String, CaseIterable {
         case csv = "CSV"
         case pdf = "PDF"
     }
+
+    /// Trigger column order for the CSV export. Locked to match the literal
+    /// header string in `exportToCSV()` — DO NOT reorder without also
+    /// updating the header, or downstream parsers will silently misalign.
+    fileprivate static let csvTriggerOrder: [MigraineTrigger] = [
+        .stress, .lackOfSleep, .dehydration, .weather, .menstrual,
+        .alcohol, .caffeine, .food, .exercise, .screenTime, .other
+    ]
+
+    /// Medication column order for the CSV export. Locked to match the literal
+    /// header string in `exportToCSV()`. Excludes `.eletriptan` to preserve
+    /// byte-for-byte compatibility with previously exported CSVs.
+    fileprivate static let csvMedicationOrder: [MigraineMedication] = [
+        .ibuprofin, .excedrin, .tylenol, .sumatriptan, .rizatriptan,
+        .naproxen, .frovatriptan, .naratriptan, .nurtec, .symbravo,
+        .ubrelvy, .reyvow, .trudhesa, .elyxyb, .other
+    ]
     
     var body: some View {
         NavigationView {
             Form {
+                // Recovery is surfaced first when present so the user notices
+                // it before scrolling into routine settings.
+                recoverySection
                 dataSyncSection
                 weatherTrackingSection
                 backfillSection
                 unitsSection
                 appearanceSection
                 exportSection
+                feedbackSection
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -103,16 +138,35 @@ struct SettingsView: View {
                     ShareSheet(items: [url])
                 }
             }
+            .sheet(isPresented: $showingRecoveryShareSheet) {
+                if let url = recoveryFileURL {
+                    ShareSheet(items: [url])
+                }
+            }
+            .sheet(isPresented: $showingFeedbackForm) {
+                FeedbackFormView(origin: .settings)
+            }
+            .confirmationDialog(
+                "Dismiss recovered database notice?",
+                isPresented: $showingRecoveryDismissConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Dismiss Notice", role: .destructive) {
+                    dismissRecoveryNotice()
+                }
+                Button("Keep Notice", role: .cancel) { }
+            } message: {
+                Text("The backup file will remain on disk and can be shared from the Files app, but this notice will not appear here again.")
+            }
             .onAppear {
-                // Refresh location status when view appears
-                print("⚙️ SettingsView appeared")
-                print("⚙️ Current location status: \(locationManager.authorizationStatus.rawValue)")
+                AppLogger.ui.debug("SettingsView appeared; location status raw=\(locationManager.authorizationStatus.rawValue, privacy: .public)")
                 locationManager.refreshAuthorizationStatus()
+                refreshRecoveryFileMetadata()
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-                // Refresh status when returning from Settings app
-                print("⚙️ App entering foreground, refreshing location status")
+                AppLogger.ui.debug("App entering foreground; refreshing location status")
                 locationManager.refreshAuthorizationStatus()
+                refreshRecoveryFileMetadata()
             }
         }
     }
@@ -122,7 +176,7 @@ struct SettingsView: View {
     private var dataSyncSection: some View {
         Section(header: Text("Data Sync")) {
             Toggle("Enable iCloud Sync", isOn: $settings.useICloudSync)
-                .onChange(of: settings.useICloudSync) { newValue in
+                .onChange(of: settings.useICloudSync) { _, newValue in
                     if newValue {
                         showingMigrationAlert = true
                     }
@@ -272,6 +326,61 @@ struct SettingsView: View {
         }
     }
     
+    // MARK: - Help & Feedback
+
+    /// Always-available entry points for rating the app on the App Store
+    /// (system review prompt is rate-limited and gated behind the
+    /// "Enjoying Headway?" pre-prompt; this row gives the user an
+    /// unconditional way to leave a review when they want to) and for
+    /// sending in-app feedback (routes to the same `FeedbackFormView`
+    /// the "Not really" path uses, but with `origin = .settings` so
+    /// the copy is friendlier).
+    private var feedbackSection: some View {
+        Section {
+            Link(destination: AppContactInfo.appStoreWriteReviewURL) {
+                Label {
+                    Text("Rate Headway on the App Store")
+                        .foregroundStyle(.primary)
+                } icon: {
+                    Image(systemName: "star.fill")
+                        .foregroundStyle(.yellow)
+                }
+            }
+            .accessibilityLabel("Rate Headway on the App Store")
+            .accessibilityHint("Opens the App Store to the review page for Headway.")
+
+            Button {
+                showingFeedbackForm = true
+            } label: {
+                Label {
+                    Text("Send Feedback")
+                        .foregroundStyle(.primary)
+                } icon: {
+                    Image(systemName: "envelope.fill")
+                        .foregroundStyle(.blue)
+                }
+            }
+            .accessibilityLabel("Send feedback")
+            .accessibilityHint("Opens an in-app form to send feedback, bug reports, or feature requests to the developer.")
+
+            Link(destination: AppContactInfo.privacyPolicyURL) {
+                Label {
+                    Text("Privacy Policy")
+                        .foregroundStyle(.primary)
+                } icon: {
+                    Image(systemName: "lock.shield.fill")
+                        .foregroundStyle(.green)
+                }
+            }
+            .accessibilityLabel("View privacy policy")
+            .accessibilityHint("Opens the full Headway privacy policy in your default browser.")
+        } header: {
+            Text("Help & Feedback")
+        } footer: {
+            Text("Reviews help other migraine sufferers find Headway. Feedback goes directly to the developer — replies come from a real person, not an autoresponder.")
+        }
+    }
+
     private var exportHeaderView: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
@@ -295,6 +404,89 @@ struct SettingsView: View {
         }
     }
     
+    // MARK: - Recovery File
+
+    /// Renders only when a moved-aside Core Data file is on disk *and* the
+    /// path stored under `PersistenceController.lastRecoveryFileDefaultsKey`
+    /// still resolves. Stale pointers are silently cleared on appear.
+    @ViewBuilder
+    private var recoverySection: some View {
+        if let url = recoveryFileURL {
+            Section {
+                RecoveryFileBanner(
+                    fileName: url.lastPathComponent,
+                    modificationDate: recoveryFileModificationDate,
+                    sizeBytes: recoveryFileSizeBytes
+                )
+
+                Button {
+                    showingRecoveryShareSheet = true
+                } label: {
+                    Label("Share Recovered Database", systemImage: "square.and.arrow.up")
+                }
+                .accessibilityHint("Send the file to support, AirDrop, or save to Files for safekeeping.")
+
+                Button(role: .destructive) {
+                    showingRecoveryDismissConfirm = true
+                } label: {
+                    Label("Dismiss This Notice", systemImage: "xmark.circle")
+                }
+                .accessibilityHint("Hide this section. The backup file remains on disk.")
+            } header: {
+                Label("Database Recovered", systemImage: "exclamationmark.shield.fill")
+                    .foregroundColor(.orange)
+            } footer: {
+                Text("On a recent app launch, the local database file could not be opened and was preserved as a backup. A fresh database has taken its place. Send the backup to support if you need help recovering older entries.")
+            }
+        }
+    }
+
+    /// Re-reads `UserDefaults` and disk so the section auto-hides if the
+    /// user has already moved/deleted the file (e.g. via the share sheet
+    /// → Save to Files → Move flow), or auto-appears if a fresh recovery
+    /// happened while the app was backgrounded.
+    private func refreshRecoveryFileMetadata() {
+        let defaults = UserDefaults.standard
+        guard let path = defaults.string(forKey: PersistenceController.lastRecoveryFileDefaultsKey) else {
+            recoveryFileURL = nil
+            recoveryFileModificationDate = nil
+            recoveryFileSizeBytes = nil
+            return
+        }
+
+        let url = URL(fileURLWithPath: path)
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: url.path) else {
+            // Pointer is stale — file was moved or deleted out from under us.
+            // Clear the key so we don't keep advertising a missing file.
+            defaults.removeObject(forKey: PersistenceController.lastRecoveryFileDefaultsKey)
+            recoveryFileURL = nil
+            recoveryFileModificationDate = nil
+            recoveryFileSizeBytes = nil
+            return
+        }
+
+        recoveryFileURL = url
+        if let attrs = try? fm.attributesOfItem(atPath: url.path) {
+            recoveryFileModificationDate = attrs[.modificationDate] as? Date
+            recoveryFileSizeBytes = (attrs[.size] as? NSNumber)?.int64Value
+        } else {
+            recoveryFileModificationDate = nil
+            recoveryFileSizeBytes = nil
+        }
+    }
+
+    /// Clears only the `UserDefaults` pointer; the file itself is left on
+    /// disk so the user can still retrieve it via Files / iTunes file
+    /// sharing if they change their mind. Logged so support can correlate.
+    private func dismissRecoveryNotice() {
+        UserDefaults.standard.removeObject(forKey: PersistenceController.lastRecoveryFileDefaultsKey)
+        AppLogger.coreData.notice("Recovery notice dismissed by user; backup file left on disk.")
+        recoveryFileURL = nil
+        recoveryFileModificationDate = nil
+        recoveryFileSizeBytes = nil
+    }
+
     // MARK: - Backfill Helper
     
     private func performBackfill() async {
@@ -368,25 +560,20 @@ struct SettingsView: View {
     }
     
     private func handleLocationPermission() {
-        print("⚙️ handleLocationPermission called")
-        print("⚙️ Current status: \(locationManager.authorizationStatus.rawValue)")
-        
+        let raw = locationManager.authorizationStatus.rawValue
+        AppLogger.ui.debug("handleLocationPermission tapped; status raw=\(raw, privacy: .public)")
+
         switch locationManager.authorizationStatus {
         case .notDetermined:
-            // Request permission - this will show the iOS dialog with all options
-            print("⚙️ Status is notDetermined, requesting permission")
+            AppLogger.ui.debug("Location notDetermined → requesting permission")
             locationManager.requestPermission()
         case .denied, .restricted:
-            // Show alert to open Settings
-            print("⚙️ Status is denied/restricted, showing alert")
+            AppLogger.ui.debug("Location denied/restricted → showing Open-Settings alert")
             showingLocationAlert = true
         case .authorizedWhenInUse, .authorizedAlways:
-            // Already authorized, could show info
-            print("⚙️ Status is already authorized")
-            break
+            AppLogger.ui.debug("Location already authorized; no action")
         @unknown default:
-            print("⚙️ Unknown status")
-            break
+            AppLogger.ui.error("Unknown location authorization status raw=\(raw, privacy: .public)")
         }
     }
     
@@ -474,35 +661,20 @@ struct SettingsView: View {
             row.append(migraine.hasTinnitus ? "Yes" : "No")
             row.append(migraine.hasVertigo ? "Yes" : "No")
             
-            // Triggers
-            row.append(migraine.isTriggerStress ? "Yes" : "No")
-            row.append(migraine.isTriggerLackOfSleep ? "Yes" : "No")
-            row.append(migraine.isTriggerDehydration ? "Yes" : "No")
-            row.append(migraine.isTriggerWeather ? "Yes" : "No")
-            row.append(migraine.isTriggerHormones ? "Yes" : "No")
-            row.append(migraine.isTriggerAlcohol ? "Yes" : "No")
-            row.append(migraine.isTriggerCaffeine ? "Yes" : "No")
-            row.append(migraine.isTriggerFood ? "Yes" : "No")
-            row.append(migraine.isTriggerExercise ? "Yes" : "No")
-            row.append(migraine.isTriggerScreenTime ? "Yes" : "No")
-            row.append(migraine.isTriggerOther ? "Yes" : "No")
-            
-            // Medications
-            row.append(migraine.tookIbuprofin ? "Yes" : "No")
-            row.append(migraine.tookExcedrin ? "Yes" : "No")
-            row.append(migraine.tookTylenol ? "Yes" : "No")
-            row.append(migraine.tookSumatriptan ? "Yes" : "No")
-            row.append(migraine.tookRizatriptan ? "Yes" : "No")
-            row.append(migraine.tookNaproxen ? "Yes" : "No")
-            row.append(migraine.tookFrovatriptan ? "Yes" : "No")
-            row.append(migraine.tookNaratriptan ? "Yes" : "No")
-            row.append(migraine.tookNurtec ? "Yes" : "No")
-            row.append(migraine.tookSymbravo ? "Yes" : "No")
-            row.append(migraine.tookUbrelvy ? "Yes" : "No")
-            row.append(migraine.tookReyvow ? "Yes" : "No")
-            row.append(migraine.tookTrudhesa ? "Yes" : "No")
-            row.append(migraine.tookElyxyb ? "Yes" : "No")
-            row.append(migraine.tookOther ? "Yes" : "No")
+            // Triggers — column order MUST match the CSV header above. Using
+            // a fixed `csvTriggerOrder` so adding/removing a case in the enum
+            // can't silently shift columns and break downstream parsers.
+            for trigger in Self.csvTriggerOrder {
+                row.append(migraine.triggers.contains(trigger) ? "Yes" : "No")
+            }
+
+            // Medications — column order MUST match the CSV header above.
+            // Note: `MigraineMedication.eletriptan` is intentionally omitted to
+            // preserve byte-for-byte compatibility with previously exported
+            // CSVs. (Adding a new column would break existing user pipelines.)
+            for medication in Self.csvMedicationOrder {
+                row.append(migraine.medications.contains(medication) ? "Yes" : "No")
+            }
             
             // Impact
             row.append(migraine.missedWork ? "Yes" : "No")
@@ -722,44 +894,14 @@ struct SettingsView: View {
                     currentY += symptoms.count > 4 ? 35 : 20
                 }
                 
-                // Triggers
-                var triggers: [String] = []
-                if migraine.isTriggerStress { triggers.append("Stress") }
-                if migraine.isTriggerLackOfSleep { triggers.append("Lack of sleep") }
-                if migraine.isTriggerDehydration { triggers.append("Dehydration") }
-                if migraine.isTriggerWeather { triggers.append("Weather") }
-                if migraine.isTriggerHormones { triggers.append("Menstrual") }
-                if migraine.isTriggerAlcohol { triggers.append("Alcohol") }
-                if migraine.isTriggerCaffeine { triggers.append("Caffeine") }
-                if migraine.isTriggerFood { triggers.append("Food") }
-                if migraine.isTriggerExercise { triggers.append("Exercise") }
-                if migraine.isTriggerScreenTime { triggers.append("Screen time") }
-                if migraine.isTriggerOther { triggers.append("Other") }
-                
+                let triggers = migraine.orderedTriggers.map(\.displayName)
                 if !triggers.isEmpty {
                     let triggersText = "Triggers: \(triggers.joined(separator: ", "))"
                     triggersText.draw(in: CGRect(x: margin, y: currentY, width: contentWidth, height: 30), withAttributes: summaryAttrs)
                     currentY += triggers.count > 4 ? 35 : 20
                 }
-                
-                // Medications
-                var meds: [String] = []
-                if migraine.tookIbuprofin { meds.append("Ibuprofen") }
-                if migraine.tookExcedrin { meds.append("Excedrin") }
-                if migraine.tookTylenol { meds.append("Tylenol") }
-                if migraine.tookSumatriptan { meds.append("Sumatriptan") }
-                if migraine.tookRizatriptan { meds.append("Rizatriptan") }
-                if migraine.tookNaproxen { meds.append("Naproxen") }
-                if migraine.tookFrovatriptan { meds.append("Frovatriptan") }
-                if migraine.tookNaratriptan { meds.append("Naratriptan") }
-                if migraine.tookNurtec { meds.append("Nurtec") }
-                if migraine.tookSymbravo { meds.append("Symbravo") }
-                if migraine.tookUbrelvy { meds.append("Ubrelvy") }
-                if migraine.tookReyvow { meds.append("Reyvow") }
-                if migraine.tookTrudhesa { meds.append("Trudhesa") }
-                if migraine.tookElyxyb { meds.append("Elyxyb") }
-                if migraine.tookOther { meds.append("Other") }
-                
+
+                let meds = migraine.orderedMedications.map(\.displayName)
                 if !meds.isEmpty {
                     let medsText = "Medications: \(meds.joined(separator: ", "))"
                     medsText.draw(in: CGRect(x: margin, y: currentY, width: contentWidth, height: 30), withAttributes: summaryAttrs)
@@ -1012,6 +1154,76 @@ struct BackfillStepRow: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
+    }
+}
+
+/// Read-only summary card for the moved-aside Core Data backup file.
+/// Lives inside the recovery `Section`; the Share / Dismiss actions are
+/// the surrounding `Button`s.
+struct RecoveryFileBanner: View {
+    let fileName: String
+    let modificationDate: Date?
+    let sizeBytes: Int64?
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .short
+        return f
+    }()
+
+    private static let byteCountFormatter: ByteCountFormatter = {
+        let f = ByteCountFormatter()
+        f.allowedUnits = [.useKB, .useMB]
+        f.countStyle = .file
+        return f
+    }()
+
+    private var formattedSize: String? {
+        guard let sizeBytes else { return nil }
+        return Self.byteCountFormatter.string(fromByteCount: sizeBytes)
+    }
+
+    private var formattedDate: String? {
+        guard let modificationDate else { return nil }
+        return Self.dateFormatter.string(from: modificationDate)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "externaldrive.badge.checkmark")
+                    .foregroundColor(.orange)
+                    .font(.system(size: 14))
+                Text("Backup Available")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.primary)
+            }
+
+            Text(fileName)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundColor(.secondary)
+                .lineLimit(2)
+                .truncationMode(.middle)
+                .accessibilityLabel("File name: \(fileName)")
+
+            HStack(spacing: 12) {
+                if let formattedDate {
+                    Label(formattedDate, systemImage: "clock")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .accessibilityLabel("Recovered \(formattedDate)")
+                }
+                if let formattedSize {
+                    Label(formattedSize, systemImage: "doc")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .accessibilityLabel("Size \(formattedSize)")
+                }
+            }
+        }
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
     }
 }
 

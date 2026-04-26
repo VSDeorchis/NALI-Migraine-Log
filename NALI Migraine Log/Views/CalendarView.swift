@@ -132,7 +132,7 @@ struct CalendarView: View {
         var days: [Date?] = []
         
         // Add empty days at start
-        for index in 0..<(firstWeekday - 1) {
+        for _ in 0..<(firstWeekday - 1) {
             days.append(nil)
         }
         
@@ -145,7 +145,7 @@ struct CalendarView: View {
         
         // Add empty days at end
         let remainingDays = (7 - (days.count % 7)) % 7
-        for index in 0..<remainingDays {
+        for _ in 0..<remainingDays {
             days.append(nil)
         }
         
@@ -160,9 +160,7 @@ struct CalendarView: View {
     }
     
     private func printDebugInfo() {
-        #if DEBUG
-        print("Number of migraines: \(viewModel.migraines.count)")
-        #endif
+        AppLogger.ui.debug("CalendarView migraine count=\(viewModel.migraines.count, privacy: .public)")
     }
 }
 
@@ -266,25 +264,8 @@ struct DayDetailView: View {
 struct MigraineSummaryCard: View {
     let migraine: MigraineEvent
     
-    // Helper to get active medications
     private var activeMedications: [String] {
-        var medications: [String] = []
-        if migraine.tookIbuprofin { medications.append("Ibuprofen") }
-        if migraine.tookExcedrin { medications.append("Excedrin") }
-        if migraine.tookTylenol { medications.append("Tylenol") }
-        if migraine.tookSumatriptan { medications.append("Sumatriptan") }
-        if migraine.tookRizatriptan { medications.append("Rizatriptan") }
-        if migraine.tookNaproxen { medications.append("Naproxen") }
-        if migraine.tookFrovatriptan { medications.append("Frovatriptan") }
-        if migraine.tookNaratriptan { medications.append("Naratriptan") }
-        if migraine.tookNurtec { medications.append("Nurtec") }
-        if migraine.tookSymbravo { medications.append("Symbravo") }
-        if migraine.tookUbrelvy { medications.append("Ubrelvy") }
-        if migraine.tookReyvow { medications.append("Reyvow") }
-        if migraine.tookTrudhesa { medications.append("Trudhesa") }
-        if migraine.tookElyxyb { medications.append("Elyxyb") }
-        if migraine.tookOther { medications.append("Other") }
-        return medications
+        migraine.orderedMedications.map(\.displayName)
     }
     
     var body: some View {

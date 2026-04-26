@@ -12,42 +12,12 @@ struct MigraineRowView: View {
         return formatter
     }()
     
-    // Helper to get active triggers
     private var activeTriggers: [String] {
-        var triggers: [String] = []
-        if migraine.isTriggerStress { triggers.append("Stress") }
-        if migraine.isTriggerLackOfSleep { triggers.append("Lack of Sleep") }
-        if migraine.isTriggerDehydration { triggers.append("Dehydration") }
-        if migraine.isTriggerWeather { triggers.append("Weather") }
-        if migraine.isTriggerHormones { triggers.append("Menstrual") }
-        if migraine.isTriggerAlcohol { triggers.append("Alcohol") }
-        if migraine.isTriggerCaffeine { triggers.append("Caffeine") }
-        if migraine.isTriggerFood { triggers.append("Food") }
-        if migraine.isTriggerExercise { triggers.append("Exercise") }
-        if migraine.isTriggerScreenTime { triggers.append("Screen Time") }
-        if migraine.isTriggerOther { triggers.append("Other") }
-        return triggers
+        migraine.orderedTriggers.map(\.displayName)
     }
-    
-    // Helper to get active medications
+
     private var activeMedications: [String] {
-        var medications: [String] = []
-        if migraine.tookIbuprofin { medications.append("Ibuprofen") }
-        if migraine.tookExcedrin { medications.append("Excedrin") }
-        if migraine.tookTylenol { medications.append("Tylenol") }
-        if migraine.tookSumatriptan { medications.append("Sumatriptan") }
-        if migraine.tookRizatriptan { medications.append("Rizatriptan") }
-        if migraine.tookNaproxen { medications.append("Naproxen") }
-        if migraine.tookFrovatriptan { medications.append("Frovatriptan") }
-        if migraine.tookNaratriptan { medications.append("Naratriptan") }
-        if migraine.tookNurtec { medications.append("Nurtec") }
-        if migraine.tookSymbravo { medications.append("Symbravo") }
-        if migraine.tookUbrelvy { medications.append("Ubrelvy") }
-        if migraine.tookReyvow { medications.append("Reyvow") }
-        if migraine.tookTrudhesa { medications.append("Trudhesa") }
-        if migraine.tookElyxyb { medications.append("Elyxyb") }
-        if migraine.tookOther { medications.append("Other") }
-        return medications
+        migraine.orderedMedications.map(\.displayName)
     }
     
     // Get valid weather icon name from weather code
@@ -471,7 +441,24 @@ struct PressureChangeBadge: View {
     private var unitSymbol: String {
         settings.pressureUnit.symbol
     }
-    
+
+    /// Spoken severity bucket — mirrors the green/orange/red color thresholds
+    /// so VoiceOver users hear the same urgency level sighted users see.
+    private var severityWord: String {
+        let absChange = abs(pressureChangeHPa)
+        if absChange < 2 { return "stable" }
+        if absChange < 5 { return "moderate change" }
+        return "significant change"
+    }
+
+    private var directionWord: String {
+        pressureChangeHPa > 0 ? "rising" : "falling"
+    }
+
+    private var unitName: String {
+        settings.pressureUnit == .mmHg ? "millimeters of mercury" : "hectopascals"
+    }
+
     var body: some View {
         HStack(spacing: 3) {
             Image(systemName: pressureChangeHPa > 0 ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
@@ -484,5 +471,10 @@ struct PressureChangeBadge: View {
         .padding(.vertical, 4)
         .background(color.opacity(0.15))
         .clipShape(Capsule())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Barometric pressure")
+        .accessibilityValue(
+            "\(directionWord) \(String(format: "%.1f", abs(pressureChangeValue))) \(unitName) over 24 hours, \(severityWord)"
+        )
     }
 } 
