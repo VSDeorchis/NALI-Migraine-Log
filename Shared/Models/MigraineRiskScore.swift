@@ -22,6 +22,19 @@ struct MigraineRiskScore {
     var riskPercentage: Int {
         Int(overallRisk * 100)
     }
+
+    /// Discrete color matching the angular-gradient calibration used in the
+    /// risk-prediction gauge: 0–25% green, 25–50% yellow, >50% red.
+    /// Orange appears only as a brief visual transition inside the gradient
+    /// (around the 50% mark), not as a discrete leading-edge color — this
+    /// matches the rule "anything over 50% should be red."
+    var arcLeadingColor: Color {
+        switch overallRisk {
+        case ..<0.25: return .green
+        case ..<0.50: return .yellow
+        default: return .red
+        }
+    }
 }
 
 // MARK: - Risk Level

@@ -95,21 +95,55 @@ struct MacMigraineRiskView: View {
                         .stroke(Color.gray.opacity(0.2), lineWidth: 20)
                         .frame(width: 200, height: 200)
                     
-                    // Risk arc
+                    // Risk arc — gradient stops are anchored to fixed positions on
+                    // the full circle (0% green → 25% yellow → 50% orange → >50% red),
+                    // so the leading edge of the visible arc shows the color that
+                    // actually corresponds to the current risk percentage.
+                    //
+                    // We use `.butt` here (instead of `.round`) so the stroke
+                    // doesn't extend past the path's start angle. The rounded
+                    // "caps" are drawn as separate filled circles below, each
+                    // in the exact color it should be — otherwise the
+                    // AngularGradient's 0°/360° wraparound (red→green) would
+                    // bleed a red sliver into the start cap at the top.
                     Circle()
                         .trim(from: 0, to: risk.overallRisk)
                         .stroke(
                             AngularGradient(
-                                gradient: Gradient(colors: [.green, .yellow, .orange, .red]),
+                                gradient: Gradient(stops: [
+                                    .init(color: .green,  location: 0.00),
+                                    .init(color: .yellow, location: 0.25),
+                                    .init(color: .orange, location: 0.50),
+                                    .init(color: .red,    location: 0.55),
+                                    .init(color: .red,    location: 1.00)
+                                ]),
                                 center: .center,
                                 startAngle: .degrees(0),
-                                endAngle: .degrees(360 * risk.overallRisk)
+                                endAngle: .degrees(360)
                             ),
-                            style: StrokeStyle(lineWidth: 20, lineCap: .round)
+                            style: StrokeStyle(lineWidth: 20, lineCap: .butt)
                         )
                         .frame(width: 200, height: 200)
                         .rotationEffect(.degrees(-90))
                         .animation(.easeInOut(duration: 1.0), value: risk.overallRisk)
+
+                    // Rounded end caps — drawn separately so each can use the
+                    // exact color it should be (always green at the low-risk
+                    // start; riskLevel.color at the leading edge). This sidesteps
+                    // the angular gradient's wraparound discontinuity.
+                    if risk.overallRisk > 0 {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 20, height: 20)
+                            .offset(y: -100)
+
+                        Circle()
+                            .fill(risk.arcLeadingColor)
+                            .frame(width: 20, height: 20)
+                            .offset(y: -100)
+                            .rotationEffect(.degrees(360 * risk.overallRisk))
+                            .animation(.easeInOut(duration: 1.0), value: risk.overallRisk)
+                    }
                     
                     // Center content
                     VStack(spacing: 4) {
