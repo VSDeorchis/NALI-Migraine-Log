@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+		Privacy manifest for the NALI Migraine Log watchOS bundle.
+
+		Apple's tooling expects exactly one PrivacyInfo.xcprivacy per .app
+		bundle, so each target gets its own copy here. The shared content
+		MUST stay in sync across all three target manifests:
+
+		  - NALI Migraine Log/PrivacyInfo.xcprivacy            (iOS)
+		  - NALI Migraine Log macOS/PrivacyInfo.xcprivacy
+		  - NALI Migraine Log Watch App Watch App/PrivacyInfo.xcprivacy   (this file)
+
+		If you add a new required-reason API anywhere in the codebase,
+		update all three files. Apple does not allow under-declaration.
+
+		Tracking: we do not link any data collected by this app with data
+		collected by other companies' apps, websites, or properties.
+
+		Data collection: we do not collect data and send it to a server
+		we control. iCloud sync uses the user's own private CloudKit
+		database; new entries are also relayed to the paired iPhone via
+		WatchConnectivity, but that is a peer-to-peer hand-off, not
+		developer-side data collection.
+	-->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<!--
+				UserDefaults — used by the MigrationCoordinator to record
+				the last-launched app version on the watch and by shared
+				services that read settings written by the iOS app. All
+				values are read and written exclusively by this app.
+			-->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

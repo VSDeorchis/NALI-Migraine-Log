@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+		Privacy manifest for the NALI Migraine Log macOS bundle.
+
+		Apple's tooling expects exactly one PrivacyInfo.xcprivacy per .app
+		bundle, so each target gets its own copy here. The shared content
+		MUST stay in sync across all three target manifests:
+
+		  - NALI Migraine Log/PrivacyInfo.xcprivacy            (iOS)
+		  - NALI Migraine Log macOS/PrivacyInfo.xcprivacy      (this file)
+		  - NALI Migraine Log Watch App Watch App/PrivacyInfo.xcprivacy
+
+		If you add a new required-reason API anywhere in the codebase,
+		update all three files. Apple does not allow under-declaration —
+		over-declaration is harmless, so the iOS file lists the most
+		surface area; macOS and Watch list only what they actually use.
+
+		Tracking: we do not link any data collected by this app with data
+		collected by other companies' apps, websites, or properties.
+		Migraine, weather, and HealthKit data either stays on-device or is
+		synced exclusively through the user's own iCloud account via
+		NSPersistentCloudKitContainer.
+
+		Data collection: we do not collect data and send it to a server we
+		control. iCloud sync uses the user's own private CloudKit database.
+	-->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<!--
+				UserDefaults — used to persist app settings, the disclaimer
+				acceptance flag, the MigrationCoordinator's last-launched-
+				version stamp, and (when the recovery surface is ported)
+				the path to a moved-aside Core Data store. All values are
+				read and written exclusively by this app.
+			-->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

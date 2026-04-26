@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+		Privacy manifest for the NALI Migraine Log iOS bundle.
+
+		Apple's tooling expects exactly one PrivacyInfo.xcprivacy per .app
+		bundle, so each target gets its own copy. Synchronized root groups
+		only auto-include `.xcprivacy` files in their owning target — they
+		do NOT propagate the file to other targets that also consume the
+		same root group — so co-locating one file in `NALI Migraine Log/`
+		would silently leave the macOS and watchOS bundles missing their
+		manifest. Three separate files, one per primary synchronized root,
+		is the only configuration that produces the expected output.
+
+		Sibling files that MUST stay in lockstep when adding a new
+		required-reason API anywhere in the codebase:
+
+		  - NALI Migraine Log/PrivacyInfo.xcprivacy            (this file)
+		  - NALI Migraine Log macOS/PrivacyInfo.xcprivacy
+		  - NALI Migraine Log Watch App Watch App/PrivacyInfo.xcprivacy
+
+		Apple does not allow under-declaration; over-declaration is
+		harmless. The iOS file lists the most surface area because that
+		target also surfaces the recovery-file UI, which reads file
+		modification timestamps. macOS and Watch list only what they
+		actually use.
+
+		Tracking
+		--------
+		We do not link any data collected by this app with data collected
+		by other companies' apps, websites, or properties. All migraine,
+		weather, and HealthKit data either stays on-device or is synced
+		exclusively through the user's own iCloud account via
+		NSPersistentCloudKitContainer.
+
+		Data collection
+		---------------
+		We do not collect data and send it to a server we control. iCloud
+		sync uses the user's own private CloudKit database. The watch app
+		additionally relays new entries to the paired iPhone via
+		WatchConnectivity, but that is a peer-to-peer hand-off, not
+		developer-side data collection. NSPrivacyCollectedDataTypes is
+		therefore intentionally empty.
+
+		Required-reason API declarations
+		--------------------------------
+		Each entry below uses Apple's published reason codes
+		(https://developer.apple.com/documentation/bundleresources/
+		describing_use_of_required_reason_api).
+	-->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<!--
+				UserDefaults — used by every target to persist app
+				settings, the disclaimer acceptance flag, the
+				MigrationCoordinator's last-launched-version stamp,
+				the data-migration completion flag, and the path to a
+				moved-aside Core Data store after a recovery. All values
+				are read and written exclusively by this app.
+			-->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+		<dict>
+			<!--
+				File timestamp — read via FileManager.attributesOfItem(atPath:)
+				inside SettingsView's recovery section to display the
+				modification date of a moved-aside Core Data store so
+				the user can confirm which backup they're about to share
+				with support. Timestamps are shown in the UI and never
+				sent off-device or used to derive other signals. The
+				macOS and watchOS bundles do not surface this UI today,
+				so their manifests omit this entry — re-add it there if
+				the recovery surface is ever ported across platforms.
+			-->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

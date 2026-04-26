@@ -1,0 +1,191 @@
+# GitHub Actions CI for NALI Migraine Log.
+#
+# Runs three jobs in parallel on every push to main and every pull request:
+#
+#   1. test-ios   — builds the iOS scheme on a simulator and runs the
+#                   ~48-test unit suite (`NALI Migraine LogTests`). UI tests
+#                   are intentionally skipped to keep CI fast and
+#                   deterministic; we don't have a stable UI suite yet.
+#   2. build-macos — compiles the macOS app for the host runner. We don't
+#                    run macOS unit tests yet (the target only contains the
+#                    Xcode-generated stub) but a successful build is enough
+#                    to catch shared-code regressions.
+#   3. build-watch — compiles the watchOS scheme against a generic watchOS
+#                    Simulator destination. Same rationale as macOS.
+#
+# Notes for future tinkering:
+#
+#   * `-parallel-testing-enabled NO` is here on purpose. Spinning up a
+#     second cloned simulator triggers a known SIGTRAP inside
+#     `-[PFCloudKitSetupAssistant _initializeCloudKitForObservedStore:]`
+#     when no signed-in iCloud account exists, which is always the case
+#     on a fresh CI runner. Single-runner serial testing avoids it.
+#
+#   * Code signing strategy is split:
+#       - test-ios uses ad-hoc signing ("Sign to Run Locally"). It looks
+#         like overkill for a simulator, but stripping signing entirely
+#         also strips the `com.apple.developer.icloud-services` entitlement,
+#         which causes NSPersistentCloudKitContainer to refuse to load
+#         the store, which crashes the host app during App.init(), which
+#         prevents the test runner from bootstrapping. Ad-hoc signing
+#         keeps the entitlement embedded; the simulator doesn't validate
+#         the signature anyway.
+#       - build-macos and build-watch disable signing entirely. They only
+#         compile — they never launch — so missing entitlements don't
+#         matter.
+#
+#   * The runner image is pinned to `macos-15`. As of writing it ships
+#     with Xcode 16.x, which satisfies the iOS 18.6 / macOS 15.2 /
+#     watchOS 11.6 deployment targets declared in project.pbxproj.
+#     Bump to `macos-26` (or whichever image GitHub publishes for Xcode
+#     26.x) when we want to test on the same toolchain devs use locally.
+#
+#   * The simulator name `iPhone 16` is a deliberately conservative pick.
+#     It's been the default device on macos-15 since release. If a future
+#     runner image drops it, swap to whatever `xcrun simctl list devices
+#     available` shows.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel an in-flight run for this branch when a newer push lands so we
+# don't pile up minutes on stale commits.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-ios:
+    name: Test (iOS)
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      PROJECT: NALI Migraine Log.xcodeproj
+      SCHEME: NALI Migraine Log
+      DESTINATION: platform=iOS Simulator,name=iPhone 16,OS=latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          xcrun simctl list runtimes | grep -i ios | tail -5 || true
+          xcrun simctl list devices available | grep -i 'iphone 16' | head -5 || true
+
+      - name: Build & test
+        run: |
+          set -o pipefail
+          mkdir -p build
+          # NOTE: no CODE_SIGNING_ALLOWED=NO. See header comment — turning
+          # signing off strips the iCloud entitlement and crashes the host
+          # app during launch. Ad-hoc ("-") signing on the simulator is
+          # the right balance.
+          xcodebuild test \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "$DESTINATION" \
+            -parallel-testing-enabled NO \
+            -skip-testing:"NALI Migraine LogUITests" \
+            -resultBundlePath build/iOS.xcresult \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            | tee build/ios-test.log
+
+      - name: Upload xcresult bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iOS-xcresult
+          path: build/iOS.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload raw log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iOS-log
+          path: build/ios-test.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  build-macos:
+    name: Build (macOS)
+    runs-on: macos-15
+    timeout-minutes: 20
+    env:
+      PROJECT: NALI Migraine Log.xcodeproj
+      SCHEME: NALI Migraine Log macOS
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: xcodebuild -version
+
+      - name: Build
+        run: |
+          set -o pipefail
+          mkdir -p build
+          xcodebuild build \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination 'platform=macOS' \
+            -resultBundlePath build/macOS.xcresult \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | tee build/macos-build.log
+
+      - name: Upload xcresult bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macOS-xcresult
+          path: build/macOS.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
+
+  build-watch:
+    name: Build (watchOS)
+    runs-on: macos-15
+    timeout-minutes: 20
+    env:
+      PROJECT: NALI Migraine Log.xcodeproj
+      SCHEME: NALI Migraine Log Watch App Watch App
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: xcodebuild -version
+
+      - name: Build
+        run: |
+          set -o pipefail
+          mkdir -p build
+          xcodebuild build \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination 'generic/platform=watchOS Simulator' \
+            -resultBundlePath build/watchOS.xcresult \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | tee build/watchos-build.log
+
+      - name: Upload xcresult bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: watchOS-xcresult
+          path: build/watchOS.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
