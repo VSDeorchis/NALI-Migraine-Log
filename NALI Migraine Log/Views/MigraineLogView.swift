@@ -24,6 +24,11 @@ struct MigraineLogView: View {
     /// for the full gating logic (tenure, entries logged, cooldowns).
     @State private var showingEnjoymentPrompt = false
     
+    /// `.regular` ≈ iPad (any orientation) and Plus/Pro Max iPhones
+    /// in landscape. Drives the two-column layout: master list +
+    /// inline detail instead of the iPhone-only sheet pattern.
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    
     enum FilterOption: String, CaseIterable {
         case all = "All"
         case lastWeek = "Last Week"
@@ -36,161 +41,269 @@ struct MigraineLogView: View {
     }
     
     var body: some View {
+        Group {
+            if horizontalSizeClass == .regular {
+                iPadBody
+            } else {
+                iPhoneBody
+            }
+        }
+        .sheet(isPresented: $showingNewMigraineSheet) {
+            NewMigraineView(viewModel: viewModel)
+        }
+        .sheet(isPresented: $showingSettings, onDismiss: {
+            // The user may have dismissed the recovery notice from
+            // inside Settings; re-poll so the banner disappears.
+            refreshRecoveryBannerVisibility()
+        }) {
+            SettingsView(viewModel: viewModel)
+        }
+        .onAppear {
+            refreshRecoveryBannerVisibility()
+            considerShowingEnjoymentPrompt()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            // A recovery may have happened while we were backgrounded
+            // (e.g. CloudKit pull triggered a store reload that failed).
+            refreshRecoveryBannerVisibility()
+            considerShowingEnjoymentPrompt()
+        }
+        .enjoymentPrompt(isPresented: $showingEnjoymentPrompt)
+        // Clear the inline detail when the underlying entry is deleted
+        // out from under us (only meaningful on iPad — `.sheet(item:)`
+        // self-dismisses on the iPhone path).
+        .onChange(of: viewModel.migraines) {
+            if let current = selectedMigraine,
+               !viewModel.migraines.contains(where: { $0.objectID == current.objectID }) {
+                selectedMigraine = nil
+            }
+        }
+    }
+    
+    // MARK: - iPhone (compact)
+    
+    /// Single-column layout matching the long-standing iPhone behavior.
+    /// Tapping a row sets `selectedMigraine`, which fires the detail
+    /// sheet via `.sheet(item:)`.
+    private var iPhoneBody: some View {
         NavigationStack {
-            ZStack {
-                // Background
-                Color(.systemGroupedBackground)
-                    .ignoresSafeArea()
-                
-                VStack(spacing: 12) {
-                    SyncStatusView()
-                        .padding(.top, 8)
-
-                    // Recovery notice: shown only when PersistenceController
-                    // has moved a corrupted store aside. Tapping deep-links
-                    // into the existing Settings recovery section.
-                    if hasRecoveredStore {
-                        StoreRecoveryBanner {
-                            showingSettings = true
-                        }
-                    }
-
-                    // Filter buttons
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(FilterOption.allCases, id: \.self) { option in
-                                FilterButton(
-                                    title: option.rawValue,
-                                    isSelected: filterOption == option
-                                ) {
-                                    filterOption = option
-                                }
-                            }
-                        }
-                        .padding(.horizontal)
-                    }
-                    
-                    // Search bar
-                    SearchBar(text: $searchText)
-                        .padding(.top, 8)
-                    
-                    // Migraine list with pull-to-refresh
-                    if filteredMigraines.isEmpty {
-                        // Empty state
-                        EmptyMigraineStateView(
-                            filterOption: filterOption,
-                            searchText: searchText,
-                            onAddTapped: { showingNewMigraineSheet = true }
+            masterColumnContent
+                .navigationTitle("Headway: Migraine Monitor")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { masterToolbarItems }
+                .sheet(item: $selectedMigraine) { migraine in
+                    NavigationStack {
+                        MigraineDetailView(
+                            migraine: migraine,
+                            viewModel: viewModel,
+                            dismiss: { selectedMigraine = nil }
                         )
-                    } else {
-                        ScrollView {
-                            LazyVStack(spacing: 0) {
-                                ForEach(filteredMigraines) { migraine in
-                                    MigraineRowView(viewModel: viewModel, migraine: migraine)
-                                        .contentShape(Rectangle())
-                                        .onTapGesture {
-                                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                            impactFeedback.impactOccurred()
-                                            selectedMigraine = migraine
-                                        }
-                                        .contextMenu {
-                                            Button {
-                                                selectedMigraine = migraine
-                                            } label: {
-                                                Label("View Details", systemImage: "eye")
-                                            }
-                                            
-                                            Button {
-                                                duplicateMigraine(migraine)
-                                            } label: {
-                                                Label("Duplicate", systemImage: "doc.on.doc")
-                                            }
-                                            
-                                            Divider()
-                                            
-                                            Button(role: .destructive) {
-                                                viewModel.deleteMigraine(migraine)
-                                            } label: {
-                                                Label("Delete", systemImage: "trash")
-                                            }
-                                        }
-                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                            Button(role: .destructive) {
-                                                let feedback = UINotificationFeedbackGenerator()
-                                                feedback.notificationOccurred(.warning)
-                                                viewModel.deleteMigraine(migraine)
-                                            } label: {
-                                                Label("Delete", systemImage: "trash")
-                                            }
-                                        }
-                                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                                            Button {
-                                                let feedback = UIImpactFeedbackGenerator(style: .medium)
-                                                feedback.impactOccurred()
-                                                duplicateMigraine(migraine)
-                                            } label: {
-                                                Label("Duplicate", systemImage: "doc.on.doc")
-                                            }
-                                            .tint(.blue)
-                                        }
-                                        .accessibilityElement(children: .combine)
-                                        .accessibilityLabel(accessibilityLabel(for: migraine))
-                                        .accessibilityHint("Double tap to view details")
-                                }
-                            }
-                            .padding(.top, 8)
-                        }
-                        .refreshable {
-                            await refreshData()
-                        }
                     }
                 }
+        }
+    }
+    
+    // MARK: - iPad (regular)
+    
+    /// Two-column inline layout for iPad: master list on the leading
+    /// side, the selected migraine's detail on the trailing side.
+    /// Combined with the destination sidebar in `iOSContentView` this
+    /// produces the canonical 3-column iPadOS layout (Mail/Reminders
+    /// style). Width on the master is fixed so the detail column gets
+    /// the lion's share of the canvas.
+    private var iPadBody: some View {
+        HStack(spacing: 0) {
+            NavigationStack {
+                masterColumnContent
+                    .navigationTitle("History")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar { masterToolbarItems }
             }
-            .navigationTitle("Headway: Migraine Monitor")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { showingSettings = true }) {
-                        Image(systemName: "gear")
+            .frame(width: 380)
+            
+            Divider()
+            
+            detailColumn
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+    
+    @ViewBuilder
+    private var detailColumn: some View {
+        if let migraine = selectedMigraine {
+            NavigationStack {
+                MigraineDetailView(
+                    migraine: migraine,
+                    viewModel: viewModel,
+                    dismiss: { selectedMigraine = nil }
+                )
+            }
+            // Force a fresh NavigationStack instance per selection so
+            // the detail's internal state (edit toggles, scroll
+            // position, etc.) doesn't bleed across migraines.
+            .id(migraine.objectID)
+        } else {
+            ContentUnavailableView(
+                "Select a Migraine",
+                systemImage: "list.bullet.rectangle",
+                description: Text("Choose an entry on the left to view its full details, or tap + to log a new one.")
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(.systemGroupedBackground))
+        }
+    }
+    
+    // MARK: - Shared chrome
+    
+    /// The body of the master column: sync status, recovery banner,
+    /// filter chips, search, and the migraine list. Identical between
+    /// the iPhone and iPad layouts; each just wraps it differently.
+    @ViewBuilder
+    private var masterColumnContent: some View {
+        ZStack {
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 12) {
+                SyncStatusView()
+                    .padding(.top, 8)
+
+                if hasRecoveredStore {
+                    StoreRecoveryBanner {
+                        showingSettings = true
                     }
-                    .accessibilityLabel("Settings")
-                    .accessibilityHint("Opens app settings, sync, and data export")
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showingNewMigraineSheet = true }) {
-                        Image(systemName: "plus")
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(FilterOption.allCases, id: \.self) { option in
+                            FilterButton(
+                                title: option.rawValue,
+                                isSelected: filterOption == option
+                            ) {
+                                filterOption = option
+                            }
+                        }
                     }
-                    .accessibilityLabel("Log New Migraine")
-                    .accessibilityHint("Opens a form to record a new migraine entry")
+                    .padding(.horizontal)
+                }
+                
+                SearchBar(text: $searchText)
+                    .padding(.top, 8)
+                
+                if filteredMigraines.isEmpty {
+                    EmptyMigraineStateView(
+                        filterOption: filterOption,
+                        searchText: searchText,
+                        onAddTapped: { showingNewMigraineSheet = true }
+                    )
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(filteredMigraines) { migraine in
+                                migraineRow(migraine)
+                            }
+                        }
+                        .padding(.top, 8)
+                    }
+                    .refreshable {
+                        await refreshData()
+                    }
                 }
             }
-            .sheet(isPresented: $showingNewMigraineSheet) {
-                NewMigraineView(viewModel: viewModel)
+        }
+    }
+    
+    /// Single row in the master list. Pulled out so the iPad selection
+    /// highlight + tap behavior live in one place rather than inlined
+    /// in the LazyVStack body. On iPad the row gains a subtle blue
+    /// background when selected so the user can see which entry is
+    /// driving the detail column.
+    @ViewBuilder
+    private func migraineRow(_ migraine: MigraineEvent) -> some View {
+        let isSelected = horizontalSizeClass == .regular
+            && selectedMigraine?.objectID == migraine.objectID
+        
+        MigraineRowView(viewModel: viewModel, migraine: migraine)
+            .contentShape(Rectangle())
+            .background(
+                isSelected
+                    ? Color.accentColor.opacity(0.12)
+                    : Color.clear
+            )
+            // Trackpad / Magic Keyboard hover affordance on iPad.
+            // `.highlight` is the row-style hover (subtle background
+            // tint) rather than the lift-style used for cards.
+            .hoverEffect(.highlight)
+            .onTapGesture {
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
+                selectedMigraine = migraine
             }
-            .sheet(item: $selectedMigraine) { migraine in
-                NavigationStack {
-                    MigraineDetailView(migraine: migraine, viewModel: viewModel, dismiss: { selectedMigraine = nil })
+            .contextMenu {
+                Button {
+                    selectedMigraine = migraine
+                } label: {
+                    Label("View Details", systemImage: "eye")
+                }
+                
+                Button {
+                    duplicateMigraine(migraine)
+                } label: {
+                    Label("Duplicate", systemImage: "doc.on.doc")
+                }
+                
+                Divider()
+                
+                Button(role: .destructive) {
+                    viewModel.deleteMigraine(migraine)
+                } label: {
+                    Label("Delete", systemImage: "trash")
                 }
             }
-            .sheet(isPresented: $showingSettings, onDismiss: {
-                // The user may have dismissed the recovery notice from
-                // inside Settings; re-poll so the banner disappears.
-                refreshRecoveryBannerVisibility()
-            }) {
-                SettingsView(viewModel: viewModel)
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button(role: .destructive) {
+                    let feedback = UINotificationFeedbackGenerator()
+                    feedback.notificationOccurred(.warning)
+                    viewModel.deleteMigraine(migraine)
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
             }
-            .onAppear {
-                refreshRecoveryBannerVisibility()
-                considerShowingEnjoymentPrompt()
+            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                Button {
+                    let feedback = UIImpactFeedbackGenerator(style: .medium)
+                    feedback.impactOccurred()
+                    duplicateMigraine(migraine)
+                } label: {
+                    Label("Duplicate", systemImage: "doc.on.doc")
+                }
+                .tint(.blue)
             }
-            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-                // A recovery may have happened while we were backgrounded
-                // (e.g. CloudKit pull triggered a store reload that failed).
-                refreshRecoveryBannerVisibility()
-                considerShowingEnjoymentPrompt()
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(accessibilityLabel(for: migraine))
+            .accessibilityHint("Double tap to view details")
+            .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+    
+    /// Toolbar items shared by both layouts. Settings on the leading
+    /// edge, "Log new migraine" on the trailing edge.
+    @ToolbarContentBuilder
+    private var masterToolbarItems: some ToolbarContent {
+        ToolbarItem(placement: .navigationBarLeading) {
+            Button(action: { showingSettings = true }) {
+                Image(systemName: "gear")
             }
-            .enjoymentPrompt(isPresented: $showingEnjoymentPrompt)
+            .accessibilityLabel("Settings")
+            .accessibilityHint("Opens app settings, sync, and data export")
+        }
+
+        ToolbarItem(placement: .navigationBarTrailing) {
+            Button(action: { showingNewMigraineSheet = true }) {
+                Image(systemName: "plus")
+            }
+            .accessibilityLabel("Log New Migraine")
+            .accessibilityHint("Opens a form to record a new migraine entry")
         }
     }
 
@@ -598,8 +711,12 @@ struct FilterButton: View {
                         .strokeBorder(isSelected ? Color.clear : Color(.systemGray4), lineWidth: 1)
                 )
                 .shadow(color: isSelected ? Color.blue.opacity(0.3) : Color.clear, radius: 4, x: 0, y: 2)
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        // Capsule-shaped trackpad hover so the highlight matches the
+        // chip outline rather than its bounding rectangle.
+        .hoverEffect(.highlight)
     }
 }
 

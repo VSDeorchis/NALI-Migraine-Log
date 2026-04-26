@@ -7,6 +7,12 @@ struct MigraineDetailView: View {
     @ObservedObject private var settings = SettingsManager.shared
     let dismiss: () -> Void
     
+    /// Drives the iPad-friendly notes-editor height. Apple Pencil
+    /// Scribble works automatically inside `TextEditor`; the only
+    /// real polish is giving it more vertical canvas on iPad so a
+    /// handwritten sentence has somewhere to land.
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    
     // State for form fields
     @State private var startTime: Date
     @State private var endTime: Date?
@@ -258,14 +264,20 @@ struct MigraineDetailView: View {
             }
             .listRowBackground(Color(.systemGray6).opacity(0.5))
             
-            // Notes Section
+            // Notes Section. iPad gets a taller editor so Apple Pencil
+            // scribble has more room before the field starts scrolling.
+            // Scribble itself is enabled automatically for `TextEditor`
+            // — no opt-in modifier needed.
             Section(header: 
                 Label("NOTES", systemImage: "note.text")
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(.red)
             ) {
                 TextEditor(text: $notes)
-                    .frame(minHeight: 100)
+                    .frame(minHeight: horizontalSizeClass == .regular ? 200 : 100)
+                    .accessibilityHint(horizontalSizeClass == .regular
+                        ? "Type with the keyboard or write with Apple Pencil"
+                        : "Edit notes for this migraine")
             }
             .listRowBackground(Color(.systemGray6).opacity(0.2))
         }

@@ -58,6 +58,80 @@ struct SettingsView: View {
     @StateObject private var notificationManager = NotificationManager.shared
     @State private var showingNotificationDeniedAlert = false
     
+    /// Drives the two-pane settings layout on iPad. Compact (iPhone)
+    /// keeps the long single-form scroll users have always known.
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    
+    /// Currently-selected category in the iPad two-pane layout. Backed
+    /// by `@State` so it sticks across view rebuilds while the sheet
+    /// is open (a sheet's lifetime, not a rebuilding child of MigraineLogView).
+    @State private var selectedCategory: SettingsCategory = .sync
+    
+    /// One-to-one with the existing `*Section` computed properties.
+    /// The iPhone layout still concatenates them in a single Form;
+    /// the iPad layout drives them through a sidebar list selection.
+    /// Adding a new section: drop a case here, give it a title +
+    /// SF Symbol, and route it in `iPadDetailContent(for:)`. The
+    /// iPhone form picks it up only if you also append it to the body.
+    enum SettingsCategory: Hashable, CaseIterable, Identifiable {
+        case recovery
+        case sync
+        case weather
+        case notifications
+        case health
+        case appearance
+        case units
+        case export
+        case feedback
+        
+        var id: Self { self }
+        
+        var title: String {
+            switch self {
+            case .recovery:      return "Database Recovery"
+            case .sync:          return "Sync & iCloud"
+            case .weather:       return "Weather"
+            case .notifications: return "Notifications"
+            case .health:        return "Apple Health"
+            case .appearance:    return "Appearance"
+            case .units:         return "Units"
+            case .export:        return "Export Data"
+            case .feedback:      return "Help & Feedback"
+            }
+        }
+        
+        var systemImage: String {
+            switch self {
+            case .recovery:      return "exclamationmark.shield.fill"
+            case .sync:          return "icloud"
+            case .weather:       return "cloud.sun"
+            case .notifications: return "bell.badge"
+            case .health:        return "heart.text.square"
+            case .appearance:    return "paintbrush"
+            case .units:         return "ruler"
+            case .export:        return "square.and.arrow.up"
+            case .feedback:      return "questionmark.circle"
+            }
+        }
+        
+        /// Tint color for the SF Symbol in the iPad sidebar list. Keeps
+        /// the destinations visually distinct at a glance instead of an
+        /// all-blue uniform stack.
+        var tint: Color {
+            switch self {
+            case .recovery:      return .orange
+            case .sync:          return .blue
+            case .weather:       return .cyan
+            case .notifications: return .red
+            case .health:        return .pink
+            case .appearance:    return .purple
+            case .units:         return .indigo
+            case .export:        return .teal
+            case .feedback:      return .green
+            }
+        }
+    }
+    
     enum ExportFormat: String, CaseIterable {
         case csv = "CSV"
         case pdf = "PDF"
@@ -81,31 +155,14 @@ struct SettingsView: View {
     ]
     
     var body: some View {
-        NavigationView {
-            Form {
-                // Recovery is surfaced first when present so the user notices
-                // it before scrolling into routine settings.
-                recoverySection
-                dataSyncSection
-                weatherTrackingSection
-                backfillSection
-                unitsSection
-                appearanceSection
-                notificationsSection
-                appleHealthSection
-                exportSection
-                feedbackSection
+        Group {
+            if horizontalSizeClass == .regular {
+                iPadBody
+            } else {
+                iPhoneBody
             }
-            .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-            .alert("Data Migration", isPresented: $showingMigrationAlert) {
+        }
+        .alert("Data Migration", isPresented: $showingMigrationAlert) {
                 Button("Cancel") {
                     settings.useICloudSync = false
                 }
@@ -186,6 +243,128 @@ struct SettingsView: View {
                 AppLogger.ui.debug("App entering foreground; refreshing location status")
                 locationManager.refreshAuthorizationStatus()
                 refreshRecoveryFileMetadata()
+            }
+    }
+    
+    // MARK: - iPhone (compact) — single-form layout
+    
+    /// Single scrollable Form, identical to the iPhone layout that's
+    /// shipped since v1. Keeps `recoverySection` first so a corrupt-
+    /// store notice catches the user's eye before routine settings.
+    private var iPhoneBody: some View {
+        NavigationView {
+            Form {
+                recoverySection
+                dataSyncSection
+                weatherTrackingSection
+                backfillSection
+                unitsSection
+                appearanceSection
+                notificationsSection
+                appleHealthSection
+                exportSection
+                feedbackSection
+            }
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - iPad (regular) — two-pane layout
+    
+    /// Sidebar on the left lists every visible category; the detail
+    /// pane on the right wraps the matching `*Section` view in a Form
+    /// so the section's existing styling (grouped rows, headers,
+    /// footers, validation alerts) carries over unchanged. Each
+    /// category is one-to-one with an existing iPhone form section
+    /// — see `SettingsCategory` for the full mapping.
+    private var iPadBody: some View {
+        NavigationSplitView {
+            List(selection: Binding(
+                get: { Optional(selectedCategory) },
+                set: { newValue in
+                    if let value = newValue { selectedCategory = value }
+                }
+            )) {
+                ForEach(visibleCategories) { category in
+                    NavigationLink(value: category) {
+                        Label {
+                            Text(category.title)
+                        } icon: {
+                            Image(systemName: category.systemImage)
+                                .foregroundColor(category.tint)
+                        }
+                    }
+                    .tag(category)
+                }
+            }
+            .navigationTitle("Settings")
+            .listStyle(.sidebar)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        } detail: {
+            iPadDetailContent(for: selectedCategory)
+                .navigationTitle(selectedCategory.title)
+                .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+    
+    /// The visible category list adapts to runtime state — `.recovery`
+    /// only appears when there's an active backup file on disk so users
+    /// without one don't get a confusing "Database Recovery" entry.
+    private var visibleCategories: [SettingsCategory] {
+        var cats: [SettingsCategory] = []
+        if recoveryFileURL != nil { cats.append(.recovery) }
+        cats.append(contentsOf: [
+            .sync,
+            .weather,
+            .notifications,
+            .health,
+            .appearance,
+            .units,
+            .export,
+            .feedback,
+        ])
+        return cats
+    }
+    
+    @ViewBuilder
+    private func iPadDetailContent(for category: SettingsCategory) -> some View {
+        // Every category renders inside a `Form` so the existing
+        // `Section`-based section views look identical to the iPhone
+        // version. Forms inside a NavigationSplitView detail column
+        // pick up the standard grouped style automatically.
+        Form {
+            switch category {
+            case .recovery:
+                recoverySection
+            case .sync:
+                dataSyncSection
+            case .weather:
+                weatherTrackingSection
+                backfillSection
+            case .notifications:
+                notificationsSection
+            case .health:
+                appleHealthSection
+            case .appearance:
+                appearanceSection
+            case .units:
+                unitsSection
+            case .export:
+                exportSection
+            case .feedback:
+                feedbackSection
             }
         }
     }

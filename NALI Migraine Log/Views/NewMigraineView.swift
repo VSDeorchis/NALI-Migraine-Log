@@ -7,6 +7,12 @@ struct NewMigraineView: View {
     @ObservedObject var viewModel: MigraineViewModel
     @Environment(\.dismiss) var dismiss
     
+    /// Used to expand the notes editor on iPad (more canvas for Apple
+    /// Pencil scribble) — `Scribble` itself is on by default for any
+    /// SwiftUI `TextEditor`, no opt-in required, so all we need is
+    /// enough vertical space to actually write into.
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    
     @State private var startTime = Date()
     @State private var endTime: Date?
     @State private var painLevel: Int16 = 5
@@ -180,9 +186,19 @@ struct NewMigraineView: View {
                 .listRowBackground(Color(.systemGray6).opacity(0.5))
                 
                 // Notes Section
+                //
+                // The minimum height grows on iPad so Apple Pencil
+                // users have enough room to scribble a sentence or
+                // two without the editor immediately becoming a
+                // scrollable single-line strip. SwiftUI's `TextEditor`
+                // already accepts Scribble input automatically — no
+                // opt-in modifier exists or is needed.
                 Section {
                     TextEditor(text: $notes)
-                        .frame(minHeight: 100)
+                        .frame(minHeight: horizontalSizeClass == .regular ? 200 : 100)
+                        .accessibilityHint(horizontalSizeClass == .regular
+                            ? "Type with the keyboard or write with Apple Pencil"
+                            : "Add any additional details about this migraine")
                 } header: {
                     SectionHeader(
                         title: "NOTES",

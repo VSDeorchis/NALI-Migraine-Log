@@ -76,6 +76,7 @@ struct HealthCorrelationsSectionView: View {
             )
         }
         .buttonStyle(.plain)
+        .hoverEffect(.lift)
         .accessibilityHint("Opens sleep correlation details")
     }
     
@@ -107,6 +108,7 @@ struct HealthCorrelationsSectionView: View {
             )
         }
         .buttonStyle(.plain)
+        .hoverEffect(.lift)
         .accessibilityHint("Opens HRV correlation details")
     }
     
@@ -136,6 +138,7 @@ struct HealthCorrelationsSectionView: View {
             CycleCorrelationCard(distribution: store.cyclePhaseSummary)
         }
         .buttonStyle(.plain)
+        .hoverEffect(.lift)
         .accessibilityHint("Opens cycle correlation details")
     }
     

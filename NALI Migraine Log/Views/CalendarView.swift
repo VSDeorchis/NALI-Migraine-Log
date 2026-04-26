@@ -12,6 +12,13 @@ struct CalendarView: View {
     @State private var selectedDate: Date = Date()
     @State private var selectedMigraine: MigraineEvent?
     @State private var showingNewMigraine = false
+    /// iPad-only: the day the right pane is currently focused on.
+    /// `nil` means "show the whole month" instead of a specific day.
+    @State private var selectedDay: Date?
+    
+    /// Drives the side-by-side layout on iPad. iPhone keeps the
+    /// existing single-column flow with NavigationLink-based pushes.
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     
     private let calendar = Calendar.current
     private let dateFormatter: DateFormatter = {
@@ -25,74 +32,121 @@ struct CalendarView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                // Month selector
-                HStack {
-                    Button(action: previousMonth) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 16, weight: .semibold))
-                    }
-                    
-                    Text(dateFormatter.string(from: selectedDate))
-                        .font(.title2)
-                        .frame(maxWidth: .infinity)
-                    
-                    Button(action: {
-                        selectedDate = Date()
-                    }) {
-                        Text("Today")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(Color.blue.opacity(0.15))
-                            .foregroundColor(.blue)
-                            .clipShape(Capsule())
-                    }
-                    
-                    Button(action: nextMonth) {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 16, weight: .semibold))
-                    }
+            Group {
+                if horizontalSizeClass == .regular {
+                    iPadBody
+                } else {
+                    iPhoneBody
                 }
+            }
+            .navigationTitle("Calendar")
+            .sheet(isPresented: $showingNewMigraine) {
+                NewMigraineView(viewModel: viewModel)
+            }
+            .onChange(of: selectedDate) {
+                // Moving to a new month invalidates whatever day was
+                // pinned on the right pane.
+                if let day = selectedDay,
+                   !calendar.isDate(day, equalTo: selectedDate, toGranularity: .month) {
+                    selectedDay = nil
+                }
+            }
+        }
+    }
+    
+    // MARK: - iPhone (compact)
+    
+    private var iPhoneBody: some View {
+        VStack(spacing: 20) {
+            monthSelector
+            daysOfWeekHeader
+            calendarGrid
+            CalendarLegend()
                 .padding(.horizontal)
-                
-                // Days of week header
-                LazyVGrid(columns: columns, spacing: 15) {
-                    ForEach(daysOfWeek, id: \.self) { day in
-                        Text(day)
-                            .font(.caption.bold())
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                // Calendar grid
-                LazyVGrid(columns: columns, spacing: 15) {
-                    ForEach(daysInMonth(), id: \.self) { date in
-                        if let date = date {
-                            DayCell(date: date, migraines: migrainesForDate(date), viewModel: viewModel)
-                        } else {
-                            Color.clear
-                        }
-                    }
-                }
-                
-                // Legend
+            
+            // Month-scoped detail list. Earlier this section listed
+            // `viewModel.migraines` (every entry the user had ever
+            // logged) while the empty-state copy below claimed "No
+            // migraines this month" — a real bug that made the page
+            // contradict itself the moment the user navigated to
+            // any month other than the current one. Both branches
+            // now agree on `migrainesInVisibleMonth`.
+            monthMigraineList
+        }
+    }
+    
+    // MARK: - iPad (regular)
+    
+    /// Side-by-side calendar (left) and day or month migraine list
+    /// (right). Mirrors how iPadOS Calendar puts the month grid
+    /// alongside the day's events instead of stacking them.
+    private var iPadBody: some View {
+        HStack(spacing: 0) {
+            VStack(spacing: 20) {
+                monthSelector
+                daysOfWeekHeader
+                calendarGrid
                 CalendarLegend()
                     .padding(.horizontal)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity)
+            
+            Divider()
+            
+            iPadDetailColumn
+                .frame(width: 380)
+                .background(Color(.systemGroupedBackground))
+        }
+    }
+    
+    @ViewBuilder
+    private var iPadDetailColumn: some View {
+        if let day = selectedDay {
+            let dayMigraines = migrainesForDate(day)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(day.formatted(date: .complete, time: .omitted))
+                            .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        if dayMigraines.isEmpty {
+                            Text("No migraines logged")
+                                .font(.system(size: 13))
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("\(dayMigraines.count) migraine\(dayMigraines.count == 1 ? "" : "s")")
+                                .font(.system(size: 13))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    Spacer()
+                    Button {
+                        selectedDay = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Show whole month")
+                }
+                .padding(.horizontal)
+                .padding(.top, 12)
                 
-                // Month-scoped detail list. Earlier this section listed
-                // `viewModel.migraines` (every entry the user had ever
-                // logged) while the empty-state copy below claimed "No
-                // migraines this month" — a real bug that made the page
-                // contradict itself the moment the user navigated to
-                // any month other than the current one. Both branches
-                // now agree on `migrainesInVisibleMonth`.
-                let monthMigraines = migrainesInVisibleMonth
-                if !monthMigraines.isEmpty {
-                    List(monthMigraines) { migraine in
+                if dayMigraines.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "calendar.badge.checkmark")
+                            .font(.system(size: 36))
+                            .foregroundColor(.green.opacity(0.6))
+                        Text("Migraine-free day")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List(dayMigraines) { migraine in
                         NavigationLink {
                             MigraineDetailView(
-                                migraine: migraine, 
+                                migraine: migraine,
                                 viewModel: viewModel,
                                 dismiss: { dismiss() }
                             )
@@ -100,25 +154,142 @@ struct CalendarView: View {
                             MigraineRowView(viewModel: viewModel, migraine: migraine)
                         }
                     }
-                } else {
-                    VStack(spacing: 16) {
+                    .listStyle(.plain)
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(dateFormatter.string(from: selectedDate))
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .padding(.horizontal)
+                    .padding(.top, 12)
+                
+                let monthMigraines = migrainesInVisibleMonth
+                if monthMigraines.isEmpty {
+                    VStack(spacing: 12) {
                         Image(systemName: "calendar.badge.checkmark")
-                            .font(.system(size: 40))
+                            .font(.system(size: 36))
                             .foregroundColor(.green.opacity(0.6))
                         Text("No migraines this month")
-                            .font(.system(size: 15, weight: .medium, design: .rounded))
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
                             .foregroundColor(.secondary)
-                        Text("Tap any day to see details")
-                            .font(.system(size: 13))
+                        Text("Tap a day to focus on it.")
+                            .font(.system(size: 12))
                             .foregroundColor(.secondary.opacity(0.7))
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List(monthMigraines) { migraine in
+                        NavigationLink {
+                            MigraineDetailView(
+                                migraine: migraine,
+                                viewModel: viewModel,
+                                dismiss: { dismiss() }
+                            )
+                        } label: {
+                            MigraineRowView(viewModel: viewModel, migraine: migraine)
+                        }
+                    }
+                    .listStyle(.plain)
                 }
             }
-            .navigationTitle("Calendar")
-            .sheet(isPresented: $showingNewMigraine) {
-                NewMigraineView(viewModel: viewModel)
+        }
+    }
+    
+    // MARK: - Shared chrome
+    
+    private var monthSelector: some View {
+        HStack {
+            Button(action: previousMonth) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .semibold))
             }
+            
+            Text(dateFormatter.string(from: selectedDate))
+                .font(.title2)
+                .frame(maxWidth: .infinity)
+            
+            Button(action: {
+                selectedDate = Date()
+            }) {
+                Text("Today")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.blue.opacity(0.15))
+                    .foregroundColor(.blue)
+                    .clipShape(Capsule())
+            }
+            
+            Button(action: nextMonth) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 16, weight: .semibold))
+            }
+        }
+        .padding(.horizontal)
+    }
+    
+    private var daysOfWeekHeader: some View {
+        LazyVGrid(columns: columns, spacing: 15) {
+            ForEach(daysOfWeek, id: \.self) { day in
+                Text(day)
+                    .font(.caption.bold())
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+    
+    /// The shared calendar grid. On iPad, cells are buttons that pin
+    /// the right pane to that day; on iPhone, cells push DayDetailView.
+    private var calendarGrid: some View {
+        let isPad = horizontalSizeClass == .regular
+        return LazyVGrid(columns: columns, spacing: 15) {
+            ForEach(daysInMonth(), id: \.self) { date in
+                if let date = date {
+                    DayCell(
+                        date: date,
+                        migraines: migrainesForDate(date),
+                        viewModel: viewModel,
+                        isSelected: isPad && (selectedDay.map {
+                            calendar.isDate($0, inSameDayAs: date)
+                        } ?? false),
+                        onTap: isPad ? { selectedDay = date } : nil
+                    )
+                } else {
+                    Color.clear
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var monthMigraineList: some View {
+        let monthMigraines = migrainesInVisibleMonth
+        if !monthMigraines.isEmpty {
+            List(monthMigraines) { migraine in
+                NavigationLink {
+                    MigraineDetailView(
+                        migraine: migraine,
+                        viewModel: viewModel,
+                        dismiss: { dismiss() }
+                    )
+                } label: {
+                    MigraineRowView(viewModel: viewModel, migraine: migraine)
+                }
+            }
+        } else {
+            VStack(spacing: 16) {
+                Image(systemName: "calendar.badge.checkmark")
+                    .font(.system(size: 40))
+                    .foregroundColor(.green.opacity(0.6))
+                Text("No migraines this month")
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .foregroundColor(.secondary)
+                Text("Tap any day to see details")
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary.opacity(0.7))
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
     
@@ -189,6 +360,15 @@ struct DayCell: View {
     let date: Date
     let migraines: [MigraineEvent]
     @ObservedObject var viewModel: MigraineViewModel
+    /// Visual selection state (iPad only — the iPhone cell never sets
+    /// this since it pushes immediately). Drives the outer ring drawn
+    /// underneath the day's content.
+    var isSelected: Bool = false
+    /// When set, the cell becomes a `Button` that fires this closure
+    /// (used by the iPad side-by-side layout). When `nil`, the cell
+    /// falls back to its long-standing `NavigationLink` behavior so
+    /// the iPhone keeps pushing `DayDetailView` on tap.
+    var onTap: (() -> Void)? = nil
     
     private var maxPainLevel: Int16 {
         migraines.map(\.painLevel).max() ?? 0
@@ -205,44 +385,69 @@ struct DayCell: View {
     }
     
     var body: some View {
-        NavigationLink(destination: DayDetailView(date: date, migraines: migraines, viewModel: viewModel)) {
-            ZStack {
-                // Migraine indicator (pain-level colored)
-                if !migraines.isEmpty {
-                    Circle()
-                        .fill(painColor.opacity(0.35))
-                        .frame(width: 34, height: 34)
+        Group {
+            if let onTap {
+                Button(action: onTap) {
+                    cellContent
                 }
-                
-                // Current day indicator
-                if Calendar.current.isDateInToday(date) {
-                    Circle()
-                        .fill(Color.blue.opacity(0.15))
-                        .frame(width: 34, height: 34)
-                    
-                    Circle()
-                        .stroke(Color.blue, lineWidth: 2)
-                        .frame(width: 34, height: 34)
-                }
-                
-                VStack(spacing: 0) {
-                    Text("\(Calendar.current.component(.day, from: date))")
-                        .font(.system(.body, design: .rounded))
-                        .foregroundColor(Calendar.current.isDateInToday(date) ? .blue : .primary)
-                    
-                    // Show count badge for multiple migraines
-                    if migraines.count > 1 {
-                        Text("\(migraines.count)")
-                            .font(.system(size: 8, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                            .frame(width: 12, height: 12)
-                            .background(painColor)
-                            .clipShape(Circle())
-                    }
+                .buttonStyle(.plain)
+                // Trackpad hover bubbles for iPad — circular shape so
+                // the highlight reads as "this day", not a square cell.
+                .hoverEffect(.highlight)
+            } else {
+                NavigationLink(destination: DayDetailView(date: date, migraines: migraines, viewModel: viewModel)) {
+                    cellContent
                 }
             }
-            .frame(height: 44)
         }
+    }
+    
+    private var cellContent: some View {
+        ZStack {
+            // Selection ring (iPad). Drawn behind everything else so
+            // the existing pain-level dot still reads on top.
+            if isSelected {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.18))
+                    .frame(width: 40, height: 40)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.accentColor, lineWidth: 1.5)
+                    .frame(width: 40, height: 40)
+            }
+            
+            if !migraines.isEmpty {
+                Circle()
+                    .fill(painColor.opacity(0.35))
+                    .frame(width: 34, height: 34)
+            }
+            
+            if Calendar.current.isDateInToday(date) {
+                Circle()
+                    .fill(Color.blue.opacity(0.15))
+                    .frame(width: 34, height: 34)
+                
+                Circle()
+                    .stroke(Color.blue, lineWidth: 2)
+                    .frame(width: 34, height: 34)
+            }
+            
+            VStack(spacing: 0) {
+                Text("\(Calendar.current.component(.day, from: date))")
+                    .font(.system(.body, design: .rounded))
+                    .foregroundColor(Calendar.current.isDateInToday(date) ? .blue : .primary)
+                
+                if migraines.count > 1 {
+                    Text("\(migraines.count)")
+                        .font(.system(size: 8, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .frame(width: 12, height: 12)
+                        .background(painColor)
+                        .clipShape(Circle())
+                }
+            }
+        }
+        .frame(height: 44)
+        .contentShape(Rectangle())
     }
 }
 

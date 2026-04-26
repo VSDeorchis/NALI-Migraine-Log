@@ -23,6 +23,20 @@ struct StatisticsView: View {
     /// list changes; the section view + drill-downs read from the store.
     @StateObject private var healthCorrelationStore = HealthCorrelationStore()
     
+    /// `.regular` ≈ iPad in any orientation + iPhone Plus/Pro Max in
+    /// landscape. Drives the adaptive KPI grid below: 2 columns on
+    /// compact iPhone, 4 on iPad so the dashboard reads at-a-glance
+    /// rather than as a single tall scrolling stack.
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    
+    /// Column descriptor for the KPI tile grid. `adaptive(minimum:)`
+    /// would also work but tile widths look more balanced when we hand
+    /// SwiftUI a fixed column count per size class.
+    private var kpiGridColumns: [GridItem] {
+        let count = horizontalSizeClass == .regular ? 4 : 2
+        return Array(repeating: GridItem(.flexible(), spacing: 16), count: count)
+    }
+    
     enum TimeFilter: String, CaseIterable {
         case week = "Week"
         case month = "Month"
@@ -140,7 +154,7 @@ struct StatisticsView: View {
     
     private var summaryStatsView: some View {
         VStack(spacing: 20) {
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
+            LazyVGrid(columns: kpiGridColumns, spacing: 16) {
                 tileLink(
                     metric: .total,
                     StatBox(
@@ -209,6 +223,10 @@ struct StatisticsView: View {
             content
         }
         .buttonStyle(.plain)
+        // `.lift` is the card-style hover (slight scale + shadow)
+        // appropriate for tappable tiles. Trackpad-only — no-op on
+        // iPhone touch.
+        .hoverEffect(.lift)
         .accessibilityHint("Opens \(metric.title) details")
     }
     
@@ -650,6 +668,11 @@ struct StatisticsView: View {
                         }
                     }
                     .padding(.vertical)
+                    // On iPad, cap the dashboard width so the line length
+                    // stays comfortable to read; on iPhone (compact) we
+                    // let the content stretch edge-to-edge as before.
+                    .frame(maxWidth: horizontalSizeClass == .regular ? 1100 : .infinity)
+                    .frame(maxWidth: .infinity)
                 }
             }
         }
