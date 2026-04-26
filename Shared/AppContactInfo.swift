@@ -86,6 +86,31 @@ enum AppContactInfo {
     static let supportPhoneDisplay = "(516) 466-4700"
 
     /// Practice website. Same value as the existing About screen and
-    /// macOS Help menu link.
+    /// macOS Help menu link. Conceptually distinct from
+    /// `privacyPolicyURL` below — this is the *medical* practice that
+    /// uses Headway, while the privacy policy lives on the developer's
+    /// registered domain (`cicgconsulting.com`).
     static let websiteURL = URL(string: "https://www.neuroli.com")!
+
+    // MARK: - Legal
+
+    /// Public privacy policy for Headway. Hosted on the developer's
+    /// registered domain (`cicgconsulting.com`) — the same domain the
+    /// app is registered under in App Store Connect — rather than on
+    /// the medical-practice site, so the policy lives with the entity
+    /// that legally controls the app and can be updated without
+    /// touching practice infrastructure.
+    ///
+    /// Surfaced in:
+    ///   • iOS `AboutView` — under the "Your Privacy" section
+    ///   • macOS `AboutView` — under the "Your Privacy" section
+    ///   • iOS `SettingsView` — "Help & Feedback" section
+    ///   • macOS Help menu — "Privacy Policy" command
+    ///
+    /// Apple also displays this URL on the App Store listing (it is a
+    /// required field in App Store Connect for any app that handles
+    /// health data), so the in-app links are about discoverability and
+    /// trust signaling, not about meeting the App Store requirement
+    /// itself.
+    static let privacyPolicyURL = URL(string: "https://cicgconsulting.com/headway-privacy-policy")!
 }

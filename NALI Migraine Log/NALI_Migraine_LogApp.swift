@@ -21,13 +21,31 @@ struct NALI_Migraine_LogApp: App {
     let persistenceController = PersistenceController.shared
     
     init() {
-        NSLog("🟣 [App] ===== APP INITIALIZING =====")
+        AppLogger.general.notice("App initializing")
         let context = PersistenceController.shared.container.viewContext
         _viewModel = StateObject(wrappedValue: MigraineViewModel(context: context))
-        
-        // Perform data migration if needed
+
+        // One-time migration of legacy UserDefaults-backed migraines into
+        // Core Data (no-op once it has run successfully).
         DataMigrationHelper.checkAndMigrateData(context: context)
-        NSLog("🟣 [App] ===== APP INITIALIZED =====")
+
+        // Per-launch version-change check. Empty step registry today, but
+        // the hook is wired so the first release that needs a one-time
+        // data backfill can land it as a single edit to
+        // `MigrationCoordinator.upgradeSteps`.
+        MigrationCoordinator.runLaunchSequence(context: context)
+
+        // Stamp first-launch date + bump launch counter for the review
+        // prompt gate. Deliberately runs *after* the migration hook so
+        // that a first-launch users coming from an upgrade still get the
+        // legacy data migration before we start counting their tenure.
+        // The coordinator is `@MainActor` and `init()` already runs on
+        // the main actor, so no dispatch is needed.
+        MainActor.assumeIsolated {
+            ReviewPromptCoordinator.recordLaunch()
+        }
+
+        AppLogger.general.notice("App initialized")
     }
     
     var body: some Scene {
@@ -86,7 +104,7 @@ struct NALI_Migraine_LogApp: App {
                         SettingsView(viewModel: viewModel)
                     }
                     .onAppear {
-                        NSLog("🟣 [App] Main TabView appeared")
+                        AppLogger.ui.debug("Main TabView appeared")
                         // Request location permission on first launch
                         locationManager.requestPermission()
                     }

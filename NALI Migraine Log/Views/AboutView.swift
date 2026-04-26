@@ -79,6 +79,20 @@ struct AboutView: View {
                             .foregroundColor(.white.opacity(0.9))
                             .font(.subheadline)
                             .lineSpacing(3)
+
+                        Link(destination: AppContactInfo.privacyPolicyURL) {
+                            HStack(spacing: 6) {
+                                Text("View Privacy Policy")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                Image(systemName: "arrow.up.right.square")
+                                    .font(.caption)
+                            }
+                            .foregroundColor(.white)
+                            .padding(.top, 4)
+                        }
+                        .accessibilityLabel("View privacy policy")
+                        .accessibilityHint("Opens the full Headway privacy policy in your default browser.")
                     }
                     
                     // References

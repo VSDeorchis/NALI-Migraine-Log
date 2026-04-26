@@ -149,8 +149,6 @@
 			membershipExceptions = (
 				Assets.xcassets,
 				ViewModels/MigraineViewModel.swift,
-				Views/EnjoymentPromptView.swift,
-				Views/FeedbackFormView.swift,
 			);
 			target = 69782C9D2D4727B30078C9C0 /* NALI Migraine Log Watch App Watch App */;
 		};
@@ -158,8 +156,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Assets.xcassets,
-				Views/EnjoymentPromptView.swift,
-				Views/FeedbackFormView.swift,
 			);
 			target = 692AFEBC2D581D0600F792E1 /* NALI Migraine Log macOS */;
 		};

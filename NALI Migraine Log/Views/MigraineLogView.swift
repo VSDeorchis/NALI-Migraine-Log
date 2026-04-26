@@ -10,6 +10,19 @@ struct MigraineLogView: View {
     @State private var searchText = ""
     @State private var showingSettings = false
     @State private var isRefreshing = false
+    /// True when `PersistenceController` has moved a corrupted store
+    /// aside on disk and the recovery file is still present. Surfaces a
+    /// one-line banner above the filter row that taps through to the
+    /// existing recovery section in Settings.
+    @State private var hasRecoveredStore = false
+
+    /// Drives the "Enjoying Headway?" pre-prompt that gates Apple's
+    /// native review sheet. We never set this directly — instead we
+    /// consult `ReviewPromptCoordinator.shouldShowEnjoymentPrompt`
+    /// from `onAppear` and only flip it to `true` when the policy
+    /// allows. See `Shared/Services/ReviewPromptCoordinator.swift`
+    /// for the full gating logic (tenure, entries logged, cooldowns).
+    @State private var showingEnjoymentPrompt = false
     
     enum FilterOption: String, CaseIterable {
         case all = "All"
@@ -32,7 +45,16 @@ struct MigraineLogView: View {
                 VStack(spacing: 12) {
                     SyncStatusView()
                         .padding(.top, 8)
-                    
+
+                    // Recovery notice: shown only when PersistenceController
+                    // has moved a corrupted store aside. Tapping deep-links
+                    // into the existing Settings recovery section.
+                    if hasRecoveredStore {
+                        StoreRecoveryBanner {
+                            showingSettings = true
+                        }
+                    }
+
                     // Filter buttons
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
@@ -87,9 +109,7 @@ struct MigraineLogView: View {
                                             Divider()
                                             
                                             Button(role: .destructive) {
-                                                Task {
-                                                    await viewModel.deleteMigraine(migraine)
-                                                }
+                                                viewModel.deleteMigraine(migraine)
                                             } label: {
                                                 Label("Delete", systemImage: "trash")
                                             }
@@ -98,9 +118,7 @@ struct MigraineLogView: View {
                                             Button(role: .destructive) {
                                                 let feedback = UINotificationFeedbackGenerator()
                                                 feedback.notificationOccurred(.warning)
-                                                Task {
-                                                    await viewModel.deleteMigraine(migraine)
-                                                }
+                                                viewModel.deleteMigraine(migraine)
                                             } label: {
                                                 Label("Delete", systemImage: "trash")
                                             }
@@ -135,12 +153,16 @@ struct MigraineLogView: View {
                     Button(action: { showingSettings = true }) {
                         Image(systemName: "gear")
                     }
+                    .accessibilityLabel("Settings")
+                    .accessibilityHint("Opens app settings, sync, and data export")
                 }
-                
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: { showingNewMigraineSheet = true }) {
                         Image(systemName: "plus")
                     }
+                    .accessibilityLabel("Log New Migraine")
+                    .accessibilityHint("Opens a form to record a new migraine entry")
                 }
             }
             .sheet(isPresented: $showingNewMigraineSheet) {
@@ -151,12 +173,65 @@ struct MigraineLogView: View {
                     MigraineDetailView(migraine: migraine, viewModel: viewModel, dismiss: { selectedMigraine = nil })
                 }
             }
-            .sheet(isPresented: $showingSettings) {
+            .sheet(isPresented: $showingSettings, onDismiss: {
+                // The user may have dismissed the recovery notice from
+                // inside Settings; re-poll so the banner disappears.
+                refreshRecoveryBannerVisibility()
+            }) {
                 SettingsView(viewModel: viewModel)
             }
+            .onAppear {
+                refreshRecoveryBannerVisibility()
+                considerShowingEnjoymentPrompt()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                // A recovery may have happened while we were backgrounded
+                // (e.g. CloudKit pull triggered a store reload that failed).
+                refreshRecoveryBannerVisibility()
+                considerShowingEnjoymentPrompt()
+            }
+            .enjoymentPrompt(isPresented: $showingEnjoymentPrompt)
         }
     }
-    
+
+    /// Asks the coordinator whether the gate is open right now and, if so,
+    /// flips the prompt binding on. We do this from `onAppear` and from
+    /// foreground-resume because both moments coincide with the user
+    /// arriving at the log surface in a state where they've just (a)
+    /// returned to the app and (b) are not in the middle of any other
+    /// modal flow. Suppressed while another sheet is up so we never
+    /// stack a system alert on top of NewMigraine / Detail / Settings.
+    private func considerShowingEnjoymentPrompt() {
+        guard !showingNewMigraineSheet,
+              selectedMigraine == nil,
+              !showingSettings,
+              !hasRecoveredStore,
+              !showingEnjoymentPrompt
+        else {
+            return
+        }
+        guard ReviewPromptCoordinator.shouldShowEnjoymentPrompt else {
+            return
+        }
+        ReviewPromptCoordinator.recordEnjoymentPromptShown()
+        showingEnjoymentPrompt = true
+    }
+
+    /// Reads `PersistenceController.lastRecoveryFileDefaultsKey` from
+    /// `UserDefaults` and sanity-checks that the on-disk file still
+    /// exists. Stale pointers are cleared by `SettingsView` when the
+    /// recovery section appears, so we only ever set the banner true
+    /// when there's an actual file the user can recover.
+    private func refreshRecoveryBannerVisibility() {
+        let defaults = UserDefaults.standard
+        guard let path = defaults.string(forKey: PersistenceController.lastRecoveryFileDefaultsKey),
+              FileManager.default.fileExists(atPath: path) else {
+            hasRecoveredStore = false
+            return
+        }
+        hasRecoveredStore = true
+    }
+
     private var filteredMigraines: [MigraineEvent] {
         var migraines = viewModel.migraines
         
@@ -186,44 +261,27 @@ struct MigraineLogView: View {
             migraines = migraines.filter { $0.missedSchool }
         }
         
-        // Apply search filter
+        // Apply search filter. Trigger and medication matching delegates to
+        // each enum's `searchKeywords` so adding a new option in the facade
+        // automatically gets picked up here — no sprawling string ladder to
+        // maintain.
         if !searchText.isEmpty {
             migraines = migraines.filter { migraine in
                 let matchesLocation = migraine.location?.localizedCaseInsensitiveContains(searchText) ?? false
                 let matchesNotes = migraine.notes?.localizedCaseInsensitiveContains(searchText) ?? false
-                
-                // Search in triggers
-                let matchesTriggers = 
-                    (searchText.localizedCaseInsensitiveContains("stress") && migraine.isTriggerStress) ||
-                    (searchText.localizedCaseInsensitiveContains("sleep") && migraine.isTriggerLackOfSleep) ||
-                    (searchText.localizedCaseInsensitiveContains("dehydration") && migraine.isTriggerDehydration) ||
-                    (searchText.localizedCaseInsensitiveContains("weather") && migraine.isTriggerWeather) ||
-                    ((searchText.localizedCaseInsensitiveContains("menstrual") || searchText.localizedCaseInsensitiveContains("hormones")) && migraine.isTriggerHormones) ||
-                    (searchText.localizedCaseInsensitiveContains("alcohol") && migraine.isTriggerAlcohol) ||
-                    (searchText.localizedCaseInsensitiveContains("caffeine") && migraine.isTriggerCaffeine) ||
-                    (searchText.localizedCaseInsensitiveContains("food") && migraine.isTriggerFood) ||
-                    (searchText.localizedCaseInsensitiveContains("exercise") && migraine.isTriggerExercise) ||
-                    (searchText.localizedCaseInsensitiveContains("screen") && migraine.isTriggerScreenTime) ||
-                    (searchText.localizedCaseInsensitiveContains("other") && migraine.isTriggerOther)
-                
-                // Search in medications
-                let matchesMedications = 
-                    (searchText.localizedCaseInsensitiveContains("ibuprofen") && migraine.tookIbuprofin) ||
-                    (searchText.localizedCaseInsensitiveContains("excedrin") && migraine.tookExcedrin) ||
-                    (searchText.localizedCaseInsensitiveContains("tylenol") && migraine.tookTylenol) ||
-                    (searchText.localizedCaseInsensitiveContains("sumatriptan") && migraine.tookSumatriptan) ||
-                    (searchText.localizedCaseInsensitiveContains("rizatriptan") && migraine.tookRizatriptan) ||
-                    (searchText.localizedCaseInsensitiveContains("naproxen") && migraine.tookNaproxen) ||
-                    (searchText.localizedCaseInsensitiveContains("frovatriptan") && migraine.tookFrovatriptan) ||
-                    (searchText.localizedCaseInsensitiveContains("naratriptan") && migraine.tookNaratriptan) ||
-                    (searchText.localizedCaseInsensitiveContains("nurtec") && migraine.tookNurtec) ||
-                    (searchText.localizedCaseInsensitiveContains("symbravo") && migraine.tookSymbravo) ||
-                    (searchText.localizedCaseInsensitiveContains("ubrelvy") && migraine.tookUbrelvy) ||
-                    (searchText.localizedCaseInsensitiveContains("reyvow") && migraine.tookReyvow) ||
-                    (searchText.localizedCaseInsensitiveContains("trudhesa") && migraine.tookTrudhesa) ||
-                    (searchText.localizedCaseInsensitiveContains("elyxyb") && migraine.tookElyxyb) ||
-                    (searchText.localizedCaseInsensitiveContains("other") && migraine.tookOther)
-                
+
+                let matchesTriggers = migraine.triggers.contains { trigger in
+                    trigger.searchKeywords.contains { keyword in
+                        searchText.localizedCaseInsensitiveContains(keyword)
+                    }
+                }
+
+                let matchesMedications = migraine.medications.contains { medication in
+                    medication.searchKeywords.contains { keyword in
+                        searchText.localizedCaseInsensitiveContains(keyword)
+                    }
+                }
+
                 return matchesLocation || matchesNotes || matchesTriggers || matchesMedications
             }
         }
@@ -238,7 +296,7 @@ struct MigraineLogView: View {
                 endTime: nil,
                 painLevel: migraine.painLevel,
                 location: migraine.location ?? "Frontal",
-                triggers: migraine.selectedTriggerNames,
+                triggers: migraine.triggers,
                 hasAura: migraine.hasAura,
                 hasPhotophobia: migraine.hasPhotophobia,
                 hasPhonophobia: migraine.hasPhonophobia,
@@ -250,7 +308,7 @@ struct MigraineLogView: View {
                 missedWork: migraine.missedWork,
                 missedSchool: migraine.missedSchool,
                 missedEvents: migraine.missedEvents,
-                medications: migraine.selectedMedicationNames,
+                medications: migraine.medications,
                 notes: nil
             )
             let feedback = UINotificationFeedbackGenerator()
@@ -259,10 +317,8 @@ struct MigraineLogView: View {
     }
     
     private func deleteMigraines(at offsets: IndexSet) {
-        Task {
-            for index in offsets {
-                await viewModel.deleteMigraine(filteredMigraines[index])
-            }
+        for index in offsets {
+            viewModel.deleteMigraine(filteredMigraines[index])
         }
     }
     
@@ -458,6 +514,57 @@ struct EmptyMigraineStateView: View {
         .environment(\.managedObjectContext, context)
 }
 
+// MARK: - Store Recovery Banner
+
+/// One-line "your database was recovered" banner shown at the top of
+/// the migraine log when `PersistenceController` had to move a corrupted
+/// store aside on disk. Tap → opens Settings so the user can share or
+/// dismiss the recovered file. The full recovery UI (file metadata,
+/// share sheet, dismiss confirmation) lives in `SettingsView` to keep
+/// the log surface uncluttered.
+struct StoreRecoveryBanner: View {
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(.white)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Database Recovered")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+
+                    Text("Your previous data was set aside safely. Tap to view recovery options.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.95))
+                        .multilineTextAlignment(.leading)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.9))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.orange.gradient)
+            )
+            .padding(.horizontal)
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Database recovered. Your previous data was set aside safely.")
+        .accessibilityHint("Opens settings to view, share, or dismiss the recovered database file.")
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
 // Custom FilterButton View
 struct FilterButton: View {
     let title: String
@@ -520,6 +627,7 @@ struct SearchBar: View {
                         .font(.system(size: 16))
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
             }
         }
         .padding(.horizontal, 12)
