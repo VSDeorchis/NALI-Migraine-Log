@@ -18,6 +18,11 @@ struct StatisticsView: View {
     @State private var customStartDate: Date = Calendar.current.date(byAdding: .month, value: -1, to: Date())!
     @State private var customEndDate: Date = Date()
     
+    /// Owns the cached HealthKit-derived correlation stats. The dashboard
+    /// triggers `load(window:migraines:)` whenever the filter or migraine
+    /// list changes; the section view + drill-downs read from the store.
+    @StateObject private var healthCorrelationStore = HealthCorrelationStore()
+    
     enum TimeFilter: String, CaseIterable {
         case week = "Week"
         case month = "Month"
@@ -330,9 +335,24 @@ struct StatisticsView: View {
             painLevelDistributionChart
             trendsSection
             insightsSection
+            healthCorrelationsSection
             impactSummaryView
             weatherCorrelationButton
         }
+    }
+    
+    /// Sleep + HRV correlation cards, hidden entirely when HealthKit
+    /// isn't available on the device.
+    private var healthCorrelationsSection: some View {
+        HealthCorrelationsSectionView(
+            store: healthCorrelationStore,
+            onConnectTapped: {
+                Task {
+                    await HealthKitManager.shared.requestAuthorization()
+                    refreshHealthCorrelations()
+                }
+            }
+        )
     }
     
     // MARK: - New dashboard sections
@@ -526,6 +546,7 @@ struct StatisticsView: View {
                 .navigationDestination(for: AnalyticsMetric.self) { metric in
                     AnalyticsMetricDetailView(
                         viewModel: viewModel,
+                        healthStore: healthCorrelationStore,
                         metric: metric,
                         migraines: filteredMigraines,
                         periodLabel: periodLabel
@@ -554,18 +575,23 @@ struct StatisticsView: View {
                 .onAppear {
                     viewModel.fetchMigraines()
                     lastUpdateTime = Date()
+                    refreshHealthCorrelations()
                 }
                 .onChange(of: viewModel.migraines) {
                     lastUpdateTime = Date()
+                    refreshHealthCorrelations()
                 }
                 .onChange(of: timeFilter) {
                     lastUpdateTime = Date()
+                    refreshHealthCorrelations()
                 }
                 .onChange(of: customStartDate) {
                     lastUpdateTime = Date()
+                    refreshHealthCorrelations()
                 }
                 .onChange(of: customEndDate) {
                     lastUpdateTime = Date()
+                    refreshHealthCorrelations()
                 }
         }
     }
@@ -860,6 +886,38 @@ struct StatisticsView: View {
     /// match the existing Life Impact card decomposition.
     private var totalImpactDays: Int {
         filteredMigraines.totalImpactDays
+    }
+    
+    /// `DateInterval` used by the HealthKit correlation fetchers. Mirrors
+    /// the active filter, except the `.year` filter is widened to a
+    /// rolling 12 months so HealthKit reads always have a meaningful
+    /// baseline (years near the start of the calendar would otherwise
+    /// have only a few weeks of HealthKit history).
+    private var correlationWindow: DateInterval {
+        let cal = Calendar.current
+        let now = Date()
+        let end = cal.startOfDay(for: cal.date(byAdding: .day, value: 1, to: now) ?? now)
+        let start: Date
+        switch timeFilter {
+        case .week:
+            start = cal.date(byAdding: .day, value: -7, to: end) ?? end
+        case .month:
+            start = cal.date(byAdding: .month, value: -1, to: end) ?? end
+        case .year:
+            start = cal.date(byAdding: .year, value: -1, to: end) ?? end
+        case .range:
+            start = cal.startOfDay(for: customStartDate)
+        }
+        return DateInterval(start: start, end: end)
+    }
+    
+    /// Kicks off (or no-ops on duplicate) a refresh of the HealthKit
+    /// correlation stats for the active filter window.
+    private func refreshHealthCorrelations() {
+        healthCorrelationStore.load(
+            window: correlationWindow,
+            migraines: filteredMigraines
+        )
     }
     
     /// Human-readable description of the active filter window. Surfaced
