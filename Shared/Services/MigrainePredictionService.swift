@@ -171,7 +171,8 @@ class MigrainePredictionService: ObservableObject {
             forecasts.append(HourlyRiskForecast(
                 hour: hour.hour,
                 risk: score.overallRisk,
-                primaryFactor: score.topFactors.first?.name ?? "General"
+                primaryFactor: score.topFactors.first?.name ?? "General",
+                date: hour.date
             ))
         }
         

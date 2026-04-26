@@ -12,25 +12,29 @@ The app combines a manual logging UI with a hybrid risk-prediction engine (rule-
 .
 ├── Shared/                                  # Code compiled into all 3 targets
 │   ├── Models/                              # Core Data classes + enum facades
-│   ├── Services/                            # Logger, persistence, prediction, weather, location, HealthKit, migration
+│   ├── Services/                            # Logger, persistence, prediction, weather, location, HealthKit (read+write), migration, review-prompt, notifications, BG-task scheduler
 │   ├── NALI_Migraine_Log.xcdatamodeld/      # The single source of truth for the schema
+│   ├── AppContactInfo.swift                 # Centralized App Store ID, support email, website, privacy-policy URL
 │   └── WatchConnectivityManager.swift       # iPhone ↔ Watch payload bridge
 │
 ├── NALI Migraine Log/                       # iOS app (synchronized root group; ALSO consumed by macOS + Watch targets)
-│   ├── Views/, ViewModels/, Utilities/      # iOS-specific UI
-│   ├── PrivacyInfo.xcprivacy                # Shared privacy manifest (one per .app bundle)
-│   ├── Info.plist
-│   └── NALI_Migraine_LogApp.swift           # @main entry point
+│   ├── Views/, ViewModels/, Utilities/      # iOS-specific UI (incl. EnjoymentPromptView + FeedbackFormView, both #if os(iOS))
+│   ├── AppIntents/LogMigraineIntent.swift   # Siri / Shortcuts entry point — iOS-only, scoped via #if os(iOS)
+│   ├── iOSContentView.swift                 # Adaptive root: TabView on iPhone, NavigationSplitView (sidebar+detail) on iPad
+│   ├── PrivacyInfo.xcprivacy                # Privacy manifest (one per .app bundle)
+│   ├── Info.plist                           # Declares background modes (fetch+processing) and BGTaskScheduler permitted identifiers
+│   └── NALI_Migraine_LogApp.swift           # @main entry point — registers BackgroundTaskScheduler + reconciles notifications on scenePhase
 │
 ├── NALI Migraine Log macOS/                 # macOS app target (synchronized root)
-│   ├── Views/, ViewModels/, Commands/, Utilities/
+│   ├── Views/, ViewModels/, Utilities/
+│   ├── Commands/AppCommands.swift           # macOS Help/menu commands (Visit Website, Rate, Send Feedback, Privacy Policy)
 │   └── NALI_Migraine_Log_macOSApp.swift
 │
 ├── NALI Migraine Log Watch App Watch App/   # watchOS app target (synchronized root)
 │   ├── Views/
 │   └── NALI_Migraine_Log_Watch_AppApp.swift
 │
-├── NALI Migraine LogTests/                  # Unit tests (run on iOS simulator, ~48 tests)
+├── NALI Migraine LogTests/                  # Unit tests (run on iOS simulator, ~63 tests)
 ├── NALI Migraine Log macOSTests/            # Stub only (no real coverage yet)
 ├── NALI Migraine Log Watch App Watch AppTests/  # Stub only
 │
@@ -52,11 +56,19 @@ The three app targets all share `NALI Migraine Log/` as a synchronized root grou
 | **Persistence** | `Shared/Models/PersistenceController.swift` | Single `NSPersistentCloudKitContainer` shared across all 3 targets. Includes lightweight migration, store recovery (move-aside), and a documented schema-migration playbook at the top of the file. |
 | **Schema** | `Shared/NALI_Migraine_Log.xcdatamodeld` | One model, one entity (`MigraineEvent`). Boolean trigger/medication columns are wrapped by enum facades for type safety. |
 | **Enum facades** | `Shared/Models/MigraineTrigger.swift`, `MigraineMedication.swift` | Strongly-typed `Set<Enum>` views over Core Data booleans. Always read/write through the facade — never touch the booleans directly. |
-| **Logging** | `Shared/Services/AppLogger.swift` | Thin `os.Logger` wrapper with categories (`general`, `coreData`, `prediction`, `weather`, `migration`, …). Use it instead of `print` / `NSLog`. |
+| **Logging** | `Shared/Services/AppLogger.swift` | Thin `os.Logger` wrapper with categories (`general`, `coreData`, `prediction`, `weather`, `migration`, `notifications`, `background-tasks`, …). Use it instead of `print` / `NSLog`. |
 | **Risk prediction** | `Shared/Services/{FeatureExtractor,MigrainePredictionService}.swift` | Two-tier hybrid (rule-based + CoreML). See [`ML_PREDICTION_GUIDE.md`](./ML_PREDICTION_GUIDE.md). |
 | **Weather** | `Shared/Services/{WeatherService,WeatherForecastService}.swift` | Open-Meteo (no key). See [`WEATHER_FEATURE_GUIDE.md`](./WEATHER_FEATURE_GUIDE.md). |
+| **HealthKit (read + write)** | `Shared/Services/HealthKitManager.swift` | Reads sleep/HRV/menstruation for prediction features and **writes** logged migraines back to Apple Health as `HKCategorySample` of type `.headache` when the user opts in (Settings → Apple Health). Deduplicated via `HKMetadataKeyExternalUUID` so re-running backfill is idempotent. iOS 17+/watchOS 10+ for the write path. |
+| **Notifications** | `Shared/Services/NotificationManager.swift` (iOS-only) | Owns every `UNUserNotification` we schedule. Two independently-toggleable kinds: **forecast-risk** (fires only when the next 24 h forecast contains an hour the prediction engine scores ≥ 0.65 risk *and* the user has logged ≥ 5 migraines) and **re-engagement** (fires once a user has been silent for ≥ 14 days; never asks "how are you feeling?" per product direction). Permissions are requested lazily the first time the user enables a toggle. |
+| **Background tasks** | `Shared/Services/BackgroundTaskScheduler.swift` (iOS-only) | Single `BGAppRefreshTask` (`com.neuroli.Headway.refresh`) registered in `App.init()` and rescheduled on every `scenePhase == .background`. The handler refreshes the weather forecast, recomputes risk, and lets `NotificationManager.reconcileAllNotifications()` schedule/cancel pushes. Identifier and `UIBackgroundModes` are declared in the iOS `Info.plist`. |
+| **App Intents / Siri** | `NALI Migraine Log/AppIntents/LogMigraineIntent.swift` (iOS 17+) | Voice-activated "Log a migraine" with optional pain-level and notes parameters. Saves directly to the `viewContext`, calls `ReviewPromptCoordinator.recordEntryLogged()`, and mirrors to HealthKit through the same code path the in-app `addMigraine` uses. Discovered via `HeadwayAppShortcuts: AppShortcutsProvider`. |
 | **Watch ↔ iPhone** | `Shared/WatchConnectivityManager.swift` | Bidirectional message + application-context bridge. |
 | **Migration coordinator** | `Shared/Services/MigrationCoordinator.swift` | Per-launch version-change hook. Empty `upgradeSteps` registry today; documented for one-line future additions. |
+| **Review prompt** | `Shared/Services/ReviewPromptCoordinator.swift` + iOS `Views/EnjoymentPromptView.swift` | "Enjoying Headway?" pre-prompt that gates Apple's `requestReview`. Tracks tenure (≥7 days), entries logged (≥5), and per-outcome cooldowns (180d after Yes, 365d after No) in `UserDefaults`. iOS-only UI; macOS uses an unconditional "Rate" menu command instead. |
+| **In-app feedback** | iOS `Views/FeedbackFormView.swift` | Routes the "Not really" path of the enjoyment prompt to a category + star + free-text form, then hands off to `MFMailComposeViewController` (clipboard fallback if mail isn't configured). All iOS-only — guarded by `#if os(iOS)` so the file is a no-op on macOS/watchOS targets. |
+| **Adaptive root layout** | `NALI Migraine Log/iOSContentView.swift` | Single source of truth for top-level navigation. The four destinations (`Log`, `Calendar`, `Analytics`, `About`) live in one `AppDestination` enum that drives both the iPhone `TabView` and the iPad `NavigationSplitView` sidebar. Adding a fifth destination is a one-line enum-case change. |
+| **Contact / app metadata** | `Shared/AppContactInfo.swift` | Single source of truth for the App Store ID, support email (`support@cicgconsulting.com`), practice website (`neuroli.com`), and privacy-policy URL. All four entry points (iOS About, iOS Settings, macOS About, macOS Help menu) read from here so updating any of them is a one-line edit. |
 
 ---
 
@@ -117,7 +129,7 @@ Two things that are not negotiable for the iOS test path:
 
 ## Tests
 
-Currently ~48 real unit tests live in `NALI Migraine LogTests/`:
+Currently ~63 real unit tests live in `NALI Migraine LogTests/`:
 
 | File | What it covers |
 |---|---|
@@ -126,6 +138,7 @@ Currently ~48 real unit tests live in `NALI Migraine LogTests/`:
 | `MigraineEventFacadeTests.swift` | Round-trip behavior for `Set<MigraineTrigger>` / `Set<MigraineMedication>` and canonical ordering |
 | `MigraineTriggerTests.swift` | Display names, search keywords, legacy aliases, whitespace tolerance, `allCases` order |
 | `MigraineMedicationTests.swift` | Display names, search keywords, legacy spelling tolerance (e.g. `ibuprofin`) |
+| `ReviewPromptCoordinatorTests.swift` | Every gate of the review-prompt policy: baseline state, `recordLaunch` idempotency, entry-counter monotonicity, all rejection paths (tenure too short, too few entries, both cooldowns), happy-path opening, and the conservative "prompt shown but no outcome → 365-day cooldown" branch. Uses `@Suite(.serialized)` + per-test `UserDefaults` suite + injectable clock so the static coordinator is fully isolated. |
 
 The macOS and Watch test bundles exist but contain only Xcode-generated stubs — they're targets to grow into, not coverage to rely on.
 
@@ -153,6 +166,45 @@ To re-run failed jobs without a new commit, use the **Re-run jobs** button in th
 - **Comments**: explain *intent* and *trade-offs*, not what the next line obviously does. A good comment is one that prevents a future reader from re-deriving a non-obvious decision.
 - **Concurrency**: SwiftUI views are `MainActor`-isolated by default. Long-running work (Core Data fetches, weather requests, prediction inference) lives in services and returns to the main actor for UI updates. Don't block `@main` `App.init()`.
 - **No third-party deps**: keeping the dependency graph empty is a feature, not an accident. If something seems to need a library, talk it through first.
+- **Contact info**: read every email, URL, App Store ID, and support phone from `Shared/AppContactInfo.swift`. Hardcoding these inline drifts immediately and breaks the four-surface privacy/feedback parity (iOS About, iOS Settings, macOS About, macOS Help menu).
+- **Engagement counter**: when adding a new "user did something meaningful with the core feature" code path (e.g. logged a migraine, completed onboarding, exported data), call `ReviewPromptCoordinator.recordEntryLogged()` after the success branch. The counter only fires on the *initial* successful save in `MigraineViewModel.addMigraine` today — additional surfaces should be conservative (one increment per user-perceived action, not per Core Data save).
+- **Dynamic Type for custom Optima fonts**: every `.font(.custom("Optima-…", size: N))` call must pass `relativeTo:` so the size scales with the user's accessibility settings. The matching text-style is whatever is closest in Apple's hierarchy (`.largeTitle`, `.title`, `.title2`, `.title3`, `.headline`, `.subheadline`, `.callout`, `.caption`). Bare `.custom(_, size:)` without `relativeTo:` is forbidden — it ships a fixed-size font that ignores Dynamic Type and fails accessibility review.
+- **Optionals over force-unwraps in concurrency**: `try await group.next()!` and similar patterns trap when a task group exits unexpectedly (cancelled parent, runtime drain, future Swift behavior changes). Always `guard let` the result and either `throw` a typed error or fall through to a sane default. The pattern in `MigraineViewModel.withTimeout` is the reference implementation.
+- **Adaptive layout**: any change to top-level destinations goes through the `AppDestination` enum in `iOSContentView.swift`. Don't sprinkle `if UIDevice.current.userInterfaceIdiom == .pad` checks across views — the existing `horizontalSizeClass` switch handles iPad-vs-iPhone (and Plus/Pro Max landscape) globally and uniformly. Each destination still owns its own `NavigationStack`; that's intentional so the detail column on iPad keeps an independent back history per destination.
+
+---
+
+## Notifications & background tasks
+
+The user-visible behavior is two toggles in **Settings → Notifications**: *Forecast risk alerts* and *Re-engagement reminders*. Internally that maps to:
+
+| Concern | Owner | Notes |
+|---|---|---|
+| Authorization | `NotificationManager.requestAuthorization()` | Requested lazily on the first toggle flip. We deliberately don't ask on cold launch — users who don't care shouldn't see the system prompt at all. |
+| Forecast push | `NotificationManager.scheduleForecastRiskNotificationIfNeeded(migraines:forecast:)` | Runs the forecast through `MigrainePredictionService.generate24HourForecast(...)`, picks the first hour at or above `highRiskThreshold` (0.65), and schedules a single `UNCalendarNotificationTrigger` ~2 hours before that hour. Identifier is derived from the trigger hour, so re-runs replace rather than stack. |
+| Re-engagement push | `NotificationManager.scheduleReengagementNotificationIfNeeded(...)` | Repeats daily at 7 pm local *only after* `reengagementDays` (default 14) since the user's most recent entry. Cancelled automatically on every `.active` `scenePhase`. Body is intentionally gentle — never a wellness check, never asks how the user feels. |
+| Reconcile-all | `NotificationManager.reconcileAllNotifications(migraines:forecast:)` | The single entry point used by `App.init()`'s scenePhase observer and by the BG task handler. Idempotent — safe to call on every app cycle. |
+| BG task identifier | `BackgroundTaskScheduler.refreshIdentifier` | `com.neuroli.Headway.refresh`. Must also appear in `Info.plist` under `BGTaskSchedulerPermittedIdentifiers`. Adding a new BG task means **both** registering it in `BackgroundTaskScheduler.register()` *and* adding its identifier to the plist — the system rejects unregistered or unlisted identifiers silently. |
+| BG scheduling cadence | `BackgroundTaskScheduler.scheduleNextRefresh()` | Submits a `BGAppRefreshTaskRequest` with a `refreshInterval` minimum gap. iOS coalesces the actual run with system-decided thermal/charge windows — we cannot force a specific delay, only a *minimum*. |
+| BG work | `BackgroundTaskScheduler.performRefreshWork()` | Fetches location → forecast → recent migraines → calls `reconcileAllNotifications`. Must complete inside iOS's BG-task runtime budget (~30s). All Core Data work runs on the `viewContext` because the dataset is small; switch to a private context if a future feature crosses ~10 k rows. |
+
+**Testing notes**
+
+- Forecast pushes need **≥ 5 historical migraines** in the test dataset *and* a forecast-hour above 0.65 risk to fire. Below either threshold, the scheduler logs at `.debug` level and no-ops.
+- Re-engagement pushes need a stale dataset — the simplest way to exercise locally is to set the system clock 15 days forward.
+- BG tasks won't run in the simulator without `e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWithIdentifier:@"com.neuroli.Headway.refresh"]` from the LLDB prompt while the app is foregrounded *and* a request has already been submitted (i.e. you've backgrounded the app at least once first).
+- Flipping a toggle off cancels in-flight pushes synchronously via the scheduler's `cancel*Notifications()` methods. There is no "pending" middle state.
+
+---
+
+## HealthKit write-back
+
+When the user enables **Settings → Apple Health → Sync to Apple Health**, every `addMigraine` / `updateMigraine` / `deleteMigraine` call writes (or deletes) a matching `HKCategorySample` of type `.headache`. This is iOS 17+/watchOS 10+ only — older OS versions silently no-op. Implementation lives in `HealthKitManager.writeMigraineToHealth(_:)`, `mirrorDeletion(ofMigraineUUID:)`, and `backfillMigrainesToHealth()`.
+
+- **Deduplication**: every sample is tagged with `HKMetadataKeyExternalUUID = migraineEvent.id.uuidString`, so the backfill button is idempotent — running it 100 times produces the same n samples, not 100 n.
+- **Severity mapping**: app's 1–10 pain scale → `HKCategoryValueSeverity` (1–3 mild, 4–6 moderate, 7–9 severe, 10 unspecified→severe).
+- **Permissions are revocable**: the user can disable HealthKit in **Settings → Privacy & Security → Health**. Our `writeTypes` request is wrapped in a `do/catch` and logs at `.error` level on denial; we do not crash and we do not retry.
+- **Privacy description**: `NSHealthUpdateUsageDescription` is required in iOS `Info.plist` *in addition* to `NSHealthShareUsageDescription`. App Store review rejects builds that write without the second key.
 
 ---
 
@@ -177,6 +229,14 @@ The full procedure lives at the top of [`Shared/Models/PersistenceController.swi
 
   When adding a new required-reason API anywhere in the codebase, **update every file the API actually appears in**. Apple does not allow under-declaration; over-declaration is harmless.
 - **No tracking, no third-party data sharing.** All HealthKit, location, weather, and migraine data either stays on-device or syncs through the user's own iCloud private database.
+- **Privacy policy URL**: `https://cicgconsulting.com/headway-privacy-policy`, hosted on the developer's registered domain (`cicgconsulting.com`) — distinct from the practice site (`neuroli.com`) that the "Visit Website" / "About Practice" links point to. The single source of truth is `AppContactInfo.privacyPolicyURL`. Surfaced in four places:
+  - iOS `AboutView` — link under the "Your Privacy" section
+  - macOS `AboutView` — link under the "Your Privacy" section
+  - iOS `SettingsView` — row in the "Help & Feedback" section
+  - macOS Help menu — "Privacy Policy" command
+  Apple **also requires** this URL in App Store Connect → App Privacy → Privacy Policy URL. Keep the in-app constant and the App Store Connect field in sync — they are independent surfaces and changing one does not update the other.
+- **Contact info, support email, App Store ID** all live in `Shared/AppContactInfo.swift`. Update there once and every UI surface (About, Settings, Help menu, feedback `mailto:` URLs, App Store deep links) picks up the change at the next build. **Do not** hardcode any of these values inline in Views.
+- **In-app review & feedback flow**: Apple's `requestReview()` is gated by the "Enjoying Headway?" pre-prompt in `EnjoymentPromptView` — `Yes` calls `requestReview()`, `Not really` opens `FeedbackFormView` (in-app form, sends via the user's mail client to `support@cicgconsulting.com`). The full gating policy (tenure, entry-count, cooldowns) lives in `ReviewPromptCoordinator`; constants are tunable at the top of that file. Both UI files are wrapped in `#if os(iOS)` because they depend on `StoreKit`/`UIKit`/`MessageUI`; macOS gets straight-shot menu commands instead.
 - **Version bumps before App Store upload**: bump `MARKETING_VERSION` (visible to users, gates `MigrationCoordinator` upgrade steps) and `CURRENT_PROJECT_VERSION` (the build number, must monotonically increase per release) in **all three** targets' build settings. Forgetting either is the most common upload rejection.
 - **Entitlements**: each target has its own `.entitlements` file declaring CloudKit, HealthKit, App Sandbox (macOS), etc. Don't add capabilities ad-hoc in Xcode's Signing & Capabilities tab without checking that all three targets stay in sync where it matters (specifically the iCloud container ID).
 

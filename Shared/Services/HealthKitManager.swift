@@ -2,24 +2,65 @@
 //  HealthKitManager.swift
 //  NALI Migraine Log
 //
-//  Reads health data from HealthKit for migraine prediction features:
-//  sleep analysis, HRV, resting heart rate, step count, menstrual data.
-//  All data stays on-device.
+//  Bidirectional HealthKit bridge:
+//
+//  • READS sleep, HRV, resting heart rate, step count, and menstrual cycle
+//    samples to feed `MigrainePredictionService`'s feature extractor.
+//
+//  • WRITES the user's logged migraines back to Apple Health as `.headache`
+//    category samples (iOS 17+ / watchOS 10+) so they show up in the system
+//    Health app under Browse → Symptoms → Headache and are available to
+//    third-party apps the user has granted access to (sleep apps, fitness
+//    apps, clinical tools). Pain level is mapped to `HKCategoryValueSeverity`
+//    via `severityValue(forPainLevel:)`.
+//
+//  Mirroring is OPT-IN. The `isHealthSyncEnabled` UserDefaults flag (default
+//  false) governs whether `MigraineViewModel.addMigraine`/`updateMigraine`/
+//  `deleteMigraine` will fan out to Health. Toggling it from the Settings
+//  screen flips the flag; the user can also revoke at any time from the
+//  system Health app's Sources → Headway pane (which is what Apple expects
+//  to be the primary revoke surface).
+//
+//  Each migraine carries `HKMetadataKeyExternalUUID = migraine.id` on its
+//  Health sample so we can find-and-replace cleanly on edit, and find-and-
+//  delete cleanly when the user removes the entry from Headway. This means
+//  re-running mirror operations is idempotent — backfills don't duplicate.
+//
+//  All data stays on the user's device + iCloud account; nothing is sent to
+//  any developer-side server. Apple's HealthKit "All Health Data" entitlement
+//  (`com.apple.developer.healthkit`) covers both read and write — there is
+//  no separate "write" entitlement to add.
 //
 
 import Foundation
 #if canImport(HealthKit)
 import HealthKit
 #endif
+import CoreData
 
 @MainActor
 class HealthKitManager: ObservableObject {
     static let shared = HealthKitManager()
-    
+
+    /// UserDefaults key driving whether new/updated/deleted migraines are
+    /// mirrored into Apple Health. Default is `false` — opt-in only.
+    private static let healthSyncEnabledKey = "healthkit.syncMigrainesEnabled"
+
     @Published var isAuthorized = false
     @Published var lastError: Error?
     @Published var latestSnapshot: HealthKitSnapshot?
-    
+
+    /// Whether the user has opted in to mirroring their migraines to Apple
+    /// Health. Backed by `UserDefaults`. Reading this is fast; setting it
+    /// publishes via `objectWillChange` so the Settings toggle stays in
+    /// sync with the underlying flag.
+    @Published var isHealthSyncEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(isHealthSyncEnabled, forKey: Self.healthSyncEnabledKey)
+            AppLogger.health.notice("Health sync \(self.isHealthSyncEnabled ? "enabled" : "disabled", privacy: .public)")
+        }
+    }
+
     #if canImport(HealthKit)
     private let healthStore: HKHealthStore?
     #endif
@@ -35,6 +76,8 @@ class HealthKitManager: ObservableObject {
     }
     
     private init() {
+        self.isHealthSyncEnabled = UserDefaults.standard.bool(forKey: Self.healthSyncEnabledKey)
+
         #if canImport(HealthKit)
         if HKHealthStore.isHealthDataAvailable() {
             healthStore = HKHealthStore()
@@ -46,7 +89,12 @@ class HealthKitManager: ObservableObject {
     
     // MARK: - Authorization
     
-    /// Request HealthKit read permissions.
+    /// Request HealthKit read + (where supported) write permissions.
+    ///
+    /// Write access for the `.headache` type is only available on iOS 17 /
+    /// watchOS 10 and later. On older OS versions we ask for reads only and
+    /// silently leave the mirroring path disabled — `writeMigraineToHealth`
+    /// gates on the same availability check.
     func requestAuthorization() async {
         #if canImport(HealthKit)
         guard let healthStore = healthStore else {
@@ -54,10 +102,17 @@ class HealthKitManager: ObservableObject {
             return
         }
         
+        let toShare: Set<HKSampleType>
+        if #available(iOS 17.0, watchOS 10.0, *) {
+            toShare = writeTypes
+        } else {
+            toShare = []
+        }
+
         do {
-            try await healthStore.requestAuthorization(toShare: [], read: readTypes)
+            try await healthStore.requestAuthorization(toShare: toShare, read: readTypes)
             isAuthorized = true
-            AppLogger.health.notice("HealthKit authorization granted")
+            AppLogger.health.notice("HealthKit authorization granted (write types: \(toShare.count, privacy: .public))")
         } catch {
             lastError = error
             isAuthorized = false
@@ -118,7 +173,31 @@ class HealthKitManager: ObservableObject {
         if let menstrual = HKObjectType.categoryType(forIdentifier: .menstrualFlow) {
             types.insert(menstrual)
         }
-        
+
+        // We also read back our own headache samples to dedupe writes during
+        // the backfill / re-edit paths. Without read access on the headache
+        // type we couldn't query existing samples by ExternalUUID before
+        // re-writing, which would leak duplicates on every edit. Only added
+        // on platforms where the type exists.
+        if #available(iOS 17.0, watchOS 10.0, *) {
+            if let headache = HKObjectType.categoryType(forIdentifier: .headache) {
+                types.insert(headache)
+            }
+        }
+
+        return types
+    }
+
+    /// Sample types we write to. Currently just the `.headache` category
+    /// (iOS 17+ / watchOS 10+). Kept as a computed property — and gated
+    /// behind `@available` at the call site — so the symbol is omitted
+    /// entirely on older OS versions rather than being a runtime-empty set.
+    @available(iOS 17.0, watchOS 10.0, *)
+    private var writeTypes: Set<HKSampleType> {
+        var types = Set<HKSampleType>()
+        if let headache = HKObjectType.categoryType(forIdentifier: .headache) {
+            types.insert(headache)
+        }
         return types
     }
     
@@ -292,6 +371,161 @@ class HealthKitManager: ObservableObject {
             AppLogger.health.error("HealthKit menstrual fetch error: \(error.localizedDescription, privacy: .public)")
             return nil
         }
+    }
+
+    // MARK: - Writing migraines back to Health
+    //
+    // The flow is always: delete-by-UUID → write-fresh. This keeps edits
+    // idempotent and avoids accumulating stale samples when the user changes
+    // a migraine's pain level or duration. Every method here no-ops cleanly
+    // when the device doesn't support HealthKit or when the user hasn't
+    // authorized writes — failures are logged but never surfaced as fatal.
+
+    /// Write the given migraine to Apple Health as a `.headache` sample,
+    /// replacing any prior sample we already wrote for the same migraine.
+    ///
+    /// Safe to call from any caller — does nothing when:
+    ///   • HealthKit isn't available on the device
+    ///   • the user hasn't enabled `isHealthSyncEnabled`
+    ///   • the OS version is below iOS 17 / watchOS 10
+    ///   • the migraine is missing `id` or `startTime`
+    @available(iOS 17.0, watchOS 10.0, *)
+    func writeMigraineToHealth(_ migraine: MigraineEvent) async {
+        #if canImport(HealthKit)
+        guard isHealthSyncEnabled, isAuthorized else { return }
+        guard let healthStore = healthStore else { return }
+        guard let headacheType = HKObjectType.categoryType(forIdentifier: .headache) else {
+            AppLogger.health.error("Headache category type not available on this OS")
+            return
+        }
+        guard let migraineID = migraine.id?.uuidString,
+              let startTime = migraine.startTime else {
+            AppLogger.health.error("Migraine missing id or startTime; skipping Health write")
+            return
+        }
+
+        // Headache samples must have endDate >= startDate. If the user
+        // hasn't set an end time yet (still ongoing), use startTime — this
+        // produces a zero-duration sample that Apple Health treats as a
+        // point-in-time event, which we'll widen on the next edit once
+        // the user records when it ended.
+        let endTime = migraine.endTime ?? startTime
+        let severity = severityValue(forPainLevel: Int(migraine.painLevel))
+
+        do {
+            try await deleteHealthSamples(forMigraineUUID: migraineID)
+
+            let sample = HKCategorySample(
+                type: headacheType,
+                value: severity,
+                start: startTime,
+                end: endTime,
+                metadata: [
+                    HKMetadataKeyExternalUUID: migraineID,
+                ]
+            )
+
+            try await healthStore.save(sample)
+            AppLogger.health.notice("Wrote migraine to Health: \(migraineID, privacy: .public) severity=\(severity, privacy: .public)")
+        } catch {
+            AppLogger.health.error("Failed to write migraine to Health: \(error.localizedDescription, privacy: .public)")
+        }
+        #endif
+    }
+
+    /// Delete every Health sample we previously wrote for the given migraine
+    /// id. Called on its own when the user deletes a migraine in Headway,
+    /// and as the first step of `writeMigraineToHealth` for edits.
+    @available(iOS 17.0, watchOS 10.0, *)
+    func deleteHealthSamples(forMigraineUUID uuid: String) async throws {
+        #if canImport(HealthKit)
+        guard let healthStore = healthStore,
+              let headacheType = HKObjectType.categoryType(forIdentifier: .headache) else {
+            return
+        }
+
+        let predicate = HKQuery.predicateForObjects(
+            withMetadataKey: HKMetadataKeyExternalUUID,
+            operatorType: .equalTo,
+            value: uuid
+        )
+
+        // `deleteObjects(of:predicate:)` returns the number of samples
+        // removed. We don't surface that — the caller doesn't care, and the
+        // common case is 0 (no prior write) or 1 (one prior write).
+        _ = try await healthStore.deleteObjects(of: headacheType, predicate: predicate)
+        #endif
+    }
+
+    /// Convenience entry point used when the user *deletes* a migraine in
+    /// Headway. Mirrors the deletion into Health if mirroring is enabled
+    /// and the user has authorized writes. Errors are swallowed and logged
+    /// — a Health-side failure should never block the Core Data delete.
+    @available(iOS 17.0, watchOS 10.0, *)
+    func mirrorDeletion(ofMigraineUUID uuid: String) async {
+        #if canImport(HealthKit)
+        guard isHealthSyncEnabled, isAuthorized else { return }
+        do {
+            try await deleteHealthSamples(forMigraineUUID: uuid)
+            AppLogger.health.notice("Mirrored migraine deletion to Health: \(uuid, privacy: .public)")
+        } catch {
+            AppLogger.health.error("Failed to mirror migraine deletion to Health: \(error.localizedDescription, privacy: .public)")
+        }
+        #endif
+    }
+
+    /// Backfill every migraine in `migraines` to Apple Health. Idempotent —
+    /// the per-migraine path already deletes any existing sample with a
+    /// matching ExternalUUID before writing, so calling this repeatedly
+    /// after partial failures will converge rather than duplicate.
+    ///
+    /// Returns `(written, failed)` so the caller can show a progress
+    /// summary in the UI.
+    @available(iOS 17.0, watchOS 10.0, *)
+    @discardableResult
+    func backfillMigrainesToHealth(_ migraines: [MigraineEvent]) async -> (written: Int, failed: Int) {
+        #if canImport(HealthKit)
+        guard isHealthSyncEnabled, isAuthorized else {
+            AppLogger.health.notice("Backfill skipped: sync not enabled or not authorized")
+            return (0, 0)
+        }
+
+        var written = 0
+        var failed = 0
+        for migraine in migraines {
+            // Re-check on every iteration so the loop unwinds quickly if
+            // the user toggles the flag off mid-backfill.
+            guard isHealthSyncEnabled else { break }
+            guard migraine.id != nil, migraine.startTime != nil else {
+                failed += 1
+                continue
+            }
+            await writeMigraineToHealth(migraine)
+            written += 1
+        }
+        AppLogger.health.notice("Backfill complete: written=\(written, privacy: .public) failed=\(failed, privacy: .public)")
+        return (written, failed)
+        #else
+        return (0, 0)
+        #endif
+    }
+
+    /// Map our 1–10 pain scale into Apple's `HKCategoryValueSeverity`. The
+    /// raw thresholds are deliberately conservative on the moderate/severe
+    /// boundary — Apple's UI surfaces "Severe" with the same red emphasis
+    /// it uses for emergency-level events, so we don't promote anything
+    /// below 7 to that bucket.
+    private func severityValue(forPainLevel level: Int) -> Int {
+        #if canImport(HealthKit)
+        switch level {
+        case 1...3:  return HKCategoryValueSeverity.mild.rawValue
+        case 4...6:  return HKCategoryValueSeverity.moderate.rawValue
+        case 7...10: return HKCategoryValueSeverity.severe.rawValue
+        default:     return HKCategoryValueSeverity.unspecified.rawValue
+        }
+        #else
+        return 0
+        #endif
     }
     #endif
 }

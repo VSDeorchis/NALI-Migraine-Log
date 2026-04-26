@@ -623,7 +623,7 @@ struct MacMigraineRiskView: View {
                     dailyCheckIn: DailyCheckInData.loadToday()
                 )
             } catch {
-                print("⚠️ Forecast fetch failed: \(error.localizedDescription)")
+                AppLogger.weather.error("Forecast fetch failed: \(error.localizedDescription, privacy: .public)")
             }
         }
         

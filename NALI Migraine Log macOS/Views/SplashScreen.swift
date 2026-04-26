@@ -38,12 +38,12 @@ struct SplashScreen: View {
                     // Title block
                     VStack(spacing: 8) {
                         Text("Headway")
-                            .font(.custom("Optima-Bold", size: 48))
+                            .font(.custom("Optima-Bold", size: 48, relativeTo: .largeTitle))
                             .opacity(showTitle ? 1 : 0)
                             .offset(y: showTitle ? 0 : 12)
                         
                         Text("Migraine Monitor and Analytics")
-                            .font(.custom("Optima-Regular", size: 28))
+                            .font(.custom("Optima-Regular", size: 28, relativeTo: .title))
                             .opacity(showSubtitle ? 1 : 0)
                             .offset(y: showSubtitle ? 0 : 8)
                         
@@ -70,7 +70,7 @@ struct SplashScreen: View {
                         .scaleEffect(x: showDivider ? 1 : 0, y: 1)
                     
                     Text("Neurological Associates\nof Long Island, P.C.")
-                        .font(.custom("Optima-Bold", size: 26))
+                        .font(.custom("Optima-Bold", size: 26, relativeTo: .title))
                         .multilineTextAlignment(.center)
                         .foregroundColor(.white)
                         .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 2)
@@ -91,11 +91,11 @@ struct SplashScreen: View {
                 
                 VStack(alignment: .center, spacing: 8) {
                     Text("Developed by Vincent S. DeOrchis, M.D. M.S. FAAN")
-                        .font(.custom("Optima-Regular", size: 14))
+                        .font(.custom("Optima-Regular", size: 14, relativeTo: .subheadline))
                     Text("© 2026 Clinical Insights Consulting Group")
-                        .font(.custom("Optima-Regular", size: 14))
+                        .font(.custom("Optima-Regular", size: 14, relativeTo: .subheadline))
                     Text(appVersion)
-                        .font(.custom("Optima-Regular", size: 14))
+                        .font(.custom("Optima-Regular", size: 14, relativeTo: .subheadline))
                 }
                 .foregroundColor(.white.opacity(0.95))
                 .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 1)

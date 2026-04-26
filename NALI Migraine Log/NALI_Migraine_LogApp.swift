@@ -18,6 +18,7 @@ struct NALI_Migraine_LogApp: App {
     @State private var showingSplash = true
     @State private var hasAcceptedDisclaimer = UserDefaults.standard.bool(forKey: Constants.hasAcceptedDisclaimer)
     @State private var showingSettings = false
+    @Environment(\.scenePhase) private var scenePhase
     let persistenceController = PersistenceController.shared
     
     init() {
@@ -43,6 +44,14 @@ struct NALI_Migraine_LogApp: App {
         // the main actor, so no dispatch is needed.
         MainActor.assumeIsolated {
             ReviewPromptCoordinator.recordLaunch()
+        }
+
+        // Register the BG refresh task handler. **Must** happen during
+        // app init — calling it later trips iOS's "unknown task
+        // identifier" runtime check. The actual `submit()` calls happen
+        // in the .background scenePhase below.
+        MainActor.assumeIsolated {
+            BackgroundTaskScheduler.register()
         }
 
         AppLogger.general.notice("App initialized")
@@ -112,6 +121,40 @@ struct NALI_Migraine_LogApp: App {
             }
             .preferredColorScheme(settings.colorScheme.colorScheme)
             .environment(\.managedObjectContext, persistenceController.container.viewContext)
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            handleScenePhaseChange(newPhase)
+        }
+    }
+
+    /// Drives our background-aware behaviors: every time the app loses
+    /// focus we ask iOS to wake us in the future, and every time we
+    /// regain focus we re-evaluate what notifications should be
+    /// scheduled (because the OS auth status, the user's data, or the
+    /// weather forecast may have all changed since we last looked).
+    private func handleScenePhaseChange(_ phase: ScenePhase) {
+        switch phase {
+        case .background:
+            BackgroundTaskScheduler.scheduleNextRefresh()
+
+        case .active:
+            // Foregrounding cancels the daily re-engagement push (the
+            // user is right here — no need to nag), and reconciles
+            // forecast pushes against the current data + forecast.
+            // We piggyback on the cached forecast inside
+            // `WeatherForecastService.shared`; if it's empty the
+            // notification manager early-returns and the BG task will
+            // try again on its next run.
+            Task { @MainActor in
+                await NotificationManager.shared.cancelReengagementNotifications()
+                await NotificationManager.shared.reconcileAllNotifications(
+                    migraines: viewModel.migraines,
+                    forecast: WeatherForecastService.shared.next(hours: 24)
+                )
+            }
+
+        default:
+            break
         }
     }
 }

@@ -318,6 +318,18 @@ class MigraineViewModel: NSObject, ObservableObject {
             MainActor.assumeIsolated {
                 ReviewPromptCoordinator.recordEntryLogged()
             }
+
+            // Mirror to Apple Health as a `.headache` sample if the user
+            // has opted in via Settings. Fully no-ops when disabled or
+            // unauthorized — see `HealthKitManager.writeMigraineToHealth`
+            // for the gate cascade. Detached so a slow Health save never
+            // blocks the UI snapping closed; HealthKit calls are MainActor-
+            // isolated so we hop back inside the task.
+            if #available(iOS 17.0, watchOS 10.0, *) {
+                Task { @MainActor in
+                    await HealthKitManager.shared.writeMigraineToHealth(migraine)
+                }
+            }
         } catch {
             viewContext.automaticallyMergesChangesFromParent = originalMergesSetting
             migraineLog.error("Failed to save migraine: \(error.localizedDescription, privacy: .public)")
@@ -420,7 +432,18 @@ class MigraineViewModel: NSObject, ObservableObject {
         }
     }
     
-    /// Helper function to add timeout to async operations
+    /// Helper function to add timeout to async operations.
+    ///
+    /// Implementation note: the throwing task group is started with two
+    /// child tasks (the real `operation` and a sleep that throws
+    /// `TimeoutError`), so `group.next()` is guaranteed to yield exactly
+    /// one completed task before we cancel the rest. The previous
+    /// implementation used `try await group.next()!` here, which was
+    /// safe by construction but read like a latent crash to anyone
+    /// auditing the file. The explicit `guard` documents the invariant
+    /// without changing behavior — if `group.next()` ever returned
+    /// `nil` (which would only happen if the group held zero tasks),
+    /// we now throw `TimeoutError` rather than `fatalError`.
     private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
         try await withThrowingTaskGroup(of: T.self) { group in
             group.addTask {
@@ -432,7 +455,10 @@ class MigraineViewModel: NSObject, ObservableObject {
                 throw TimeoutError()
             }
             
-            let result = try await group.next()!
+            guard let result = try await group.next() else {
+                group.cancelAll()
+                throw TimeoutError()
+            }
             group.cancelAll()
             return result
         }
@@ -602,12 +628,24 @@ class MigraineViewModel: NSObject, ObservableObject {
             migraine.missedEvents = missedEvents
 
             save()
+
+            // Mirror the edited migraine to Apple Health, replacing any
+            // sample we previously wrote for the same id. The
+            // `writeMigraineToHealth` path is delete-then-write internally,
+            // so this stays idempotent even if the user toggles sync off
+            // and back on between edits.
+            if #available(iOS 17.0, watchOS 10.0, *) {
+                Task { @MainActor in
+                    await HealthKitManager.shared.writeMigraineToHealth(migraine)
+                }
+            }
         }
     }
     
     @MainActor
     func deleteMigraine(_ migraine: MigraineEvent) {
         guard let id = migraine.id else { return }
+        let mirroredID = id.uuidString
         
         // Just delete the migraine - no need to handle relationships since we're using strings
         viewContext.delete(migraine)
@@ -617,6 +655,16 @@ class MigraineViewModel: NSObject, ObservableObject {
             // Record the deletion for syncing
             Task { @MainActor in
                 WatchConnectivityManager.shared.recordDeletion(of: id)
+            }
+            // Mirror the deletion to Apple Health if mirroring is on. Captured
+            // the UUID into a local before the Core Data delete so we can
+            // still address the Health sample after the managed object goes
+            // away. Health-side errors are logged inside the manager and
+            // never block the Core Data save we already committed.
+            if #available(iOS 17.0, watchOS 10.0, *) {
+                Task { @MainActor in
+                    await HealthKitManager.shared.mirrorDeletion(ofMigraineUUID: mirroredID)
+                }
             }
             fetchMigraines()  // Refresh the list
         } catch {

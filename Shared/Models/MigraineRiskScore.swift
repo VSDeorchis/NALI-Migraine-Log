@@ -202,4 +202,8 @@ struct HourlyRiskForecast: Identifiable {
     let hour: Int               // 0-23
     let risk: Double            // 0.0 to 1.0
     let primaryFactor: String
+    /// Absolute timestamp of the forecast hour. Optional so call sites that
+    /// only know the hour-of-day (older callers) keep compiling, but the
+    /// forecast generator now always supplies it.
+    var date: Date? = nil
 }

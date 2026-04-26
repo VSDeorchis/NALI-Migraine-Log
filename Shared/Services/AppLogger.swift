@@ -39,5 +39,7 @@ enum AppLogger {
     static let migration    = Logger(subsystem: subsystem, category: "migration")
     static let review       = Logger(subsystem: subsystem, category: "review-prompt")
     static let ui           = Logger(subsystem: subsystem, category: "ui")
+    static let notifications = Logger(subsystem: subsystem, category: "notifications")
+    static let background   = Logger(subsystem: subsystem, category: "background-tasks")
     static let general      = Logger(subsystem: subsystem, category: "general")
 }

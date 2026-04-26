@@ -13,7 +13,7 @@ struct AboutView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     // Header
                     Text("About")
-                        .font(.custom("Optima-Regular", size: 34))
+                        .font(.custom("Optima-Regular", size: 34, relativeTo: .largeTitle))
                         .foregroundColor(.white)
                         .padding(.bottom, 5)
                     
@@ -28,13 +28,13 @@ struct AboutView: View {
                         
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Vincent S. DeOrchis")
-                                .font(.custom("Optima-Bold", size: 20))
+                                .font(.custom("Optima-Bold", size: 20, relativeTo: .title3))
                                 .foregroundColor(.white)
                             Text("M.D., M.S., F.A.A.N.")
-                                .font(.custom("Optima-Regular", size: 16))
+                                .font(.custom("Optima-Regular", size: 16, relativeTo: .callout))
                                 .foregroundColor(.white.opacity(0.9))
                             Text("Board-Certified Neurologist")
-                                .font(.custom("Optima-Regular", size: 14))
+                                .font(.custom("Optima-Regular", size: 14, relativeTo: .subheadline))
                                 .foregroundColor(.white.opacity(0.8))
                         }
                     }
@@ -71,7 +71,7 @@ struct AboutView: View {
                             Image(systemName: "lock.shield.fill")
                                 .foregroundColor(.white)
                             Text("Your Privacy")
-                                .font(.custom("Optima-Bold", size: 16))
+                                .font(.custom("Optima-Bold", size: 16, relativeTo: .callout))
                                 .foregroundColor(.white)
                         }
                         
@@ -149,7 +149,7 @@ struct AboutView: View {
                             Image(systemName: "building.2")
                                 .font(.title3)
                             Text("About Neurological Associates of Long Island")
-                                .font(.custom("Optima-Bold", size: 16))
+                                .font(.custom("Optima-Bold", size: 16, relativeTo: .callout))
                             Spacer()
                             Image(systemName: "chevron.right")
                         }
@@ -161,7 +161,7 @@ struct AboutView: View {
                     
                     // Version
                     Text("Ver \(appVersion)")
-                        .font(.custom("Optima-Regular", size: 12))
+                        .font(.custom("Optima-Regular", size: 12, relativeTo: .caption))
                         .foregroundColor(.white.opacity(0.6))
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 8)

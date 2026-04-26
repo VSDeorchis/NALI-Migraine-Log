@@ -80,10 +80,16 @@ struct CalendarView: View {
                 CalendarLegend()
                     .padding(.horizontal)
                 
-                // Selected day details
-                let migraines = viewModel.migraines
-                if !migraines.isEmpty {
-                    List(migraines) { migraine in
+                // Month-scoped detail list. Earlier this section listed
+                // `viewModel.migraines` (every entry the user had ever
+                // logged) while the empty-state copy below claimed "No
+                // migraines this month" — a real bug that made the page
+                // contradict itself the moment the user navigated to
+                // any month other than the current one. Both branches
+                // now agree on `migrainesInVisibleMonth`.
+                let monthMigraines = migrainesInVisibleMonth
+                if !monthMigraines.isEmpty {
+                    List(monthMigraines) { migraine in
                         NavigationLink {
                             MigraineDetailView(
                                 migraine: migraine, 
@@ -157,6 +163,21 @@ struct CalendarView: View {
             guard let startTime = migraine.startTime else { return false }
             return calendar.isDate(startTime, inSameDayAs: date)
         }
+    }
+
+    /// Migraines whose `startTime` falls in the same calendar month as
+    /// `selectedDate`, sorted newest-first. Backs both the bottom list
+    /// and the "No migraines this month" empty state, so they always
+    /// agree about what "this month" means as the user pages through.
+    private var migrainesInVisibleMonth: [MigraineEvent] {
+        viewModel.migraines
+            .filter { migraine in
+                guard let startTime = migraine.startTime else { return false }
+                return calendar.isDate(startTime, equalTo: selectedDate, toGranularity: .month)
+            }
+            .sorted { lhs, rhs in
+                (lhs.startTime ?? .distantPast) > (rhs.startTime ?? .distantPast)
+            }
     }
     
     private func printDebugInfo() {

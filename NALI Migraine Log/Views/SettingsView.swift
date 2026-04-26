@@ -40,6 +40,23 @@ struct SettingsView: View {
     // on App Store" button doesn't need a state var because it's a
     // straight `Link` to the App Store deep link.
     @State private var showingFeedbackForm = false
+
+    // Apple Health mirroring. The toggle is bound directly through
+    // `HealthKitManager.shared.isHealthSyncEnabled` (which persists to
+    // UserDefaults on every change), so we only need local state for the
+    // backfill progress and the post-backfill alert.
+    @StateObject private var healthKitManager = HealthKitManager.shared
+    @State private var isHealthBackfilling = false
+    @State private var showingHealthBackfillAlert = false
+    @State private var healthBackfillResult = ""
+
+    // Notifications. Both toggles are bound through `NotificationManager`
+    // (which persists to UserDefaults on every change and triggers the
+    // appropriate cancel/reschedule). `showingNotificationDeniedAlert`
+    // surfaces the iOS Settings deep link when the user toggles ON but
+    // the system already denied permission in a prior run.
+    @StateObject private var notificationManager = NotificationManager.shared
+    @State private var showingNotificationDeniedAlert = false
     
     enum ExportFormat: String, CaseIterable {
         case csv = "CSV"
@@ -74,6 +91,8 @@ struct SettingsView: View {
                 backfillSection
                 unitsSection
                 appearanceSection
+                notificationsSection
+                appleHealthSection
                 exportSection
                 feedbackSection
             }
@@ -305,6 +324,229 @@ struct SettingsView: View {
         }
     }
     
+    // MARK: - Notifications
+    //
+    // Two opt-in push categories:
+    //
+    //   • Forecast risk — fires when the next 24h of weather forecast
+    //     contains an hour the prediction engine scores as high risk
+    //     against the user's own historical patterns. Body is
+    //     informational ("conditions ahead match your past migraines") —
+    //     never asks "how are you feeling?" per product direction.
+    //
+    //   • Re-engagement — daily 7pm reminder if the user hasn't logged
+    //     anything in 14+ days. Phrased as "anything to add?" — never as
+    //     a wellness check.
+    //
+    // Both are off by default. Enabling either one prompts for system
+    // notification authorization on first toggle; if the user later
+    // denies in System Settings we surface a deep link.
+
+    private var notificationsSection: some View {
+        Section {
+            Toggle(isOn: Binding(
+                get: { notificationManager.forecastRiskEnabled },
+                set: { newValue in handleNotificationToggle(setting: \.forecastRiskEnabled, newValue: newValue) }
+            )) {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Migraine Risk Forecasts")
+                        Text("Heads-up when upcoming weather matches your patterns.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "cloud.bolt.fill")
+                        .foregroundColor(.orange)
+                }
+            }
+            .accessibilityHint("When on, you'll get a push 1–2 hours before any high-risk weather window we detect.")
+
+            Toggle(isOn: Binding(
+                get: { notificationManager.reengagementEnabled },
+                set: { newValue in handleNotificationToggle(setting: \.reengagementEnabled, newValue: newValue) }
+            )) {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Catch-Up Reminders")
+                        Text("Quiet nudge after \(notificationManager.reengagementDays) days without an entry.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "bell.badge.fill")
+                        .foregroundColor(.indigo)
+                }
+            }
+            .accessibilityHint("When on, you'll be reminded once a day after a long gap so your trends stay accurate.")
+        } header: {
+            Text("Notifications")
+        } footer: {
+            Text("Notifications never ask how you're feeling — they just point out patterns or remind you to log migraines you might have missed. Allow notifications in iOS Settings if prompted.")
+        }
+        .alert("Notifications Disabled", isPresented: $showingNotificationDeniedAlert) {
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Headway can't send notifications right now because you previously turned them off in iOS Settings. Open Settings to re-enable them.")
+        }
+    }
+
+    /// Shared handler for the two notification toggles. Centralizes the
+    /// "request auth on first enable, deep-link to Settings on denial"
+    /// dance so the toggle bodies stay readable.
+    private func handleNotificationToggle(
+        setting keyPath: ReferenceWritableKeyPath<NotificationManager, Bool>,
+        newValue: Bool
+    ) {
+        if newValue {
+            // User is turning it ON — make sure we have OS-level auth
+            // before flipping our own flag. If the user denies, we don't
+            // want the toggle to land in a misleading "on" state.
+            Task { @MainActor in
+                await notificationManager.refreshAuthorizationStatus()
+                if notificationManager.authorizationStatus == .denied {
+                    showingNotificationDeniedAlert = true
+                    return
+                }
+                if notificationManager.authorizationStatus == .notDetermined {
+                    let granted = await notificationManager.requestAuthorization()
+                    guard granted else {
+                        // User denied at the system prompt; leave our
+                        // toggle off and don't show a second alert (the
+                        // OS already gave them feedback).
+                        return
+                    }
+                }
+                notificationManager[keyPath: keyPath] = true
+                // Kick off an immediate reconcile so the user gets the
+                // expected behavior without waiting for the next BG run.
+                await notificationManager.reconcileAllNotifications(
+                    migraines: viewModel.migraines,
+                    forecast: WeatherForecastService.shared.next(hours: 24)
+                )
+            }
+        } else {
+            notificationManager[keyPath: keyPath] = false
+        }
+    }
+
+    // MARK: - Apple Health
+    //
+    // Mirrors logged migraines into Apple Health as `.headache` category
+    // samples (iOS 17+). Off by default — flipping the toggle requests
+    // HealthKit auth on first enable, and a manual "Sync All Migraines Now"
+    // button lets users backfill historical entries (idempotent thanks to
+    // the ExternalUUID-keyed delete-then-write path inside
+    // `HealthKitManager.writeMigraineToHealth`). The whole section is
+    // hidden on devices that don't have HealthKit (iPad without Health,
+    // simulators without Health framework, etc.) — there's nothing the
+    // user can do there.
+
+    @ViewBuilder
+    private var appleHealthSection: some View {
+        if healthKitManager.isAvailable {
+            Section {
+                Toggle(isOn: Binding(
+                    get: { healthKitManager.isHealthSyncEnabled },
+                    set: { newValue in
+                        healthKitManager.isHealthSyncEnabled = newValue
+                        if newValue {
+                            // First-time enable: request HealthKit
+                            // authorization. The system shows the standard
+                            // sheet listing the categories we need (read
+                            // sleep/HRV/etc + write headache); the user can
+                            // approve any subset, and our writes silently
+                            // no-op for the unapproved types. Detached so
+                            // the toggle UI flips immediately rather than
+                            // waiting on the auth sheet to be dismissed.
+                            Task { @MainActor in
+                                await healthKitManager.requestAuthorization()
+                            }
+                        }
+                    }
+                )) {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Mirror Migraines to Apple Health")
+                            Text(healthKitManager.isHealthSyncEnabled
+                                 ? "New entries are saved as Headache samples."
+                                 : "Off — Apple Health does not receive your migraines.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "heart.text.square.fill")
+                            .foregroundColor(.pink)
+                    }
+                }
+                .accessibilityHint("When on, every migraine you save is also written to Apple Health as a Headache entry.")
+
+                if healthKitManager.isHealthSyncEnabled {
+                    Button {
+                        Task { await performHealthBackfill() }
+                    } label: {
+                        HStack {
+                            Label {
+                                Text("Sync All Migraines Now")
+                            } icon: {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .foregroundColor(.blue)
+                            }
+                            Spacer()
+                            if isHealthBackfilling {
+                                ProgressView().scaleEffect(0.8)
+                            }
+                        }
+                    }
+                    .disabled(isHealthBackfilling || viewModel.migraines.isEmpty)
+                    .accessibilityHint("Writes every migraine in your log to Apple Health, replacing any prior copies.")
+                }
+            } header: {
+                Text("Apple Health")
+            } footer: {
+                Text("Mirroring uses Apple Health's Headache type so your entries appear under Browse → Symptoms → Headache and become available to other Health-aware apps you've authorized. Pain levels 1–3 record as Mild, 4–6 as Moderate, and 7–10 as Severe. You can revoke access anytime in Health → Sharing → Apps.")
+            }
+            .alert("Apple Health Sync", isPresented: $showingHealthBackfillAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(healthBackfillResult)
+            }
+        }
+    }
+
+    private func performHealthBackfill() async {
+        isHealthBackfilling = true
+        defer { isHealthBackfilling = false }
+
+        // Make sure we're authorized before kicking off — otherwise every
+        // per-migraine write would no-op silently and the user would just
+        // see "Wrote 0 entries" with no explanation.
+        await healthKitManager.requestAuthorization()
+
+        guard healthKitManager.isAuthorized else {
+            healthBackfillResult = "Apple Health did not authorize this app to write headache entries. You can change that in Health → Sharing → Apps → Headway."
+            showingHealthBackfillAlert = true
+            return
+        }
+
+        if #available(iOS 17.0, *) {
+            let (written, failed) = await healthKitManager.backfillMigrainesToHealth(viewModel.migraines)
+            if failed > 0 {
+                healthBackfillResult = "Synced \(written) entries to Apple Health. \(failed) entries could not be synced (missing date or id)."
+            } else {
+                healthBackfillResult = "Synced \(written) \(written == 1 ? "entry" : "entries") to Apple Health."
+            }
+        } else {
+            healthBackfillResult = "Apple Health migraine sync requires iOS 17 or later."
+        }
+        showingHealthBackfillAlert = true
+    }
+
     private var exportSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 12) {

@@ -39,13 +39,13 @@ struct SplashScreen: View {
                     // Title block
                     VStack(spacing: 8) {
                         Text("Headway")
-                            .font(.custom("Optima-Bold", size: UIFontMetrics.default.scaledValue(for: 38)))
+                            .font(.custom("Optima-Bold", size: 38, relativeTo: .largeTitle))
                             .minimumScaleFactor(0.7)
                             .opacity(showTitle ? 1 : 0)
                             .offset(y: showTitle ? 0 : 12)
                         
                         Text("Migraine Monitor and Analytics")
-                            .font(.custom("Optima-Regular", size: UIFontMetrics.default.scaledValue(for: 20)))
+                            .font(.custom("Optima-Regular", size: 20, relativeTo: .title3))
                             .minimumScaleFactor(0.7)
                             .opacity(showSubtitle ? 1 : 0)
                             .offset(y: showSubtitle ? 0 : 8)
@@ -75,7 +75,7 @@ struct SplashScreen: View {
                         .accessibilityHidden(true)
                     
                     Text("Neurological Associates\nof Long Island, P.C.")
-                        .font(.custom("Optima-Bold", size: UIFontMetrics.default.scaledValue(for: 22)))
+                        .font(.custom("Optima-Bold", size: 22, relativeTo: .title2))
                         .minimumScaleFactor(0.7)
                         .multilineTextAlignment(.center)
                         .foregroundColor(.white)
@@ -97,13 +97,13 @@ struct SplashScreen: View {
                 
                 VStack(alignment: .center, spacing: 8) {
                     Text("Developed by Vincent S. DeOrchis, M.D. M.S. FAAN")
-                        .font(.custom("Optima-Regular", size: UIFontMetrics.default.scaledValue(for: 12)))
+                        .font(.custom("Optima-Regular", size: 12, relativeTo: .caption))
                         .minimumScaleFactor(0.7)
                     Text("© 2026 Clinical Insights Consulting Group")
-                        .font(.custom("Optima-Regular", size: UIFontMetrics.default.scaledValue(for: 12)))
+                        .font(.custom("Optima-Regular", size: 12, relativeTo: .caption))
                         .minimumScaleFactor(0.7)
                     Text(appVersion)
-                        .font(.custom("Optima-Regular", size: UIFontMetrics.default.scaledValue(for: 12)))
+                        .font(.custom("Optima-Regular", size: 12, relativeTo: .caption))
                         .minimumScaleFactor(0.7)
                 }
                 .foregroundColor(.white.opacity(0.95))
