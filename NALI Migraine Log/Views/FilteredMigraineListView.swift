@@ -21,7 +21,7 @@ struct FilteredMigraineListView: View {
         }
         .navigationTitle(title)
         .onAppear {
-            print("Filtered migraines count: \(migraines.count)")
+            AppLogger.ui.debug("FilteredMigraineListView appeared with \(migraines.count, privacy: .public) entries")
         }
     }
 }

@@ -10,8 +10,8 @@ struct MigraineDetailView: View {
     @State private var editedPainLevel: Int16
     @State private var editedLocation: String
     @State private var editedNotes: String
-    @State private var editedTriggers: Set<String>
-    @State private var editedMedications: Set<String>
+    @State private var editedTriggers: Set<MigraineTrigger>
+    @State private var editedMedications: Set<MigraineMedication>
     @State private var editedHasAura: Bool
     @State private var editedHasPhotophobia: Bool
     @State private var editedHasPhonophobia: Bool
@@ -35,8 +35,8 @@ struct MigraineDetailView: View {
         _editedPainLevel = State(initialValue: migraine.painLevel)
         _editedLocation = State(initialValue: migraine.location ?? "")
         _editedNotes = State(initialValue: migraine.notes ?? "")
-        _editedTriggers = State(initialValue: Set(migraine.selectedTriggerNames))
-        _editedMedications = State(initialValue: Set(migraine.selectedMedicationNames))
+        _editedTriggers = State(initialValue: migraine.triggers)
+        _editedMedications = State(initialValue: migraine.medications)
         _editedHasAura = State(initialValue: migraine.hasAura)
         _editedHasPhotophobia = State(initialValue: migraine.hasPhotophobia)
         _editedHasPhonophobia = State(initialValue: migraine.hasPhonophobia)
@@ -127,11 +127,11 @@ struct MigraineDetailView: View {
                         }
                         
                         // Triggers
-                        if !migraine.selectedTriggerNames.isEmpty {
+                        if !migraine.triggers.isEmpty {
                             DetailSection(title: "Triggers") {
                                 FlowLayout {
-                                    ForEach(migraine.selectedTriggerNames, id: \.self) { trigger in
-                                        Text(trigger)
+                                    ForEach(migraine.orderedTriggers) { trigger in
+                                        Text(trigger.displayName)
                                             .padding(.horizontal, 8)
                                             .padding(.vertical, 4)
                                             .background(Color.blue.opacity(0.1))
@@ -142,11 +142,11 @@ struct MigraineDetailView: View {
                         }
                         
                         // Medications
-                        if !migraine.selectedMedicationNames.isEmpty {
+                        if !migraine.medications.isEmpty {
                             DetailSection(title: "Medications") {
                                 FlowLayout {
-                                    ForEach(migraine.selectedMedicationNames, id: \.self) { medication in
-                                        Text(medication)
+                                    ForEach(migraine.orderedMedications) { medication in
+                                        Text(medication.fullDisplayName)
                                             .padding(.horizontal, 8)
                                             .padding(.vertical, 4)
                                             .background(Color.green.opacity(0.1))
@@ -206,8 +206,8 @@ struct MigraineDetailView: View {
             painLevel: editedPainLevel,
             location: editedLocation,
             notes: editedNotes.isEmpty ? nil : editedNotes,
-            triggers: Array(editedTriggers),
-            medications: Array(editedMedications),
+            triggers: editedTriggers,
+            medications: editedMedications,
             hasAura: editedHasAura,
             hasPhotophobia: editedHasPhotophobia,
             hasPhonophobia: editedHasPhonophobia,
@@ -323,8 +323,8 @@ struct EditMigraineView: View {
     @Binding var painLevel: Int16
     @Binding var location: String
     @Binding var notes: String
-    @Binding var selectedTriggers: Set<String>
-    @Binding var selectedMedications: Set<String>
+    @Binding var selectedTriggers: Set<MigraineTrigger>
+    @Binding var selectedMedications: Set<MigraineMedication>
     @Binding var hasAura: Bool
     @Binding var hasPhotophobia: Bool
     @Binding var hasPhonophobia: Bool
@@ -338,8 +338,17 @@ struct EditMigraineView: View {
     @Binding var missedEvents: Bool
     
     private let locations = ["Frontal", "Temporal", "Occipital", "Orbital", "Whole Head"]
-    private let triggers = ["Stress", "Sleep Changes", "Weather", "Food", "Caffeine", "Alcohol", "Exercise", "Screen Time", "Menstrual", "Other"]
-    private let medications = ["Sumatriptan", "Rizatriptan", "Frovatriptan", "Naratriptan", "Ubrelvy", "Nurtec", "Symbravo", "Tylenol", "Advil", "Excedrin", "Other"]
+    // Picker contents are declared explicitly (not `MigraineTrigger.allCases`)
+    // so that the macOS form's visible options stay stable as the underlying
+    // enum gains new cases. Adjust here if you want to surface more options.
+    private let triggerOptions: [MigraineTrigger] = [
+        .stress, .lackOfSleep, .weather, .food, .caffeine,
+        .alcohol, .exercise, .screenTime, .menstrual, .other
+    ]
+    private let medicationOptions: [MigraineMedication] = [
+        .sumatriptan, .rizatriptan, .frovatriptan, .naratriptan, .ubrelvy,
+        .nurtec, .symbravo, .tylenol, .ibuprofin, .excedrin, .other
+    ]
     
     var body: some View {
         Form {
@@ -393,8 +402,8 @@ struct EditMigraineView: View {
             }
             
             Section("Triggers") {
-                ForEach(triggers, id: \.self) { trigger in
-                    Toggle(trigger, isOn: Binding(
+                ForEach(triggerOptions) { trigger in
+                    Toggle(trigger.displayName, isOn: Binding(
                         get: { selectedTriggers.contains(trigger) },
                         set: { isSelected in
                             if isSelected {
@@ -409,8 +418,8 @@ struct EditMigraineView: View {
             }
             
             Section("Medications") {
-                ForEach(medications, id: \.self) { medication in
-                    Toggle(medication, isOn: Binding(
+                ForEach(medicationOptions) { medication in
+                    Toggle(medication.displayName, isOn: Binding(
                         get: { selectedMedications.contains(medication) },
                         set: { isSelected in
                             if isSelected {

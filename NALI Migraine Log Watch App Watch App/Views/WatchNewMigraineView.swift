@@ -9,7 +9,7 @@ struct WatchNewMigraineView: View {
     @State private var endTime: Date?
     @State private var painLevel: Int16 = 5
     @State private var location = "Frontal"
-    @State private var selectedTriggers: Set<String> = []
+    @State private var selectedTriggers: Set<MigraineTrigger> = []
     @State private var hasAura = false
     @State private var hasPhotophobia = false
     @State private var hasPhonophobia = false
@@ -21,13 +21,27 @@ struct WatchNewMigraineView: View {
     @State private var missedWork = false
     @State private var missedSchool = false
     @State private var missedEvents = false
-    @State private var selectedMedications: Set<String> = []
+    @State private var selectedMedications: Set<MigraineMedication> = []
     @State private var currentSection = 0
     @State private var notes = ""
-    
+
     private let locations = ["Frontal", "Temporal", "Occipital", "Orbital", "Whole Head"]
-    private let triggers = ["Stress", "Lack of Sleep", "Dehydration", "Weather", "Menstrual", "Alcohol", "Caffeine", "Food", "Exercise", "Screen Time", "Other"]
-    private let medications = ["Sumatriptan", "Rizatriptan", "Frovatriptan", "Naratriptan", "Ubrelvy", "Nurtec", "Symbravo", "Tylenol", "Advil", "Excedrin", "Other"]
+
+    // Watch keeps the full list of triggers from the iOS form.
+    private let triggers: [MigraineTrigger] = MigraineTrigger.allCases
+
+    // Curated subset for the smaller Watch screen. Order matches the original
+    // Watch UI; "Advil" is preserved as a Watch-only label that maps to the
+    // shared `.ibuprofin` case (same underlying drug, same Core Data field).
+    private let medications: [MigraineMedication] = [
+        .sumatriptan, .rizatriptan, .frovatriptan, .naratriptan,
+        .ubrelvy, .nurtec, .symbravo,
+        .tylenol, .ibuprofin, .excedrin, .other
+    ]
+
+    private func watchLabel(for medication: MigraineMedication) -> String {
+        medication == .ibuprofin ? "Advil" : medication.displayName
+    }
     
     private let totalSections = 7
     
@@ -75,8 +89,8 @@ struct WatchNewMigraineView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     StepIndicator(current: 1, total: totalSections)
-                    ForEach(triggers, id: \.self) { trigger in
-                        Toggle(trigger, isOn: Binding(
+                    ForEach(triggers) { trigger in
+                        Toggle(trigger.displayName, isOn: Binding(
                             get: { selectedTriggers.contains(trigger) },
                             set: { isSelected in
                                 if isSelected {
@@ -125,8 +139,8 @@ struct WatchNewMigraineView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     StepIndicator(current: 4, total: totalSections)
-                    ForEach(medications, id: \.self) { medication in
-                        Toggle(medication, isOn: Binding(
+                    ForEach(medications) { medication in
+                        Toggle(watchLabel(for: medication), isOn: Binding(
                             get: { selectedMedications.contains(medication) },
                             set: { isSelected in
                                 if isSelected {
@@ -200,7 +214,7 @@ extension WatchNewMigraineView {
                 endTime: endTime,
                 painLevel: painLevel,
                 location: location,
-                triggers: Array(selectedTriggers),
+                triggers: selectedTriggers,
                 hasAura: hasAura,
                 hasPhotophobia: hasPhotophobia,
                 hasPhonophobia: hasPhonophobia,
@@ -212,7 +226,7 @@ extension WatchNewMigraineView {
                 missedWork: missedWork,
                 missedSchool: missedSchool,
                 missedEvents: missedEvents,
-                medications: Array(selectedMedications),
+                medications: selectedMedications,
                 notes: notes.isEmpty ? nil : notes
             )
             dismiss()

@@ -23,15 +23,24 @@ struct NewMigraineView: View {
     @State private var missedSchool = false
     @State private var missedEvents = false
     @State private var notes = ""
-    @State private var selectedTriggers: Set<String> = []
-    @State private var selectedMedications: Set<String> = []
+    @State private var selectedTriggers: Set<MigraineTrigger> = []
+    @State private var selectedMedications: Set<MigraineMedication> = []
     @ObservedObject private var healthKit = HealthKitManager.shared
     @State private var healthSnapshot: HealthKitSnapshot?
     @State private var isLoadingHealth = false
     
     private let locations = ["Frontal", "Temporal", "Occipital", "Orbital", "Whole Head"]
-    private let triggers = ["Stress", "Sleep Changes", "Weather", "Food", "Caffeine", "Alcohol", "Exercise", "Screen Time", "Menstrual", "Other"]
-    private let medications = ["Sumatriptan", "Rizatriptan", "Frovatriptan", "Naratriptan", "Ubrelvy", "Nurtec", "Symbravo", "Tylenol", "Advil", "Excedrin", "Other"]
+    // Picker contents are declared explicitly (not `MigraineTrigger.allCases`)
+    // so the macOS form's visible options stay stable as the underlying enum
+    // gains new cases. Adjust here to surface more options.
+    private let triggerOptions: [MigraineTrigger] = [
+        .stress, .lackOfSleep, .weather, .food, .caffeine,
+        .alcohol, .exercise, .screenTime, .menstrual, .other
+    ]
+    private let medicationOptions: [MigraineMedication] = [
+        .sumatriptan, .rizatriptan, .frovatriptan, .naratriptan, .ubrelvy,
+        .nurtec, .symbravo, .tylenol, .ibuprofin, .excedrin, .other
+    ]
     
     var body: some View {
         VStack(spacing: 0) {
@@ -101,8 +110,8 @@ struct NewMigraineView: View {
                 }
                 
                 Section("Triggers") {
-                    ForEach(triggers, id: \.self) { trigger in
-                        Toggle(trigger, isOn: Binding(
+                    ForEach(triggerOptions) { trigger in
+                        Toggle(trigger.displayName, isOn: Binding(
                             get: { selectedTriggers.contains(trigger) },
                             set: { isSelected in
                                 if isSelected {
@@ -117,8 +126,8 @@ struct NewMigraineView: View {
                 }
                 
                 Section("Medications") {
-                    ForEach(medications, id: \.self) { medication in
-                        Toggle(medication, isOn: Binding(
+                    ForEach(medicationOptions) { medication in
+                        Toggle(medication.displayName, isOn: Binding(
                             get: { selectedMedications.contains(medication) },
                             set: { isSelected in
                                 if isSelected {
@@ -166,8 +175,8 @@ struct NewMigraineView: View {
                         painLevel: painLevel,
                         location: location,
                         notes: notes.isEmpty ? nil : notes,
-                        triggers: Array(selectedTriggers),
-                        medications: Array(selectedMedications),
+                        triggers: selectedTriggers,
+                        medications: selectedMedications,
                         hasAura: hasAura,
                         hasPhotophobia: hasPhotophobia,
                         hasPhonophobia: hasPhonophobia,

@@ -196,8 +196,8 @@ struct DataSettingsView: View {
                 if let s = m.startTime, let e = m.endTime {
                     durationMin = "\(Int(e.timeIntervalSince(s) / 60))"
                 }
-                let triggers = m.selectedTriggerNames.joined(separator: "; ")
-                let medications = m.selectedMedicationNames.joined(separator: "; ")
+                let triggers = m.orderedTriggers.map(\.displayName).joined(separator: "; ")
+                let medications = m.orderedMedications.map(\.fullDisplayName).joined(separator: "; ")
                 var symptoms: [String] = []
                 if m.hasAura { symptoms.append("Aura") }
                 if m.hasPhotophobia { symptoms.append("Photophobia") }

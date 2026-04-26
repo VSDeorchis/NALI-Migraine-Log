@@ -161,20 +161,17 @@ struct StatisticsView: View {
         return totalDuration / Double(completedMigraines.count)
     }
     
+    /// Medications considered abortive (taken to terminate an active attack)
+    /// rather than analgesic or rescue. Update this set if more abortives are
+    /// added to `MigraineMedication`.
+    private static let abortiveMedications: Set<MigraineMedication> = [
+        .sumatriptan, .rizatriptan, .frovatriptan, .naratriptan, .eletriptan,
+        .ubrelvy, .nurtec, .symbravo, .reyvow, .trudhesa
+    ]
+
     private var abortiveMedsCount: Int {
-        return filteredMigraines.reduce(0) { count, migraine in
-            var abortiveCount = 0
-            if migraine.tookSumatriptan { abortiveCount += 1 }
-            if migraine.tookRizatriptan { abortiveCount += 1 }
-            if migraine.tookFrovatriptan { abortiveCount += 1 }
-            if migraine.tookNaratriptan { abortiveCount += 1 }
-            if migraine.tookEletriptan { abortiveCount += 1 }
-            if migraine.tookUbrelvy { abortiveCount += 1 }
-            if migraine.tookNurtec { abortiveCount += 1 }
-            if migraine.tookSymbravo { abortiveCount += 1 }
-            if migraine.tookReyvow { abortiveCount += 1 }
-            if migraine.tookTrudhesa { abortiveCount += 1 }
-            return count + abortiveCount
+        filteredMigraines.reduce(0) { count, migraine in
+            count + migraine.medications.intersection(Self.abortiveMedications).count
         }
     }
     
@@ -240,8 +237,8 @@ struct StatisticsView: View {
     private var triggerData: [TriggerPoint] {
         var counts: [String: Int] = [:]
         for migraine in filteredMigraines {
-            for name in migraine.selectedTriggerNames {
-                counts[name, default: 0] += 1
+            for trigger in migraine.triggers {
+                counts[trigger.displayName, default: 0] += 1
             }
         }
         return counts.map { TriggerPoint(trigger: $0.key, count: $0.value) }
@@ -251,8 +248,8 @@ struct StatisticsView: View {
     private var medicationData: [MedicationPoint] {
         var counts: [String: Int] = [:]
         for migraine in filteredMigraines {
-            for name in migraine.selectedMedicationNames {
-                counts[name, default: 0] += 1
+            for medication in migraine.medications {
+                counts[medication.displayName, default: 0] += 1
             }
         }
         return counts.map { MedicationPoint(medication: $0.key, count: $0.value) }

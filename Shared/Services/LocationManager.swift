@@ -54,25 +54,22 @@ class LocationManager: NSObject, ObservableObject {
         }
         
         authorizationStatus = currentStatus
-        
-        print("📍 LocationManager initialized")
-        print("📍 Current authorization status: \(currentStatus.rawValue)")
-        print("📍 Status description: \(statusDescription(currentStatus))")
-        
+
+        AppLogger.location.notice("LocationManager initialized; status=\(self.statusDescription(currentStatus), privacy: .public)")
+
         // If already authorized, start monitoring
         if Self.isStatusAuthorized(currentStatus) {
-            print("📍 Already authorized, starting monitoring")
+            AppLogger.location.debug("Already authorized; starting monitoring")
             locationManager.startUpdatingLocation()
         }
-        
+
         // IMPORTANT: Request authorization early so iOS recognizes this app uses location
         // This makes "While Using the App" appear in Settings
         // If user already responded, this does nothing (won't show dialog again)
         if currentStatus == .notDetermined {
-            print("📍 Proactively requesting authorization so iOS shows full permission options")
+            AppLogger.location.debug("Proactively requesting authorization so iOS shows full permission options")
             // Delay slightly to ensure app is fully initialized
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                print("📍 Calling requestWhenInUseAuthorization() to register location usage")
                 self.locationManager.requestWhenInUseAuthorization()
             }
         }
@@ -95,37 +92,31 @@ class LocationManager: NSObject, ObservableObject {
     
     /// Request location permission (works even if "When I Share" was previously set)
     func requestPermission() {
-        print("📍 Requesting location permission...")
-        
+        AppLogger.location.notice("Requesting location permission")
+
         // Request on a background thread to avoid UI unresponsiveness warning
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
-            
+
             // Check if location services are enabled system-wide
             let servicesEnabled = CLLocationManager.locationServicesEnabled()
             let currentStatus = self.locationManager.authorizationStatus
-            
-            print("📍 Location services enabled: \(servicesEnabled)")
-            print("📍 Current status before request: \(currentStatus.rawValue)")
-            
+
+            AppLogger.location.debug("Services enabled=\(servicesEnabled, privacy: .public); status=\(self.statusDescription(currentStatus), privacy: .public)")
+
             guard servicesEnabled else {
-                print("⚠️ Location services are disabled system-wide")
+                AppLogger.location.error("Location services are disabled system-wide")
                 return
             }
-            
+
             // Request authorization - this will show the dialog even if "When I Share" was set
-            print("📍 Calling requestWhenInUseAuthorization()...")
             self.locationManager.requestWhenInUseAuthorization()
-            print("📍 Permission request dispatched - iOS dialog should appear...")
-            
+
             // Set a timer to check if authorization changed
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                 let newStatus = self.locationManager.authorizationStatus
-                print("📍 Status after 3 seconds: \(newStatus.rawValue)")
                 if newStatus == .notDetermined {
-                    print("⚠️ WARNING: Status still notDetermined after 3 seconds")
-                    print("⚠️ This may indicate 'When I Share' is set")
-                    print("⚠️ The permission dialog should have appeared - please select 'While Using the App'")
+                    AppLogger.location.notice("Status still notDetermined 3s after request; likely 'When I Share' mode")
                 }
             }
         }
@@ -141,20 +132,16 @@ class LocationManager: NSObject, ObservableObject {
             currentStatus = CLLocationManager.authorizationStatus()
         }
         
-        print("📍 Refreshing authorization status: \(statusDescription(currentStatus))")
-        print("📍 Previous status was: \(statusDescription(authorizationStatus))")
-        
         // Only update if changed
         if currentStatus != authorizationStatus {
-            print("📍 Status changed! Updating from \(authorizationStatus.rawValue) to \(currentStatus.rawValue)")
+            AppLogger.location.notice("Status changed: \(self.statusDescription(self.authorizationStatus), privacy: .public) → \(self.statusDescription(currentStatus), privacy: .public)")
             authorizationStatus = currentStatus
         } else {
-            print("📍 Status unchanged at \(currentStatus.rawValue)")
+            AppLogger.location.debug("Status unchanged at \(self.statusDescription(currentStatus), privacy: .public)")
         }
-        
+
         // Start monitoring if authorized
         if Self.isStatusAuthorized(currentStatus) {
-            print("📍 Starting location monitoring")
             startMonitoring()
         }
     }
@@ -163,31 +150,27 @@ class LocationManager: NSObject, ObservableObject {
     func getCurrentLocation() async throws -> CLLocation {
         // Check authorization status from the actual manager
         let status = locationManager.authorizationStatus
-        
-        print("📍 getCurrentLocation called, current status: \(status.rawValue) (\(statusDescription(status)))")
-        
+
+        AppLogger.location.debug("getCurrentLocation called; status=\(self.statusDescription(status), privacy: .public)")
+
         // In iOS 25+, "When I Share" shows as .notDetermined but we can still request location
         // If status is .notDetermined, try requesting location anyway (iOS will show permission dialog)
         if status == .notDetermined {
-            print("📍 Status is .notDetermined, will request location (iOS 25+ 'When I Share' mode)")
-            print("📍 iOS should show permission dialog when requestLocation() is called")
+            AppLogger.location.debug("Status notDetermined; falling through to requestLocation (iOS 25+ 'When I Share' mode)")
             // Fall through to request location - iOS will handle the permission
         } else if !Self.isStatusAuthorized(status) {
-            print("⚠️ Location not authorized (status: \(status.rawValue))")
+            AppLogger.location.error("Location not authorized; throwing LocationError.unauthorized")
             throw LocationError.unauthorized
-        } else {
-            print("✅ Location is authorized (status: \(status.rawValue))")
         }
-        
+
         // If we have a recent location (within 1 hour), use it
         if let location = location,
            abs(location.timestamp.timeIntervalSinceNow) < 3600 {
-            print("📍 Using cached location")
+            AppLogger.location.debug("Using cached location")
             return location
         }
-        
-        // Request new location with timeout
-        print("📍 Requesting fresh location...")
+
+        AppLogger.location.debug("Requesting fresh location")
         return try await withThrowingTaskGroup(of: CLLocation.self) { group in
             // Add location request task
             group.addTask {
@@ -237,39 +220,35 @@ class LocationManager: NSObject, ObservableObject {
 extension LocationManager: CLLocationManagerDelegate {
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
-        print("📍 Authorization changed to: \(status.rawValue) (\(self.statusDescription(status)))")
-        
+        AppLogger.location.notice("Authorization changed to: \(self.statusDescription(status), privacy: .public)")
+
         Task { @MainActor in
             self.authorizationStatus = status
-            
+
             if Self.isStatusAuthorized(status) {
-                print("✅ Location authorized - starting monitoring")
                 self.startMonitoring()
             } else if status == .denied || status == .restricted {
-                print("❌ Location denied or restricted")
+                AppLogger.location.error("Location denied or restricted")
                 self.lastError = LocationError.unauthorized
-            } else if status == .notDetermined {
-                print("⚠️ Location not determined")
-            } else {
-                print("⚠️ Unknown authorization status")
             }
         }
     }
     
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let newLocation = locations.last else { return }
-        
-        print("📍 Location updated: \(newLocation.coordinate.latitude), \(newLocation.coordinate.longitude)")
-        
+
+        // Coordinates are user-private — keep default privacy (redacted in release).
+        AppLogger.location.debug("Location updated: \(newLocation.coordinate.latitude), \(newLocation.coordinate.longitude)")
+
         Task { @MainActor in
             // Update stored location
             self.location = newLocation
-            
+
             // Resolve any pending continuation
             if let continuation = self.locationContinuation {
                 continuation.resume(returning: newLocation)
                 self.locationContinuation = nil
-                print("📍 Location continuation resolved")
+                AppLogger.location.debug("Location continuation resolved")
             }
         }
     }
@@ -277,26 +256,20 @@ extension LocationManager: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         let clError = error as? CLError
         let errorCode = clError?.code.rawValue ?? -1
-        
-        print("❌ Location error: \(error.localizedDescription)")
-        print("❌ Error code: \(errorCode)")
-        
+
+        AppLogger.location.error("Location error code=\(errorCode, privacy: .public): \(error.localizedDescription, privacy: .public)")
         if errorCode == 1 {
-            print("❌ CLError.denied (1) - User denied location permission or dialog didn't appear")
-            print("❌ This typically means:")
-            print("   1. User tapped 'Don't Allow' on the permission dialog")
-            print("   2. Permission dialog didn't show (iOS bug)")
-            print("   3. Location services disabled system-wide")
+            AppLogger.location.notice("CLError.denied — user denied permission, dialog didn't appear, or services disabled system-wide")
         }
-        
+
         Task { @MainActor in
             self.lastError = error
-            
+
             // Resolve any pending continuation with error
             if let continuation = self.locationContinuation {
                 continuation.resume(throwing: error)
                 self.locationContinuation = nil
-                print("📍 Location continuation resolved with error")
+                AppLogger.location.debug("Location continuation resolved with error")
             }
         }
     }

@@ -114,8 +114,10 @@ class WeatherService: ObservableObject {
             throw WeatherError.invalidURL
         }
         
-        print("Fetching weather from: \(url.absoluteString)")
-        
+        // URL query string contains the user's coordinates — keep redacted
+        // in release. `.private` (default) gives `<private>` in non-debug.
+        AppLogger.weather.debug("Fetching weather from: \(url.absoluteString)")
+
         let (data, response) = try await session.data(from: url)
         
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -195,7 +197,7 @@ class WeatherService: ObservableObject {
         
         for (index, timeString) in hourly.time.enumerated() {
             guard let timestamp = parseDate(timeString) else {
-                print("⚠️ Could not parse date: \(timeString)")
+                AppLogger.weather.error("Could not parse date string: \(timeString, privacy: .public)")
                 continue
             }
             foundValidDate = true
@@ -208,7 +210,8 @@ class WeatherService: ObservableObject {
         
         // If no valid dates were found, throw an error
         guard foundValidDate else {
-            print("❌ No valid dates found in weather data. Sample time strings: \(hourly.time.prefix(3))")
+            let sample = hourly.time.prefix(3).joined(separator: ", ")
+            AppLogger.weather.error("No valid dates in weather payload. Sample: \(sample, privacy: .public)")
             throw WeatherError.invalidDate
         }
         
@@ -230,11 +233,11 @@ class WeatherService: ObservableObject {
         
         // Get the timestamp for the snapshot
         guard let timestamp = parseDate(hourly.time[closestIndex]) else {
-            print("❌ Could not parse timestamp for index \(closestIndex): \(hourly.time[closestIndex])")
+            AppLogger.weather.error("Could not parse timestamp at index \(closestIndex, privacy: .public): \(hourly.time[closestIndex], privacy: .public)")
             throw WeatherError.invalidDate
         }
-        
-        print("✅ Weather snapshot created: \(condition) at \(temperature)°F, pressure: \(pressure) hPa")
+
+        AppLogger.weather.debug("Weather snapshot built: \(condition, privacy: .public) at \(temperature, privacy: .public)°F, pressure \(pressure, privacy: .public) hPa")
         
         return WeatherSnapshot(
             timestamp: timestamp,

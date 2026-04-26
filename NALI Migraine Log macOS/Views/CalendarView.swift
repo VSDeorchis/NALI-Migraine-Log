@@ -382,8 +382,8 @@ private struct CalendarMigraineRow: View {
                 }
             }
             
-            if !migraine.selectedTriggerNames.isEmpty {
-                Text(migraine.selectedTriggerNames.joined(separator: ", "))
+            if !migraine.triggers.isEmpty {
+                Text(migraine.orderedTriggers.map(\.displayName).joined(separator: ", "))
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .lineLimit(1)

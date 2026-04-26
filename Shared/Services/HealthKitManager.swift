@@ -57,11 +57,11 @@ class HealthKitManager: ObservableObject {
         do {
             try await healthStore.requestAuthorization(toShare: [], read: readTypes)
             isAuthorized = true
-            print("✅ HealthKit authorization granted")
+            AppLogger.health.notice("HealthKit authorization granted")
         } catch {
             lastError = error
             isAuthorized = false
-            print("❌ HealthKit authorization failed: \(error.localizedDescription)")
+            AppLogger.health.error("HealthKit authorization failed: \(error.localizedDescription, privacy: .public)")
         }
         #else
         lastError = HealthKitError.notAvailable
@@ -160,7 +160,7 @@ class HealthKitManager: ObservableObject {
             let hours = totalSleep / 3600.0
             return hours > 0 ? hours : nil
         } catch {
-            print("⚠️ HealthKit sleep fetch error: \(error.localizedDescription)")
+            AppLogger.health.error("HealthKit sleep fetch error: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
@@ -189,7 +189,7 @@ class HealthKitManager: ObservableObject {
             let samples = try await descriptor.result(for: healthStore)
             return samples.first?.quantity.doubleValue(for: .secondUnit(with: .milli))
         } catch {
-            print("⚠️ HealthKit HRV fetch error: \(error.localizedDescription)")
+            AppLogger.health.error("HealthKit HRV fetch error: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
@@ -219,7 +219,7 @@ class HealthKitManager: ObservableObject {
             let bpmUnit = HKUnit.count().unitDivided(by: .minute())
             return samples.first?.quantity.doubleValue(for: bpmUnit)
         } catch {
-            print("⚠️ HealthKit RHR fetch error: \(error.localizedDescription)")
+            AppLogger.health.error("HealthKit RHR fetch error: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
@@ -259,7 +259,7 @@ class HealthKitManager: ObservableObject {
             }
             return result > 0 ? Int(result) : nil
         } catch {
-            print("⚠️ HealthKit steps fetch error: \(error.localizedDescription)")
+            AppLogger.health.error("HealthKit steps fetch error: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
@@ -289,7 +289,7 @@ class HealthKitManager: ObservableObject {
             guard let lastFlow = samples.first else { return nil }
             return calendar.dateComponents([.day], from: lastFlow.startDate, to: Date()).day
         } catch {
-            print("⚠️ HealthKit menstrual fetch error: \(error.localizedDescription)")
+            AppLogger.health.error("HealthKit menstrual fetch error: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }

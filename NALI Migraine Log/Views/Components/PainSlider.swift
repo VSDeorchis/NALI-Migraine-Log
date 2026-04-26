@@ -71,6 +71,9 @@ struct PainSlider: View {
                         }
                     ), in: 1...10, step: 1)
                     .tint(.clear)
+                    .accessibilityLabel("Pain level")
+                    .accessibilityValue("\(value) of 10, \(painLevelDescription(value))")
+                    .accessibilityHint("Swipe up or down to adjust pain level from 1 to 10")
                 }
             }
             .frame(height: 30)

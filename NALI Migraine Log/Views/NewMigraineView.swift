@@ -11,7 +11,7 @@ struct NewMigraineView: View {
     @State private var endTime: Date?
     @State private var painLevel: Int16 = 5
     @State private var location = "Frontal"
-    @State private var selectedTriggers: Set<String> = []
+    @State private var selectedTriggers: Set<MigraineTrigger> = []
     @State private var hasAura = false
     @State private var hasPhotophobia = false
     @State private var hasPhonophobia = false
@@ -23,32 +23,13 @@ struct NewMigraineView: View {
     @State private var missedWork = false
     @State private var missedSchool = false
     @State private var missedEvents = false
-    @State private var selectedMedications: Set<String> = []
+    @State private var selectedMedications: Set<MigraineMedication> = []
     @State private var notes = ""
     @State private var showingSaveError = false
     @State private var isSaving = false
     @ObservedObject private var healthKit = HealthKitManager.shared
     @State private var healthSnapshot: HealthKitSnapshot?
     @State private var isLoadingHealth = false
-    
-    private let medications = [
-        "Tylenol (acetaminophen)",
-        "Ibuprofen",
-        "Naproxen",
-        "Excedrin",
-        "Ubrelvy (ubrogepant)",
-        "Nurtec (rimegepant)",
-        "Symbravo",
-        "Sumatriptan",
-        "Rizatriptan",
-        "Eletriptan",
-        "Naratriptan",
-        "Frovatriptan",
-        "Reyvow (lasmiditan)",
-        "Trudhesa (dihydroergotamine)",
-        "Elyxyb",
-        "Other"
-    ]
     
     private var locationPicker: some View {
         Picker("Location", selection: $location) {
@@ -60,17 +41,13 @@ struct NewMigraineView: View {
     
     private var triggersSection: some View {
         Section {
-            ForEach(viewModel.triggers, id: \.self) { trigger in
-                let isSelected = selectedTriggers.contains(trigger)
-                Toggle(trigger, isOn: Binding(
-                    get: { isSelected },
-                    set: { newValue in
+            ForEach(MigraineTrigger.allCases) { trigger in
+                Toggle(trigger.displayName, isOn: Binding(
+                    get: { selectedTriggers.contains(trigger) },
+                    set: { isOn in
                         withAnimation {
-                            if newValue {
-                                selectedTriggers.insert(trigger)
-                            } else {
-                                selectedTriggers.remove(trigger)
-                            }
+                            if isOn { selectedTriggers.insert(trigger) }
+                            else    { selectedTriggers.remove(trigger) }
                         }
                     }
                 ))
@@ -84,20 +61,16 @@ struct NewMigraineView: View {
         }
         .listRowBackground(Color(.systemGray6).opacity(0.5))
     }
-    
+
     private var medicationsSection: some View {
         Section {
-            ForEach(medications, id: \.self) { medication in
-                let isSelected = selectedMedications.contains(medication)
-                Toggle(medication, isOn: Binding(
-                    get: { isSelected },
-                    set: { newValue in
+            ForEach(MigraineMedication.allCases) { medication in
+                Toggle(medication.fullDisplayName, isOn: Binding(
+                    get: { selectedMedications.contains(medication) },
+                    set: { isOn in
                         withAnimation {
-                            if newValue {
-                                selectedMedications.insert(medication)
-                            } else {
-                                selectedMedications.remove(medication)
-                            }
+                            if isOn { selectedMedications.insert(medication) }
+                            else    { selectedMedications.remove(medication) }
                         }
                     }
                 ))
@@ -223,9 +196,7 @@ struct NewMigraineView: View {
                 .navigationTitle("New Migraine")
                 .navigationBarTitleDisplayMode(.inline)
                 .onAppear {
-                    #if DEBUG
-                    NSLog("🟣 [NewMigraineView] NewMigraineView appeared")
-                    #endif
+                    AppLogger.ui.debug("NewMigraineView appeared")
                 }
                 .task {
                     await loadHealthData()
@@ -251,7 +222,7 @@ struct NewMigraineView: View {
                                         endTime: endTime,
                                         painLevel: painLevel,
                                         location: location,
-                                        triggers: Array(selectedTriggers),
+                                        triggers: selectedTriggers,
                                         hasAura: hasAura,
                                         hasPhotophobia: hasPhotophobia,
                                         hasPhonophobia: hasPhonophobia,
@@ -263,7 +234,7 @@ struct NewMigraineView: View {
                                         missedWork: missedWork,
                                         missedSchool: missedSchool,
                                         missedEvents: missedEvents,
-                                        medications: Array(selectedMedications),
+                                        medications: selectedMedications,
                                         notes: notes.isEmpty ? nil : notes
                                     )
                                     
@@ -465,7 +436,7 @@ struct NewMigraineView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
                 .background(Color.green.opacity(0.1))
-            case .failed(let message):
+            case .failed:
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundColor(.orange)
@@ -491,6 +462,21 @@ struct NewMigraineView: View {
         }
         .transition(.move(edge: .top).combined(with: .opacity))
         .animation(.easeInOut(duration: 0.3), value: viewModel.weatherFetchStatus)
+        // Combine the icon + text so VoiceOver hears one statement instead of
+        // two, and add `.updatesFrequently` so the active state isn't cached.
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.updatesFrequently)
+        .accessibilityLabel(weatherStatusAccessibilityLabel)
+    }
+
+    private var weatherStatusAccessibilityLabel: String {
+        switch viewModel.weatherFetchStatus {
+        case .idle:           return ""
+        case .fetching:       return "Fetching weather data"
+        case .success:        return "Weather data added"
+        case .failed:         return "Weather data unavailable"
+        case .locationDenied: return "Location access required for weather data"
+        }
     }
     
     private func saveMigraine() {
@@ -500,7 +486,7 @@ struct NewMigraineView: View {
                 endTime: endTime,
                 painLevel: painLevel,
                 location: location,
-                triggers: Array(selectedTriggers),
+                triggers: selectedTriggers,
                 hasAura: hasAura,
                 hasPhotophobia: hasPhotophobia,
                 hasPhonophobia: hasPhonophobia,
@@ -512,7 +498,7 @@ struct NewMigraineView: View {
                 missedWork: missedWork,
                 missedSchool: missedSchool,
                 missedEvents: missedEvents,
-                medications: Array(selectedMedications),
+                medications: selectedMedications,
                 notes: notes.isEmpty ? nil : notes
             )
             dismiss()
