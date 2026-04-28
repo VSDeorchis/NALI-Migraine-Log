@@ -111,20 +111,116 @@ struct MigraineLogView: View {
     /// produces the canonical 3-column iPadOS layout (Mail/Reminders
     /// style). Width on the master is fixed so the detail column gets
     /// the lion's share of the canvas.
+    ///
+    /// We deliberately do NOT use a nested `NavigationStack { … }
+    /// .toolbar { … }` to host the "+" button here. That pattern (a
+    /// nested NavigationStack-with-toolbar living inside an HStack
+    /// inside the detail of an outer `NavigationSplitView`) routinely
+    /// fails to render its toolbar items on iPadOS — SwiftUI either
+    /// hides them, clips them, or promotes them into the split view's
+    /// own chrome where they get lost. The "+" button vanishing once
+    /// the empty-state CTA was replaced by the populated list was a
+    /// direct consequence of that. Instead we draw an explicit inline
+    /// header bar (`iPadMasterHeader`) inside the master column's
+    /// content so the Settings + "+" actions are guaranteed visible.
+    ///
+    /// The body IS, however, wrapped in a top-level `NavigationStack`
+    /// with its own navigation bar hidden. Two reasons:
+    ///
+    /// 1. Safe-area insets. The parent `NavigationSplitView` (in
+    ///    `iOSContentView`) draws a translucent ("glass") system
+    ///    chrome at the top of the detail column. Without our own
+    ///    NavigationStack here, that chrome floats over our content
+    ///    and the `iPadMasterHeader` renders BEHIND the glass — the
+    ///    "+ button hidden behind the menu bar when switching
+    ///    destinations" bug. Adding our own NavigationStack causes
+    ///    SwiftUI to reserve the top safe-area inset properly, so
+    ///    our header sits cleanly below any system chrome.
+    /// 2. Consistency with the other iPad destinations (CalendarView,
+    ///    StatisticsView) which already wrap their bodies in a
+    ///    NavigationStack — that's why those screens never had the
+    ///    glass-overlap problem.
+    ///
+    /// The detail column already creates its own NavigationStack on
+    /// demand (when a migraine is selected) for the
+    /// `MigraineDetailView` push, so nesting a stack here is fine.
     private var iPadBody: some View {
-        HStack(spacing: 0) {
-            NavigationStack {
-                masterColumnContent
-                    .navigationTitle("History")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar { masterToolbarItems }
+        NavigationStack {
+            HStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    iPadMasterHeader
+                    masterColumnContent
+                }
+                .frame(width: 380)
+                
+                Divider()
+                
+                detailColumn
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(width: 380)
+            // Hide the system-provided navigation bar entirely — our
+            // inline `iPadMasterHeader` is the visual replacement, and
+            // the NavigationStack is here purely for safe-area
+            // management (see header doc above).
+            .toolbar(.hidden, for: .navigationBar)
+        }
+    }
+    
+    /// Inline header bar drawn at the top of the iPad master column.
+    /// Replaces the unreliable nested-NavigationStack toolbar approach
+    /// so the "+" (log new migraine) and settings buttons are always
+    /// visible to the user, no matter what state the populated list
+    /// or the parent NavigationSplitView is in.
+    private var iPadMasterHeader: some View {
+        HStack(spacing: 12) {
+            Button(action: { showingSettings = true }) {
+                Image(systemName: "gear")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(.accentColor)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .hoverEffect(.highlight)
+            .accessibilityLabel("Settings")
+            .accessibilityHint("Opens app settings, sync, and data export")
             
+            Spacer(minLength: 8)
+            
+            Text("History")
+                .font(.system(.headline, design: .rounded, weight: .semibold))
+                .foregroundColor(.primary)
+                .lineLimit(1)
+            
+            Spacer(minLength: 8)
+            
+            Button(action: {
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
+                showingNewMigraineSheet = true
+            }) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 26, weight: .medium))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .hoverEffect(.highlight)
+            // ⌘N is already wired up globally in
+            // `iOSContentView.globalKeyboardShortcuts`, so we don't
+            // re-attach it here (a duplicate keyboardShortcut on the
+            // same key/modifier combo can produce undefined routing
+            // when both views are in the responder chain).
+            .accessibilityLabel("Log New Migraine")
+            .accessibilityHint("Opens a form to record a new migraine entry")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
+        .background(.bar)
+        .overlay(alignment: .bottom) {
             Divider()
-            
-            detailColumn
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
     

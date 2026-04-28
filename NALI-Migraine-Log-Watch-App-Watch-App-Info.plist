@@ -6,5 +6,9 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Headway reads sleep, heart rate variability, resting heart rate, step count, and menstrual cycle data to improve migraine risk predictions. All data stays on your device.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Headway can mirror your logged migraines to Apple Health as Headache entries so they appear alongside your other symptoms and are available to other apps you trust. This is optional and turned off by default — you control it from Settings.</string>
 </dict>
 </plist>

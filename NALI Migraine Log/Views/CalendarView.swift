@@ -60,7 +60,7 @@ struct CalendarView: View {
         VStack(spacing: 20) {
             monthSelector
             daysOfWeekHeader
-            calendarGrid
+            calendarGrid()
             CalendarLegend()
                 .padding(.horizontal)
             
@@ -80,17 +80,39 @@ struct CalendarView: View {
     /// Side-by-side calendar (left) and day or month migraine list
     /// (right). Mirrors how iPadOS Calendar puts the month grid
     /// alongside the day's events instead of stacking them.
+    ///
+    /// The left column used to be `VStack { … calendarGrid; Spacer() }`
+    /// with the grid's `DayCell`s hard-coded to a 44pt height. On an
+    /// iPad that meant the month grid only consumed ~300pt at the top
+    /// of the screen and the `Spacer` ate the rest — the calendar
+    /// visually "only took up the upper half". We now measure the
+    /// available vertical space with a `GeometryReader` and pass a
+    /// computed per-row height into the grid so each week row splits
+    /// the remaining column height evenly. The 44pt floor guards
+    /// against the initial zero-size layout pass and extremely short
+    /// Split View windows.
     private var iPadBody: some View {
         HStack(spacing: 0) {
-            VStack(spacing: 20) {
+            VStack(spacing: 12) {
                 monthSelector
+                    .padding(.top, 8)
                 daysOfWeekHeader
-                calendarGrid
+                GeometryReader { geo in
+                    let rowCount = max(daysInMonth().count / 7, 1)
+                    let rowSpacing: CGFloat = 8
+                    let availableHeight = geo.size.height
+                    let rowHeight = max(
+                        44,
+                        (availableHeight - rowSpacing * CGFloat(rowCount - 1)) / CGFloat(rowCount)
+                    )
+                    calendarGrid(cellHeight: rowHeight, rowSpacing: rowSpacing)
+                }
                 CalendarLegend()
                     .padding(.horizontal)
-                Spacer(minLength: 0)
+                    .padding(.bottom, 12)
             }
-            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             
             Divider()
             
@@ -241,9 +263,18 @@ struct CalendarView: View {
     
     /// The shared calendar grid. On iPad, cells are buttons that pin
     /// the right pane to that day; on iPhone, cells push DayDetailView.
-    private var calendarGrid: some View {
+    ///
+    /// `cellHeight` — when non-nil, overrides each cell's default 44pt
+    /// height. Used by the iPad layout to stretch the grid vertically
+    /// so it fills the available column height instead of leaving a
+    /// large empty band below the last week.
+    /// `rowSpacing` — vertical spacing between week rows; callers that
+    /// supply a custom `cellHeight` typically also tighten this so the
+    /// rows visually "belong together" at larger cell heights.
+    @ViewBuilder
+    private func calendarGrid(cellHeight: CGFloat? = nil, rowSpacing: CGFloat = 15) -> some View {
         let isPad = horizontalSizeClass == .regular
-        return LazyVGrid(columns: columns, spacing: 15) {
+        LazyVGrid(columns: columns, spacing: rowSpacing) {
             ForEach(daysInMonth(), id: \.self) { date in
                 if let date = date {
                     DayCell(
@@ -253,10 +284,18 @@ struct CalendarView: View {
                         isSelected: isPad && (selectedDay.map {
                             calendar.isDate($0, inSameDayAs: date)
                         } ?? false),
-                        onTap: isPad ? { selectedDay = date } : nil
+                        onTap: isPad ? { selectedDay = date } : nil,
+                        cellHeight: cellHeight
                     )
                 } else {
-                    Color.clear
+                    // Keep the leading/trailing empty slots the same
+                    // height as their populated neighbors so every row
+                    // in the grid has a consistent baseline.
+                    if let cellHeight {
+                        Color.clear.frame(height: cellHeight)
+                    } else {
+                        Color.clear
+                    }
                 }
             }
         }
@@ -369,19 +408,28 @@ struct DayCell: View {
     /// falls back to its long-standing `NavigationLink` behavior so
     /// the iPhone keeps pushing `DayDetailView` on tap.
     var onTap: (() -> Void)? = nil
+    /// Optional height override for the cell's frame. iPad stretches
+    /// each week row to fill the available column height (computed in
+    /// `CalendarView.iPadBody` via `GeometryReader`) and passes that
+    /// per-row height in here. iPhone omits this and gets the 44pt
+    /// default that matches the long-standing compact layout.
+    var cellHeight: CGFloat? = nil
     
     private var maxPainLevel: Int16 {
         migraines.map(\.painLevel).max() ?? 0
     }
     
+    /// Severity bucket for the day's worst migraine. Single source of
+    /// truth for the calendar dot's color so it cannot drift from the
+    /// ranges that drive the Severity Heatmap, the Analytics bar chart
+    /// buckets, the HealthKit headache severity mapping, and the
+    /// notification copy. Returns `nil` for pain 0 / no migraines.
+    private var severityBucket: SeverityBucket? {
+        SeverityBucket.bucket(for: Int(maxPainLevel))
+    }
+    
     private var painColor: Color {
-        switch maxPainLevel {
-        case 1...3: return .green
-        case 4...6: return .yellow
-        case 7...8: return .orange
-        case 9...10: return .red
-        default: return .clear
-        }
+        severityBucket?.color ?? .clear
     }
     
     var body: some View {
@@ -403,38 +451,54 @@ struct DayCell: View {
     }
     
     private var cellContent: some View {
-        ZStack {
+        // When the iPad layout stretches cells, scale the inner
+        // indicators proportionally so a 34pt dot doesn't float lost
+        // in the middle of a 120pt cell. iPhone's 44pt default keeps
+        // the original sizes byte-for-byte.
+        let baseHeight = cellHeight ?? 44
+        let indicatorSize = min(max(baseHeight * 0.72, 34), 64)
+        let selectionSize = min(max(baseHeight * 0.85, 40), 72)
+        let isToday = Calendar.current.isDateInToday(date)
+        
+        return ZStack {
             // Selection ring (iPad). Drawn behind everything else so
             // the existing pain-level dot still reads on top.
             if isSelected {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(Color.accentColor.opacity(0.18))
-                    .frame(width: 40, height: 40)
+                    .frame(width: selectionSize, height: selectionSize)
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(Color.accentColor, lineWidth: 1.5)
-                    .frame(width: 40, height: 40)
+                    .frame(width: selectionSize, height: selectionSize)
             }
             
             if !migraines.isEmpty {
+                // 0.7 opacity — enough saturation that a "severe 8"
+                // day actually reads as orange (matching the legend
+                // swatch and the Severity Heatmap on the Analytics
+                // tab) without crushing the contrast of the day
+                // number drawn on top. The heatmap can afford its
+                // higher 0.85 opacity because its cells have no
+                // overlaid text.
                 Circle()
-                    .fill(painColor.opacity(0.35))
-                    .frame(width: 34, height: 34)
+                    .fill(painColor.opacity(0.7))
+                    .frame(width: indicatorSize, height: indicatorSize)
             }
             
-            if Calendar.current.isDateInToday(date) {
+            if isToday {
                 Circle()
                     .fill(Color.blue.opacity(0.15))
-                    .frame(width: 34, height: 34)
+                    .frame(width: indicatorSize, height: indicatorSize)
                 
                 Circle()
                     .stroke(Color.blue, lineWidth: 2)
-                    .frame(width: 34, height: 34)
+                    .frame(width: indicatorSize, height: indicatorSize)
             }
             
-            VStack(spacing: 0) {
+            VStack(spacing: 2) {
                 Text("\(Calendar.current.component(.day, from: date))")
                     .font(.system(.body, design: .rounded))
-                    .foregroundColor(Calendar.current.isDateInToday(date) ? .blue : .primary)
+                    .foregroundColor(isToday ? .blue : .primary)
                 
                 if migraines.count > 1 {
                     Text("\(migraines.count)")
@@ -446,19 +510,33 @@ struct DayCell: View {
                 }
             }
         }
-        .frame(height: 44)
+        .frame(maxWidth: .infinity)
+        .frame(height: baseHeight)
         .contentShape(Rectangle())
     }
 }
 
 // MARK: - Calendar Legend
+
+/// Legend for the calendar's day-dot color ramp. Driven directly from
+/// `SeverityBucket.allCases` + `SeverityBucket.color` so the legend,
+/// the calendar dots, the Severity Heatmap, and the Analytics charts
+/// cannot drift apart — updating the canonical `SeverityBucket.color`
+/// ripples through every surface at once.
+///
+/// The swatches use the same `0.7` fill opacity as the calendar day
+/// dots (see `DayCell.cellContent`) so a user comparing a swatch to a
+/// dot sees byte-identical colors, not a pale dot next to a richer
+/// swatch.
 struct CalendarLegend: View {
     var body: some View {
         HStack(spacing: 16) {
-            legendItem(color: .green, label: "Mild (1-3)")
-            legendItem(color: .yellow, label: "Moderate (4-6)")
-            legendItem(color: .orange, label: "Severe (7-8)")
-            legendItem(color: .red, label: "Very Severe (9-10)")
+            ForEach(SeverityBucket.allCases) { bucket in
+                legendItem(
+                    color: bucket.color,
+                    label: "\(bucket.title) (\(bucket.rangeDescription))"
+                )
+            }
         }
         .font(.system(size: 10, weight: .medium, design: .rounded))
     }
@@ -466,7 +544,7 @@ struct CalendarLegend: View {
     private func legendItem(color: Color, label: String) -> some View {
         HStack(spacing: 4) {
             Circle()
-                .fill(color.opacity(0.5))
+                .fill(color.opacity(0.7))
                 .frame(width: 8, height: 8)
             Text(label)
                 .foregroundColor(.secondary)

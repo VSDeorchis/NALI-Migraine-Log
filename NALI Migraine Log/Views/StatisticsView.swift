@@ -520,27 +520,51 @@ struct StatisticsView: View {
         .buttonStyle(PlainButtonStyle())
     }
     
-    // Add missing computed property for monthly data
+    /// Rolling 6-month bar chart data. Intentionally pulls from
+    /// `viewModel.migraines` (not `filteredMigraines`) so months that
+    /// fall in a prior calendar year — e.g. Oct/Nov/Dec 2025 when the
+    /// time-filter is set to 2026 — still contribute their bars. The
+    /// time-filter is a *year* picker for the rest of the Analytics
+    /// tab; applying it to this rolling window would silently drop
+    /// half the chart every January.
     private var monthlyData: [MonthlyPoint] {
         let calendar = Calendar.current
         let now = Date()
-        let sixMonthsAgo = calendar.date(byAdding: .month, value: -6, to: now)!
+        // Start of *this* month: floors today to the 1st so the
+        // six-months-back anchor lands on a month boundary regardless
+        // of what day we render on.
+        let currentMonthStart = calendar.date(
+            from: calendar.dateComponents([.year, .month], from: now)
+        ) ?? now
+        // Lower bound = start of the month six months back. We widen
+        // from the previous implementation, which used
+        // `now - 6 months` — that produced a boundary like "Oct 26",
+        // which excluded migraines logged on e.g. Oct 15 even though
+        // October's bar was on the chart's X-axis.
+        let windowStart = calendar.date(
+            byAdding: .month, value: -6, to: currentMonthStart
+        ) ?? currentMonthStart
+        // End bound = start of next month so a migraine logged today
+        // still qualifies for the current month's bar.
+        let windowEnd = calendar.date(
+            byAdding: .month, value: 1, to: currentMonthStart
+        ) ?? now
         
         var counts: [Date: Int] = [:]
         let months = calendar.generateDates(
-            inside: DateInterval(start: sixMonthsAgo, end: now),
+            inside: DateInterval(start: windowStart, end: windowEnd),
             matching: DateComponents(day: 1)
         )
-        
-        // Initialize all months with zero
         for month in months {
             counts[month] = 0
         }
         
-        // Count migraines per month
-        for migraine in filteredMigraines {
+        for migraine in viewModel.migraines {
             guard let date = migraine.startTime else { continue }
-            let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: date))!
+            guard date >= windowStart, date < windowEnd else { continue }
+            let monthStart = calendar.date(
+                from: calendar.dateComponents([.year, .month], from: date)
+            )!
             counts[monthStart, default: 0] += 1
         }
         
