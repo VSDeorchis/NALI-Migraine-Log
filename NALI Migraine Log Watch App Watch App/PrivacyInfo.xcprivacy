@@ -18,19 +18,23 @@
 
 		Tracking: we do not link any data collected by this app with data
 		collected by other companies' apps, websites, or properties.
+		NSPrivacyTracking is therefore set to false. Per Apple's TN3181,
+		when tracking is false the NSPrivacyTrackingDomains key MUST be
+		omitted entirely; an empty array there triggers ITMS-91056 at
+		App Store submission time.
 
 		Data collection: we do not collect data and send it to a server
 		we control. iCloud sync uses the user's own private CloudKit
 		database; new entries are also relayed to the paired iPhone via
 		WatchConnectivity, but that is a peer-to-peer hand-off, not
-		developer-side data collection.
+		developer-side data collection. Because we collect nothing,
+		NSPrivacyCollectedDataTypes is also omitted entirely; an empty
+		array there has likewise been reported to trigger ITMS-91056.
+		If we ever start collecting data, add the key back with one or
+		more populated dictionaries — never as an empty array.
 	-->
 	<key>NSPrivacyTracking</key>
 	<false/>
-	<key>NSPrivacyTrackingDomains</key>
-	<array/>
-	<key>NSPrivacyCollectedDataTypes</key>
-	<array/>
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
 		<dict>
