@@ -27,14 +27,17 @@
 		we control. iCloud sync uses the user's own private CloudKit
 		database; new entries are also relayed to the paired iPhone via
 		WatchConnectivity, but that is a peer-to-peer hand-off, not
-		developer-side data collection. Because we collect nothing,
-		NSPrivacyCollectedDataTypes is also omitted entirely; an empty
-		array there has likewise been reported to trigger ITMS-91056.
-		If we ever start collecting data, add the key back with one or
-		more populated dictionaries — never as an empty array.
+		developer-side data collection. NSPrivacyCollectedDataTypes is
+		therefore present as an empty array — Apple's official template
+		ships it that way, and Xcode's "Generate Privacy Report" tool
+		emits a "Missing an expected key" warning if it's omitted. If we
+		ever start collecting data, populate the array with one or more
+		dictionaries describing each data type.
 	-->
 	<key>NSPrivacyTracking</key>
 	<false/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
 		<dict>
