@@ -13,6 +13,7 @@ import CoreML
 import SwiftUI
 #if canImport(CreateML)
 import CreateML
+import TabularData
 #endif
 
 @MainActor
@@ -654,8 +655,12 @@ class MigrainePredictionService: ObservableObject {
             
             modelStatus = .trainingML(progress: 0.5)
             
-            // Use MLBoostedTreeClassifier (iOS 15.4+, macOS 12+)
-            let dataSource = try MLDataTable(contentsOf: csvURL)
+            // Use MLBoostedTreeClassifier with TabularData.DataFrame.
+            // MLDataTable was deprecated in iOS 16 / macOS 13 in favor of
+            // DataFrame; this initializer overload is the supported path
+            // on every deployment target this app supports (iOS 18.2+,
+            // macOS 15.2+).
+            let dataSource = try DataFrame(contentsOfCSVFile: csvURL)
             let classifier = try MLBoostedTreeClassifier(
                 trainingData: dataSource,
                 targetColumn: "hadMigraine"
