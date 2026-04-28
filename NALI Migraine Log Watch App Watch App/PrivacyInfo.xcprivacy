@@ -1,52 +1,85 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+	Privacy manifest for the NALI Migraine Log watchOS bundle.
+
+	IMPORTANT: keep this comment block OUTSIDE the <plist> root element.
+	App Store Connect's server-side validator (the one that emits
+	ITMS-91056) is a separate code path from `plutil`. We have observed
+	that it mis-flags manifests with comments interleaved between
+	<key>/<value>/<dict>/<array> nodes inside the plist data, even though
+	such comments are valid XML and `plutil -lint` accepts them. Apple's
+	own published manifest examples (TN3183) contain zero comments inside
+	the plist body. To stay safely compatible with both validators we put
+	all human-readable rationale here in the XML prolog, where it cannot
+	be confused for plist content.
+
+	Sibling files that MUST stay in lockstep:
+	  - NALI Migraine Log/PrivacyInfo.xcprivacy            (iOS)
+	  - NALI Migraine Log macOS/PrivacyInfo.xcprivacy
+	  - NALI Migraine Log Watch App Watch App/PrivacyInfo.xcprivacy   (this file)
+	Apple does not allow under-declaration; over-declaration is harmless.
+
+	Top-level keys, and why each is or is not present
+	-------------------------------------------------
+	NSPrivacyTracking            present, set to false. We do not link
+	                             any data collected by this app with
+	                             data collected by other companies'
+	                             apps, websites, or properties.
+
+	NSPrivacyTrackingDomains     OMITTED. Per TN3181, when
+	                             NSPrivacyTracking is false this key
+	                             must be omitted entirely; an empty
+	                             array there is the documented trigger
+	                             for ITMS-91056.
+
+	NSPrivacyCollectedDataTypes  OMITTED. Apple's TN3181 does not list
+	                             this key in any of its tables, and the
+	                             TN3183 example template does not
+	                             include it. We do not collect data and
+	                             send it to a server we control. iCloud
+	                             sync uses the user's own private
+	                             CloudKit database; new entries are
+	                             also relayed to the paired iPhone via
+	                             WatchConnectivity, but that is a peer-
+	                             to-peer hand-off, not developer-side
+	                             data collection. An earlier revision
+	                             of this file shipped the key as
+	                             <array/> because Xcode's "Generate
+	                             Privacy Report" tool emits "Missing an
+	                             expected key:
+	                             'NSPrivacyCollectedDataTypes'" when
+	                             it's absent — that warning is purely
+	                             informational and does NOT block
+	                             uploads. App Store Connect's validator,
+	                             which DOES block uploads, has been
+	                             observed to reject the empty array,
+	                             so the key is omitted here. If we ever
+	                             start collecting data, add the key
+	                             back with one or more populated
+	                             dictionaries — never as an empty array.
+
+	NSPrivacyAccessedAPITypes    Required-reason API declarations,
+	                             using Apple's published reason codes
+	                             from TN3183. Each dictionary inside
+	                             the array contains exactly the two
+	                             required keys.
+
+	Required-reason API entries declared below
+	------------------------------------------
+	NSPrivacyAccessedAPICategoryUserDefaults / CA92.1
+	    Used by the MigrationCoordinator to record the last-launched
+	    app version on the watch and by shared services that read
+	    settings written by the iOS app. All values are read and
+	    written exclusively by this app.
+-->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!--
-		Privacy manifest for the NALI Migraine Log watchOS bundle.
-
-		Apple's tooling expects exactly one PrivacyInfo.xcprivacy per .app
-		bundle, so each target gets its own copy here. The shared content
-		MUST stay in sync across all three target manifests:
-
-		  - NALI Migraine Log/PrivacyInfo.xcprivacy            (iOS)
-		  - NALI Migraine Log macOS/PrivacyInfo.xcprivacy
-		  - NALI Migraine Log Watch App Watch App/PrivacyInfo.xcprivacy   (this file)
-
-		If you add a new required-reason API anywhere in the codebase,
-		update all three files. Apple does not allow under-declaration.
-
-		Tracking: we do not link any data collected by this app with data
-		collected by other companies' apps, websites, or properties.
-		NSPrivacyTracking is therefore set to false. Per Apple's TN3181,
-		when tracking is false the NSPrivacyTrackingDomains key MUST be
-		omitted entirely; an empty array there triggers ITMS-91056 at
-		App Store submission time.
-
-		Data collection: we do not collect data and send it to a server
-		we control. iCloud sync uses the user's own private CloudKit
-		database; new entries are also relayed to the paired iPhone via
-		WatchConnectivity, but that is a peer-to-peer hand-off, not
-		developer-side data collection. NSPrivacyCollectedDataTypes is
-		therefore present as an empty array — Apple's official template
-		ships it that way, and Xcode's "Generate Privacy Report" tool
-		emits a "Missing an expected key" warning if it's omitted. If we
-		ever start collecting data, populate the array with one or more
-		dictionaries describing each data type.
-	-->
 	<key>NSPrivacyTracking</key>
 	<false/>
-	<key>NSPrivacyCollectedDataTypes</key>
-	<array/>
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
 		<dict>
-			<!--
-				UserDefaults — used by the MigrationCoordinator to record
-				the last-launched app version on the watch and by shared
-				services that read settings written by the iOS app. All
-				values are read and written exclusively by this app.
-			-->
 			<key>NSPrivacyAccessedAPIType</key>
 			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
 			<key>NSPrivacyAccessedAPITypeReasons</key>
