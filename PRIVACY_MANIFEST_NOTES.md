@@ -6,6 +6,39 @@ on purpose — see "Why no comments in the .xcprivacy files" below — so
 this document is the canonical reference. **If you change a manifest,
 update this file too.**
 
+## Hard rules — read these first
+
+If you remember nothing else from this document, remember these. Each
+of these rules was learned by getting `ITMS-91056` rejection emails
+from App Store Connect, and the combination below was confirmed
+accepted on **Version 2.75 Build 11 (iOS) / Build 12 (watchOS) / Build
+13 (macOS)** uploaded on 2026-04-28.
+
+1. **Never put a comment anywhere in `PrivacyInfo.xcprivacy` — not
+   inside `<plist>`, not in the XML prolog, not even between
+   `<?xml ... ?>` and `<!DOCTYPE ...>`.** All rationale lives in this
+   Markdown file. `plutil -lint` accepts comments; ASC's server-side
+   validator does not, in any position we have tried. The accepted
+   shape contains zero `<!-- ... -->` blocks.
+2. **Never ship `NSPrivacyTrackingDomains` or `NSPrivacyCollectedDataTypes`
+   as an empty array (`<array/>`).** Both must be either absent or
+   populated. Empty arrays are documented (TN3181) and observed
+   triggers for `ITMS-91056`.
+3. **Never ship an empty `NSPrivacyAccessedAPITypes` array either.** If
+   no required-reason API is used, omit the key entirely. (This app
+   does use required-reason API, so this case shouldn't arise.)
+4. **Ignore Xcode's "Generate Privacy Report" warning that says
+   "Missing an expected key: 'NSPrivacyCollectedDataTypes'".** That
+   tool is informational and is _not_ the same validator that produces
+   `ITMS-91056`. The warning is expected and the build is fine.
+5. **Use the reason codes verified below.** `CA92.1` and `C617.1` are
+   correct for this codebase as long as `UserDefaults.standard` is the
+   only `UserDefaults` API in use (no App Groups) and the only file-
+   timestamp consumer is `SettingsView`'s recovery section. If either
+   assumption changes, update both the manifest(s) and this document.
+6. **Re-run the validation checklist at the bottom of this file
+   before every release.**
+
 ## Sibling files that must stay in lockstep
 
 There is exactly one `PrivacyInfo.xcprivacy` per shipped `.app` bundle:
@@ -117,37 +150,60 @@ gains code that reads file timestamps.**
 
 `plutil -lint` happily accepts XML comments anywhere in a privacy
 manifest. App Store Connect's server-side validator (the code path
-that emits ITMS-91056) is a **separate** parser, and we have observed
-it reject manifests that lint cleanly:
+that emits `ITMS-91056`) is a **separate** parser, and we have
+observed it reject manifests that lint cleanly. The full sequence of
+attempts (April 2026 release of v2.75) was:
 
-1. First we shipped `NSPrivacyCollectedDataTypes` and
-   `NSPrivacyTrackingDomains` as empty arrays, with comments
+1. Manifests shipped with `NSPrivacyCollectedDataTypes` and
+   `NSPrivacyTrackingDomains` as empty arrays, plus comments
    interleaved between `<key>`/`<value>`/`<dict>`/`<array>` nodes
-   inside the plist body. ASC rejected with ITMS-91056.
-2. We removed the empty arrays but kept the comments inside the plist
-   body. ASC still rejected with ITMS-91056.
-3. We moved all comments out of the plist body and into the XML prolog
-   (between `<?xml ... ?>` and `<!DOCTYPE ...>`). ASC still rejected
-   with ITMS-91056 on Build 9.
+   inside the plist body. **ASC rejected with `ITMS-91056`.**
+2. Empty arrays removed; comments inside the plist body kept. **ASC
+   still rejected with `ITMS-91056`.**
+3. All comments moved out of the plist body and into the XML prolog
+   (between `<?xml ... ?>` and `<!DOCTYPE ...>`). **ASC still rejected
+   with `ITMS-91056` (this was Build 9 of v2.75).**
+4. Every comment removed — including the prolog block — so each file
+   is the bare TN3183 shape: XML declaration, DOCTYPE, `<plist>`,
+   nothing else. **ASC accepted (Build 11 of v2.75 on 2026-04-28).**
 
-Apple's own TN3183 reference manifests contain zero comments anywhere
-in the file. To stay safely compatible with both validators we now
-ship comment-free manifests and keep all rationale in this Markdown
-document instead.
+The takeaway is that ASC's validator does not tolerate comments in
+this file at all, regardless of whether they are technically inside
+the plist data. Apple's own TN3183 reference manifests confirm this
+shape: zero comments anywhere. All rationale lives in this Markdown
+document instead, and the validation checklist below enforces the
+rule on every release.
 
 ## Validation checklist before any release
 
-1. Run `plutil -lint` on all three files; all three must report `OK`.
-2. Run `plutil -convert json -o -` on each file and confirm the
+1. **Comment audit.** `grep -n '<!--' "NALI Migraine Log"/PrivacyInfo.xcprivacy
+   "NALI Migraine Log macOS"/PrivacyInfo.xcprivacy "NALI Migraine Log Watch App Watch App"/PrivacyInfo.xcprivacy`
+   must return zero hits. If anything matches, strip it before
+   archiving. (See "Hard rules" rule 1.)
+2. **`plutil -lint`** all three files; all three must report `OK`.
+3. **`plutil -convert json -o -`** on each file and confirm the
    payload contains exactly `NSPrivacyTracking: false` plus the
-   declared `NSPrivacyAccessedAPITypes` entries.
-3. After `Product → Archive`, choose `Distribute → Generate Privacy
-   Report` in the Xcode Organizer and confirm the report lists exactly
-   the categories declared above for each platform — no more, no
-   fewer.
-4. Confirm no third-party SDK (SwiftPM dependency or otherwise) was
-   added since the last release that ships its own
-   `PrivacyInfo.xcprivacy`. ITMS-91056 will surface those too, with
-   their full embedded path. Today the project has zero SwiftPM /
-   CocoaPods dependencies, so this should remain a no-op until that
-   changes.
+   declared `NSPrivacyAccessedAPITypes` entries — no
+   `NSPrivacyCollectedDataTypes`, no `NSPrivacyTrackingDomains`.
+4. **`Product → Archive` → `Distribute → Generate Privacy Report`** in
+   the Xcode Organizer and confirm the report lists exactly the
+   categories declared above for each platform — no more, no fewer.
+   Expect a "Missing an expected key: 'NSPrivacyCollectedDataTypes'"
+   note for both the iOS app and the embedded watch app — this is
+   informational and does **not** block the upload (see "Hard rules"
+   rule 4). Any _other_ message in this dialog should be investigated.
+5. **Third-party SDK audit.** Confirm no SwiftPM dependency or other
+   embedded framework was added since the last release that ships its
+   own `PrivacyInfo.xcprivacy`. `ITMS-91056` will surface broken
+   nested manifests too, with their full embedded path. Today the
+   project has zero SwiftPM / CocoaPods dependencies, so this is a
+   no-op until that changes — but the moment it does, this step is no
+   longer a no-op.
+6. **App Store Connect → My Apps → App Privacy** answers must remain
+   consistent with the manifest:
+   - Data Types: "Data Not Collected" (HealthKit data is read/written
+     locally and synced via the user's own iCloud private database;
+     none of it is sent to a server we control).
+   - Privacy Policy URL: must be present.
+   Inconsistency here causes a separate App Review rejection — not
+   `ITMS-91056` — but is worth checking in the same pass.
