@@ -46,9 +46,31 @@ class HealthKitManager: ObservableObject {
     /// mirrored into Apple Health. Default is `false` — opt-in only.
     private static let healthSyncEnabledKey = "healthkit.syncMigrainesEnabled"
 
+    /// UserDefaults key recording whether we've ever called
+    /// `HKHealthStore.requestAuthorization` at any point in this install.
+    ///
+    /// We persist this ourselves because Apple's HealthKit API
+    /// **intentionally hides read-authorization status** from third-party
+    /// apps — `authorizationStatus(for:)` returns `.notDetermined` even
+    /// after the user explicitly denied a read permission, to prevent
+    /// apps from fingerprinting which health data a user does or doesn't
+    /// have. Tracking "have we asked?" ourselves is the only way to
+    /// distinguish a brand-new install (we should show the primer +
+    /// `requestAuthorization` flow) from a user who already saw the
+    /// system sheet (we should show a Settings deep-link instead, since
+    /// re-prompting won't work).
+    private static let hasRequestedAuthorizationKey = "healthkit.hasRequestedAuthorization"
+
     @Published var isAuthorized = false
     @Published var lastError: Error?
     @Published var latestSnapshot: HealthKitSnapshot?
+
+    /// True iff we have called `requestAuthorization` at least once since
+    /// install. Persists across launches. Used by call sites to decide
+    /// between "show our primer + system sheet" (false) and "show our
+    /// Settings deep-link CTA" (true) without ever needing to inspect
+    /// the (unreliable) read-side authorization status.
+    @Published var hasRequestedAuthorization: Bool
 
     /// Whether the user has opted in to mirroring their migraines to Apple
     /// Health. Backed by `UserDefaults`. Reading this is fast; setting it
@@ -77,12 +99,57 @@ class HealthKitManager: ObservableObject {
     
     private init() {
         self.isHealthSyncEnabled = UserDefaults.standard.bool(forKey: Self.healthSyncEnabledKey)
+        self.hasRequestedAuthorization = UserDefaults.standard.bool(forKey: Self.hasRequestedAuthorizationKey)
 
         #if canImport(HealthKit)
         if HKHealthStore.isHealthDataAvailable() {
             healthStore = HKHealthStore()
         } else {
             healthStore = nil
+        }
+        #endif
+
+        // `isAuthorized` is in-memory only (Apple's read-side
+        // authorization is intentionally unreliable, so we can't
+        // restore it by querying). For users who previously granted,
+        // re-rehydrate via `requestAuthorization` — Apple's docs
+        // explicitly state this method does NOT re-show the system
+        // sheet when the user has already decided; it just resolves
+        // the in-memory state. Without this, every cold launch would
+        // leave `isAuthorized = false` for previously-authorized
+        // users until they manually navigated through the primer
+        // again, which is exactly the bug we're trying to fix.
+        if hasRequestedAuthorization {
+            Task { [weak self] in
+                await self?.rehydrateAuthorizationStatus()
+            }
+        }
+    }
+
+    /// Silently re-resolve `isAuthorized` at launch for users who
+    /// previously granted permission. Apple's `requestAuthorization`
+    /// is documented to no-op (no system sheet) when the user has
+    /// already responded, so calling it here is safe.
+    func rehydrateAuthorizationStatus() async {
+        #if canImport(HealthKit)
+        guard let healthStore = healthStore else { return }
+        guard hasRequestedAuthorization else { return }
+
+        let toShare: Set<HKSampleType>
+        if #available(iOS 17.0, watchOS 10.0, *) {
+            toShare = writeTypes
+        } else {
+            toShare = []
+        }
+
+        do {
+            try await healthStore.requestAuthorization(toShare: toShare, read: readTypes)
+            isAuthorized = true
+            AppLogger.health.debug("HealthKit authorization rehydrated on launch")
+        } catch {
+            // Don't surface this error — rehydration is best-effort
+            // and the user hasn't taken any action to debug.
+            AppLogger.health.debug("HealthKit rehydrate failed: \(error.localizedDescription, privacy: .public)")
         }
         #endif
     }
@@ -109,6 +176,13 @@ class HealthKitManager: ObservableObject {
             toShare = []
         }
 
+        // Stamp the "have we ever asked?" flag before the request
+        // returns. We do this regardless of the system sheet's outcome
+        // — even if the user immediately dismisses the sheet, Apple
+        // treats that as "decided" and we cannot re-prompt. The next
+        // launch must therefore route through the Settings deep-link.
+        markAuthorizationRequested()
+
         do {
             try await healthStore.requestAuthorization(toShare: toShare, read: readTypes)
             isAuthorized = true
@@ -121,6 +195,76 @@ class HealthKitManager: ObservableObject {
         #else
         lastError = HealthKitError.notAvailable
         #endif
+    }
+
+    /// Persist that we've shown (or are about to show) the system
+    /// permission sheet, so we route future asks through Settings.
+    /// Exposed at `internal` (default) visibility so tests can flip it.
+    func markAuthorizationRequested() {
+        UserDefaults.standard.set(true, forKey: Self.hasRequestedAuthorizationKey)
+        if !hasRequestedAuthorization {
+            hasRequestedAuthorization = true
+        }
+    }
+
+    /// Authorization status of the `.headache` *write* type. The READ
+    /// side intentionally returns `.notDetermined` regardless of the
+    /// actual user choice, so we never read it — we use this write
+    /// status + our own `hasRequestedAuthorization` flag to infer the
+    /// user's overall posture (granted / denied / never asked).
+    ///
+    /// Returns `nil` when HealthKit isn't available or the `.headache`
+    /// type doesn't exist on this OS (pre-iOS 17).
+    var writeAuthorizationStatus: WriteAuthorizationStatus {
+        #if canImport(HealthKit)
+        guard let healthStore = healthStore else { return .unavailable }
+        guard #available(iOS 17.0, watchOS 10.0, *) else { return .unsupportedOS }
+        guard let headache = HKObjectType.categoryType(forIdentifier: .headache) else {
+            return .unavailable
+        }
+        switch healthStore.authorizationStatus(for: headache) {
+        case .notDetermined:     return .notDetermined
+        case .sharingDenied:     return .denied
+        case .sharingAuthorized: return .authorized
+        @unknown default:        return .notDetermined
+        }
+        #else
+        return .unavailable
+        #endif
+    }
+
+    /// Coarse-grained classification of where the user stands w.r.t.
+    /// our HealthKit ask. Drives the choice between "show the primer
+    /// + system sheet" and "deep-link to iOS Settings."
+    enum WriteAuthorizationStatus {
+        /// Device or OS doesn't expose the `.headache` type at all.
+        case unavailable
+        /// HealthKit is available but the OS is too old to write
+        /// `.headache` samples. We still ask for reads on older OSes.
+        case unsupportedOS
+        /// Never asked. Safe to show the primer + system sheet.
+        case notDetermined
+        /// Explicitly denied. Cannot re-prompt; must deep-link to
+        /// iOS Settings → Headway → Health.
+        case denied
+        /// User approved the write toggle in the system sheet. (Reads
+        /// may still have been denied — we can't tell from this alone.)
+        case authorized
+    }
+
+    /// Best-effort answer to "has the user finished setting up
+    /// HealthKit?". True iff we've called `requestAuthorization` and
+    /// the user did not flat-out deny the write toggle. CTAs that need
+    /// to choose between "Connect HealthKit" (system sheet) and
+    /// "Adjust in Settings" (deep-link) should branch on
+    /// `hasRequestedAuthorization` directly; this helper is for callers
+    /// that want a single Bool.
+    var isHealthKitConfigured: Bool {
+        if !hasRequestedAuthorization { return false }
+        switch writeAuthorizationStatus {
+        case .denied: return false
+        default:      return true
+        }
     }
     
     // MARK: - Data Fetching

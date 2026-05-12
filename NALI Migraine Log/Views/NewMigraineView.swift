@@ -36,6 +36,15 @@ struct NewMigraineView: View {
     @ObservedObject private var healthKit = HealthKitManager.shared
     @State private var healthSnapshot: HealthKitSnapshot?
     @State private var isLoadingHealth = false
+
+    /// Drives the "Connect Apple Health" primer that we show **before**
+    /// Apple's permission sheet on the first migraine entry. The primer
+    /// gives the user the context the system sheet can't — a single
+    /// scrollable list of every category we'll ask for, in plain
+    /// English, before they're staring at 7 toggles in a half-screen
+    /// modal. See `HealthKitPermissionPrimerView` for the actual UI;
+    /// gating logic lives in `loadHealthData()`.
+    @State private var showingHealthKitPrimer = false
     
     private var locationPicker: some View {
         Picker("Location", selection: $location) {
@@ -217,6 +226,30 @@ struct NewMigraineView: View {
                 .task {
                     await loadHealthData()
                 }
+                .sheet(isPresented: $showingHealthKitPrimer) {
+                    HealthKitPermissionPrimerView(
+                        onContinue: {
+                            // The user has read what we'll ask for and
+                            // tapped Continue. Fire the system sheet and
+                            // then fetch a snapshot once they're done.
+                            Task { @MainActor in
+                                isLoadingHealth = true
+                                await healthKit.requestAuthorization()
+                                if healthKit.isAuthorized {
+                                    healthSnapshot = await healthKit.fetchSnapshot()
+                                }
+                                isLoadingHealth = false
+                            }
+                        },
+                        onSkip: {
+                            // The user explicitly said "Not Now". Stamp
+                            // the "have we asked?" flag so we don't
+                            // auto-show the primer again on every entry
+                            // — they can re-trigger it from Settings.
+                            healthKit.markAuthorizationRequested()
+                        }
+                    )
+                }
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {
@@ -282,11 +315,32 @@ struct NewMigraineView: View {
     }
     
     // MARK: - Health Context
-    
+
+    /// Called from `.task` on view appearance. Three states:
+    ///   • never asked → surface our primer sheet (does NOT fire
+    ///     Apple's permission sheet directly). The primer's "Continue"
+    ///     button is what actually invokes `requestAuthorization`.
+    ///   • asked before → call `requestAuthorization` directly. Per
+    ///     Apple's docs this is a no-op (no system sheet) when the
+    ///     user has already responded; it just re-resolves the
+    ///     in-memory `isAuthorized` flag, which doesn't survive a cold
+    ///     launch. If the user previously denied, this stays `false`
+    ///     and the unauthorized row offers a Settings deep-link.
     private func loadHealthData() async {
         guard healthKit.isAvailable else { return }
+
+        if !healthKit.hasRequestedAuthorization {
+            // First-time user. Show our primer; do NOT auto-fire the
+            // system sheet — that's the whole point of this UX
+            // change.
+            showingHealthKitPrimer = true
+            return
+        }
+
         isLoadingHealth = true
         if !healthKit.isAuthorized {
+            // Silent rehydration. Safe because Apple no-ops the system
+            // sheet once the user has decided.
             await healthKit.requestAuthorization()
         }
         if healthKit.isAuthorized {
@@ -306,17 +360,7 @@ struct NewMigraineView: View {
                         .foregroundColor(.secondary)
                 }
             } else if !healthKit.isAuthorized {
-                HStack(spacing: 10) {
-                    Image(systemName: "heart.slash")
-                        .foregroundColor(.secondary)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("HealthKit Not Authorized")
-                            .font(.subheadline.weight(.medium))
-                        Text("Enable in Settings to see health context")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
+                healthKitUnauthorizedRow
             } else if let snapshot = healthSnapshot {
                 healthDataGrid(snapshot)
             } else {
@@ -344,6 +388,63 @@ struct NewMigraineView: View {
         .listRowBackground(Color(.systemGray6).opacity(0.5))
     }
     
+    /// Rendered when HealthKit is available but we aren't authorized
+    /// to read anything. Two flavors:
+    ///   • If we've never asked, the user must have skipped the primer
+    ///     — offer a "Connect" button that re-opens it so they can
+    ///     change their mind without leaving this screen.
+    ///   • If we've already asked, the system won't re-prompt; route
+    ///     them to iOS Settings via `UIApplication.openSettingsURLString`
+    ///     instead.
+    @ViewBuilder
+    private var healthKitUnauthorizedRow: some View {
+        if !healthKit.hasRequestedAuthorization {
+            Button {
+                showingHealthKitPrimer = true
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "heart.slash")
+                        .foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Connect Apple Health")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundColor(.primary)
+                        Text("See sleep, HRV, and more alongside this entry.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        } else {
+            Button {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "heart.slash")
+                        .foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Apple Health Not Available")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundColor(.primary)
+                        Text("Open Settings to manage permissions for Headway.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "arrow.up.right.square")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+    }
+
     @ViewBuilder
     private func healthDataGrid(_ snapshot: HealthKitSnapshot) -> some View {
         LazyVGrid(columns: [

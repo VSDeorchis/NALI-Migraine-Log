@@ -470,7 +470,16 @@ struct AnalyticsMetricDetailView: View {
     @ViewBuilder
     private var sleepCorrelationContent: some View {
         if let store = healthStore {
-            sleepCorrelationLayout(store: store)
+            switch store.status {
+            case .unavailable:
+                healthUnavailable
+            case .notDetermined:
+                healthConnectCard
+            case .denied:
+                healthSettingsCard
+            default:
+                sleepCorrelationLayout(store: store)
+            }
         } else {
             healthUnavailable
         }
@@ -493,9 +502,10 @@ struct AnalyticsMetricDetailView: View {
             
             Card(title: "Nightly sleep · \(store.sleepNights.count) night\(store.sleepNights.count == 1 ? "" : "s")") {
                 if store.sleepNights.isEmpty {
-                    Text("No sleep data was recorded inside this window.")
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
+                    missingDataHint(
+                        category: "sleep",
+                        capturedBy: "Apple Watch (overnight) or your iPhone's Sleep schedule"
+                    )
                 } else {
                     Chart {
                         ForEach(store.sleepNights) { sample in
@@ -571,7 +581,16 @@ struct AnalyticsMetricDetailView: View {
     @ViewBuilder
     private var hrvCorrelationContent: some View {
         if let store = healthStore {
-            hrvCorrelationLayout(store: store)
+            switch store.status {
+            case .unavailable:
+                healthUnavailable
+            case .notDetermined:
+                healthConnectCard
+            case .denied:
+                healthSettingsCard
+            default:
+                hrvCorrelationLayout(store: store)
+            }
         } else {
             healthUnavailable
         }
@@ -595,9 +614,10 @@ struct AnalyticsMetricDetailView: View {
             
             Card(title: "HRV over time · \(store.hrvSamples.count) reading\(store.hrvSamples.count == 1 ? "" : "s")") {
                 if dailyHRV.isEmpty {
-                    Text("No HRV data was recorded inside this window. HRV is captured automatically by Apple Watch overnight.")
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
+                    missingDataHint(
+                        category: "heart-rate variability",
+                        capturedBy: "Apple Watch overnight"
+                    )
                 } else {
                     Chart {
                         ForEach(dailyHRV) { point in
@@ -674,7 +694,16 @@ struct AnalyticsMetricDetailView: View {
     @ViewBuilder
     private var cyclePhaseContent: some View {
         if let store = healthStore {
-            cyclePhaseLayout(store: store)
+            switch store.status {
+            case .unavailable:
+                healthUnavailable
+            case .notDetermined:
+                healthConnectCard
+            case .denied:
+                healthSettingsCard
+            default:
+                cyclePhaseLayout(store: store)
+            }
         } else {
             healthUnavailable
         }
@@ -687,10 +716,14 @@ struct AnalyticsMetricDetailView: View {
         return VStack(spacing: 16) {
             Card(title: "Migraines by cycle phase") {
                 if store.cycleAvailability != .available {
-                    Text("Once you log menstrual flow in Apple Health, your migraines will be grouped by cycle phase here automatically.")
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    // We can't distinguish "user has never logged
+                    // menstrual flow" from "user denied the menstrual
+                    // read in Apple's permission sheet" — both surface
+                    // as zero samples. Hedge the copy.
+                    missingDataHint(
+                        category: "menstrual cycle",
+                        capturedBy: "Apple Health's Cycle Tracking, your iPhone Health app, or a third-party app like Flo"
+                    )
                 } else if let distribution, distribution.totalAnchored > 0 {
                     cycleHeadline(distribution)
                 } else {
@@ -888,12 +921,129 @@ struct AnalyticsMetricDetailView: View {
             .sorted { $0.date < $1.date }
     }
     
-    private var healthUnavailable: some View {
-        Card(title: "Apple Health required") {
-            Text("Health correlations need access to your sleep and heart-rate variability samples. Open Settings → Privacy → Health and grant access to enable this view.")
+    /// Inline hint shown next to an empty per-category chart. Apple
+    /// **intentionally does not tell** us whether a missing read
+    /// reflects "no data exists" or "the user denied this category"
+    /// — so we hedge the copy and offer the Settings deep-link as a
+    /// best-effort remedy.
+    private func missingDataHint(category: String, capturedBy: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("No \(category) data was found inside this window. Either there's no data in Apple Health for these dates, or this category isn't shared with Headway.")
                 .font(.system(size: 13))
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            Text("\(category.capitalized) is typically captured by \(capturedBy).")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "gear")
+                    Text("Check Permissions")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(metric.accent.opacity(0.12))
+                )
+                .foregroundStyle(metric.accent)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens iOS Settings → Headway. Tap Health to confirm Sleep and HRV are enabled.")
+        }
+    }
+
+    /// Shown when HealthKit isn't available on this device at all
+    /// (Mac, iPad without Health, etc.). No CTA — there's nothing the
+    /// user can do from inside the app.
+    private var healthUnavailable: some View {
+        Card(title: "Apple Health unavailable") {
+            Text("Apple Health isn't available on this device, so we can't load sleep, HRV, or menstrual-cycle correlations here. Open Headway on iPhone to view this view.")
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// Shown when we've never asked for HealthKit permission. Offers a
+    /// button that fires the primer + Apple's permission sheet.
+    private var healthConnectCard: some View {
+        Card(title: "Connect Apple Health") {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("This view compares your migraines against samples from Apple Health. Grant access to Sleep, HRV, and (optionally) menstrual cycle data to populate it.")
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    Task {
+                        // Direct call here: by the time the user has
+                        // navigated this deep into the analytics, the
+                        // dashboard's primer has already been shown
+                        // (or skipped) once. Showing it again would be
+                        // redundant; just trigger the system sheet.
+                        // The parent dashboard's `onChange` listener on
+                        // `isAuthorized` picks up the change and
+                        // reloads the store; we don't reload here
+                        // because the detail view doesn't own the
+                        // window.
+                        await HealthKitManager.shared.requestAuthorization()
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "heart.fill")
+                        Text("Connect Health")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(metric.accent.opacity(0.12))
+                    )
+                    .foregroundStyle(metric.accent)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    /// Shown when we've already asked but the user denied (or
+    /// dismissed Apple's sheet before scrolling). Apple does not
+    /// permit re-prompting; deep-link to iOS Settings instead.
+    private var healthSettingsCard: some View {
+        Card(title: "Apple Health permissions needed") {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Apple Health isn't sharing the data needed for this view. You may have dismissed Apple's permission sheet before scrolling through every category. Apple doesn't let apps re-open that sheet — you'll need to flip the toggles in iOS Settings.")
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "gear")
+                        Text("Open Settings")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(metric.accent.opacity(0.12))
+                    )
+                    .foregroundStyle(metric.accent)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens iOS Settings. Tap Health to enable Sleep, HRV, and other categories for Headway.")
+            }
         }
     }
     

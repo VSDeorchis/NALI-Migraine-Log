@@ -206,8 +206,17 @@ struct NewMigraineView: View {
     
     // MARK: - Health Context
     
+    /// macOS does not have iPhone's "7 toggles below the fold"
+    /// problem — the system permission window is a full Settings
+    /// pane — so we don't bother with the custom primer used by the
+    /// iOS target. We always call `requestAuthorization` when not
+    /// already authorized: on a first-time user this shows the
+    /// system pane; on a previously-authorized user Apple no-ops
+    /// (no UI) and just re-resolves the in-memory `isAuthorized`
+    /// flag, which doesn't survive a cold launch.
     private func loadHealthData() async {
         guard healthKit.isAvailable else { return }
+
         isLoadingHealth = true
         if !healthKit.isAuthorized {
             await healthKit.requestAuthorization()
