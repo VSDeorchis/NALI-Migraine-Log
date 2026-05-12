@@ -108,6 +108,50 @@ class HealthKitManager: ObservableObject {
             healthStore = nil
         }
         #endif
+
+        // `isAuthorized` is in-memory only (Apple's read-side
+        // authorization is intentionally unreliable, so we can't
+        // restore it by querying). For users who previously granted,
+        // re-rehydrate via `requestAuthorization` — Apple's docs
+        // explicitly state this method does NOT re-show the system
+        // sheet when the user has already decided; it just resolves
+        // the in-memory state. Without this, every cold launch would
+        // leave `isAuthorized = false` for previously-authorized
+        // users until they manually navigated through the primer
+        // again, which is exactly the bug we're trying to fix.
+        if hasRequestedAuthorization {
+            Task { [weak self] in
+                await self?.rehydrateAuthorizationStatus()
+            }
+        }
+    }
+
+    /// Silently re-resolve `isAuthorized` at launch for users who
+    /// previously granted permission. Apple's `requestAuthorization`
+    /// is documented to no-op (no system sheet) when the user has
+    /// already responded, so calling it here is safe.
+    func rehydrateAuthorizationStatus() async {
+        #if canImport(HealthKit)
+        guard let healthStore = healthStore else { return }
+        guard hasRequestedAuthorization else { return }
+
+        let toShare: Set<HKSampleType>
+        if #available(iOS 17.0, watchOS 10.0, *) {
+            toShare = writeTypes
+        } else {
+            toShare = []
+        }
+
+        do {
+            try await healthStore.requestAuthorization(toShare: toShare, read: readTypes)
+            isAuthorized = true
+            AppLogger.health.debug("HealthKit authorization rehydrated on launch")
+        } catch {
+            // Don't surface this error — rehydration is best-effort
+            // and the user hasn't taken any action to debug.
+            AppLogger.health.debug("HealthKit rehydrate failed: \(error.localizedDescription, privacy: .public)")
+        }
+        #endif
     }
     
     // MARK: - Authorization

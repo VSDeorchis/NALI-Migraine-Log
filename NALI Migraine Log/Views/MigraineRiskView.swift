@@ -700,8 +700,14 @@ struct MigraineRiskView: View {
             }
         }
         
-        // 2. Fetch HealthKit data
+        // 2. Fetch HealthKit data. `isAuthorized` is in-memory only and
+        // resets on cold launch, so for users who previously granted we
+        // first rehydrate (no UI; Apple no-ops the call once the user
+        // has decided) before deciding to skip the fetch.
         var healthData: HealthKitSnapshot?
+        if !healthKit.isAuthorized && healthKit.hasRequestedAuthorization {
+            await healthKit.rehydrateAuthorizationStatus()
+        }
         if healthKit.isAuthorized {
             healthData = await healthKit.fetchSnapshot()
         }

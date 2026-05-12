@@ -252,6 +252,16 @@ final class HealthCorrelationStore: ObservableObject {
             lastLoadedKey = key
             return
         }
+
+        // `isAuthorized` is an in-memory flag that doesn't survive a
+        // cold launch. For a user who previously granted, rehydrate
+        // it before deciding we're unauthorized — Apple's
+        // `requestAuthorization` no-ops once the user has decided, so
+        // this is safe (no UI shown).
+        if !manager.isAuthorized && manager.hasRequestedAuthorization {
+            await manager.rehydrateAuthorizationStatus()
+        }
+
         guard manager.isAuthorized else {
             // Distinguish "never asked" from "asked-and-denied" using
             // our own UserDefaults flag, since the HealthKit read-side

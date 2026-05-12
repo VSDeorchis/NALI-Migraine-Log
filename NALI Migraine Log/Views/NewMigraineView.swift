@@ -317,23 +317,17 @@ struct NewMigraineView: View {
     // MARK: - Health Context
 
     /// Called from `.task` on view appearance. Three states:
-    ///   • already authorized → just fetch the snapshot.
     ///   • never asked → surface our primer sheet (does NOT fire
     ///     Apple's permission sheet directly). The primer's "Continue"
     ///     button is what actually invokes `requestAuthorization`.
-    ///   • asked-and-(implicitly)-denied → do nothing. Apple won't
-    ///     re-prompt, so any further nudging has to happen from
-    ///     Settings (see `HealthKitPermissionPrimerView` and the
-    ///     `appleHealthSection` "Manage Permissions" row).
+    ///   • asked before → call `requestAuthorization` directly. Per
+    ///     Apple's docs this is a no-op (no system sheet) when the
+    ///     user has already responded; it just re-resolves the
+    ///     in-memory `isAuthorized` flag, which doesn't survive a cold
+    ///     launch. If the user previously denied, this stays `false`
+    ///     and the unauthorized row offers a Settings deep-link.
     private func loadHealthData() async {
         guard healthKit.isAvailable else { return }
-
-        if healthKit.isAuthorized {
-            isLoadingHealth = true
-            healthSnapshot = await healthKit.fetchSnapshot()
-            isLoadingHealth = false
-            return
-        }
 
         if !healthKit.hasRequestedAuthorization {
             // First-time user. Show our primer; do NOT auto-fire the
@@ -343,9 +337,16 @@ struct NewMigraineView: View {
             return
         }
 
-        // We've asked before and aren't authorized. Apple won't let us
-        // re-prompt, so we leave the section in its empty state — the
-        // user can re-enable from Settings → Apple Health.
+        isLoadingHealth = true
+        if !healthKit.isAuthorized {
+            // Silent rehydration. Safe because Apple no-ops the system
+            // sheet once the user has decided.
+            await healthKit.requestAuthorization()
+        }
+        if healthKit.isAuthorized {
+            healthSnapshot = await healthKit.fetchSnapshot()
+        }
+        isLoadingHealth = false
     }
     
     private var healthContextSection: some View {
