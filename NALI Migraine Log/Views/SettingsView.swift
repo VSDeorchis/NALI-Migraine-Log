@@ -750,12 +750,11 @@ struct SettingsView: View {
     // MARK: - Help & Feedback
 
     /// Always-available entry points for rating the app on the App Store
-    /// (system review prompt is rate-limited and gated behind the
-    /// "Enjoying Headway?" pre-prompt; this row gives the user an
-    /// unconditional way to leave a review when they want to) and for
-    /// sending in-app feedback (routes to the same `FeedbackFormView`
-    /// the "Not really" path uses, but with `origin = .settings` so
-    /// the copy is friendlier).
+    /// (the auto-fired native review prompt is gated by
+    /// `ReviewPromptCoordinator` and rate-limited by Apple, so this row
+    /// gives the user an unconditional way to leave a review when they
+    /// want to) and for sending in-app feedback (`FeedbackFormView`
+    /// with `origin = .settings`).
     private var feedbackSection: some View {
         Section {
             Link(destination: AppContactInfo.appStoreWriteReviewURL) {

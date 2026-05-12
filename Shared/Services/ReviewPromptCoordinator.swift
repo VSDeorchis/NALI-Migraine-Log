@@ -2,25 +2,34 @@
 //  ReviewPromptCoordinator.swift
 //  NALI Migraine Log
 //
-//  Decides when (and whether) to ask the user "Are you enjoying Headway?"
-//  — the gentle pre-prompt that gates Apple's native review sheet.
+//  Decides when (and whether) to call Apple's native review prompt
+//  (`SKStoreReviewController.requestReview()`) so we don't pester
+//  users who only just installed the app.
 //
 //  ──────────────────────────────────────────────────────────────────────
-//  WHY A PRE-PROMPT EXISTS AT ALL
+//  WHAT THIS COORDINATOR DOES — AND WHAT IT DELIBERATELY DOES NOT
 //  ──────────────────────────────────────────────────────────────────────
-//  Apple's documented best practice is to call `requestReview()` directly
-//  at "appropriate moments" and let the system handle everything else.
-//  The system rate-limits prompts to ~3 per 365 days per user, so calling
-//  it eagerly is mostly harmless — but it also means a user who is mid-
-//  migraine and irritated by an interruption may rate the app one star
-//  before Apple ever asks them again.
+//  Apple's `requestReview()` is already rate-limited (~3 prompts per
+//  365 days per user) and renders the same standard sheet across every
+//  app on iOS:
 //
-//  For a healthcare app where the median session ends with the user in
-//  pain, a "Not really → in-app feedback form" gate is the difference
-//  between a 1-star review and an actionable bug report. We accept the
-//  small extra friction because users who say "Yes!" still get Apple's
-//  unaltered system sheet (we never collect ratings ourselves), and
-//  users who say "Not really" get an apology + a way to vent.
+//      Enjoying <App Name>?
+//      Tap a star to rate it on the App Store.
+//      [☆ ☆ ☆ ☆ ☆]
+//      Not Now
+//
+//  We do NOT show a custom "Enjoying Headway?" pre-prompt of our own —
+//  users expect the system sheet, and adding our own alert in front of
+//  it just adds friction. Users who actively want to send feedback can
+//  do so unconditionally from Settings → "Send Feedback".
+//
+//  What this coordinator *does* add on top of `requestReview()` is a
+//  gate that prevents us from even calling it on freshly-installed
+//  apps. Apple's own HIG says to wait until the user has demonstrated
+//  meaningful engagement, and the system rate-limiter only kicks in
+//  AFTER we've called it — so an eager first call on a brand-new
+//  install will count toward the user's annual quota even if they
+//  immediately dismiss it.
 //
 //  ──────────────────────────────────────────────────────────────────────
 //  SIGNALS WE TRACK (all in UserDefaults; nothing leaves the device)
@@ -33,34 +42,27 @@
 //      entriesLoggedCount     Number of migraines saved while the
 //                              coordinator was alive. Persisted across
 //                              launches.
-//      lastEnjoymentPromptDate    Last time we showed the "Enjoying
-//                              Headway?" sheet, regardless of outcome.
 //      lastReviewRequestDate  Last time we actually called
-//                              `requestReview()`. Tracked separately so
-//                              we can be more conservative about asking
-//                              twice in a year even if Apple wouldn't.
-//      lastEnjoymentOutcome   "yes" / "no" / nil — used so we can wait
-//                              longer between prompts after a "no".
+//                              `requestReview()`. Drives our own
+//                              cooldown on top of Apple's.
 //
 //  ──────────────────────────────────────────────────────────────────────
 //  GATING POLICY
 //  ──────────────────────────────────────────────────────────────────────
-//  `shouldShowEnjoymentPrompt` returns true only when ALL of:
+//  `shouldShowReviewPrompt` returns true only when ALL of:
 //      • The user has been with us at least `minimumTenureDays` (7).
 //      • They have logged at least `minimumEntriesLogged` (5).
-//      • At least `cooldownAfterYesDays` (180) has passed since the
-//        last "Yes!" — or `cooldownAfterNoDays` (365) since the last
-//        "Not really". A user who told us they're unhappy is not the
-//        person to interrupt next month.
-//      • The most recent prompt is at least `minimumPromptSpacingDays`
-//        (120) old, regardless of outcome. Acts as a hard floor.
+//      • At least `cooldownDays` (180) has passed since the last time
+//        we called `requestReview()`. Apple itself rate-limits to ~3
+//        per 365 days regardless, but our half-yearly floor keeps us
+//        comfortably under that ceiling.
 //
 //  ──────────────────────────────────────────────────────────────────────
 //  THREADING
 //  ──────────────────────────────────────────────────────────────────────
 //  Every public surface is `@MainActor`. The coordinator owns no state
 //  beyond what it persists to `UserDefaults`, so this is mostly cosmetic
-//  — but it lets call sites bind `shouldShowEnjoymentPrompt` directly
+//  — but it lets call sites bind `shouldShowReviewPrompt` directly
 //  to SwiftUI state without ceremony.
 //
 
@@ -84,27 +86,26 @@ enum ReviewPromptCoordinator {
     /// this filters out installs that never moved past the disclaimer.
     private static let minimumEntriesLogged: Int = 5
 
-    /// Hard floor between any two enjoyment prompts.
-    private static let minimumPromptSpacingDays: Int = 120
-
-    /// Extra cooldown after a "Yes!" answer. Apple is already going to
-    /// rate-limit the actual review sheet, but it's polite not to ask
-    /// the same person if they're still enjoying us six weeks later.
-    private static let cooldownAfterYesDays: Int = 180
-
-    /// Long cooldown after a "Not really" answer. If someone took the
-    /// time to give negative feedback, we owe them at least a year of
-    /// quiet before raising it again.
-    private static let cooldownAfterNoDays: Int = 365
+    /// Hard floor between any two `requestReview()` calls. Apple's own
+    /// rate limiter is ~3 prompts per 365 days; a 180-day floor keeps
+    /// us comfortably below that ceiling and matches the cadence we
+    /// previously applied to "user said Yes!" answers under the old
+    /// custom pre-prompt.
+    private static let cooldownDays: Int = 180
 
     // MARK: - UserDefaults keys
 
-    private static let firstLaunchKey            = "review.firstLaunchDate"
-    private static let launchCountKey            = "review.launchCount"
-    private static let entriesLoggedKey          = "review.entriesLoggedCount"
-    private static let lastEnjoymentPromptKey    = "review.lastEnjoymentPromptDate"
-    private static let lastReviewRequestKey      = "review.lastReviewRequestDate"
-    private static let lastEnjoymentOutcomeKey   = "review.lastEnjoymentOutcome"
+    private static let firstLaunchKey         = "review.firstLaunchDate"
+    private static let launchCountKey         = "review.launchCount"
+    private static let entriesLoggedKey       = "review.entriesLoggedCount"
+    private static let lastReviewRequestKey   = "review.lastReviewRequestDate"
+
+    // Legacy keys from the previous custom-pre-prompt design. We no
+    // longer write to them, but we DO read `lastEnjoymentPromptKey` as
+    // a fallback when computing `lastReviewRequestDate` so existing
+    // users don't get re-prompted on the first launch after upgrade.
+    private static let legacyLastEnjoymentPromptKey  = "review.lastEnjoymentPromptDate"
+    private static let legacyLastEnjoymentOutcomeKey = "review.lastEnjoymentOutcome"
 
     // MARK: - Test seams
     //
@@ -112,7 +113,7 @@ enum ReviewPromptCoordinator {
     // so tests in the same module can swap in a private UserDefaults
     // suite and a controllable clock without touching the public API.
     // App code never references either of these directly — it just calls
-    // the `record*` methods and reads `shouldShowEnjoymentPrompt`.
+    // the `record*` methods and reads `shouldShowReviewPrompt`.
 
     /// `UserDefaults` instance used for all reads/writes. Production code
     /// always uses `.standard`; tests inject a unique suite-name instance
@@ -125,29 +126,22 @@ enum ReviewPromptCoordinator {
 
     /// Wipes every key the coordinator owns from the currently-injected
     /// `defaults` and resets the clock to the system clock. Tests should
-    /// call this in `setUp`/`init`, NOT app code. The keys are listed
-    /// inline (rather than computed) so a missed key is a compile error
-    /// in tests rather than a silent leak.
+    /// call this in `setUp`/`init`, NOT app code. Legacy keys are
+    /// included so we can write tests for the upgrade-fallback path
+    /// without leaking state across test runs.
     static func _resetForTesting() {
         let keys = [
             firstLaunchKey,
             launchCountKey,
             entriesLoggedKey,
-            lastEnjoymentPromptKey,
             lastReviewRequestKey,
-            lastEnjoymentOutcomeKey,
+            legacyLastEnjoymentPromptKey,
+            legacyLastEnjoymentOutcomeKey,
         ]
         for key in keys {
             defaults.removeObject(forKey: key)
         }
         now = { Date() }
-    }
-
-    /// Stable string values for the outcome key so a future reader of
-    /// the defaults file can interpret it without guessing.
-    enum Outcome: String {
-        case yes
-        case no
     }
 
     // MARK: - Public diagnostic accessors
@@ -168,19 +162,20 @@ enum ReviewPromptCoordinator {
         defaults.integer(forKey: entriesLoggedKey)
     }
 
-    static var lastEnjoymentPromptDate: Date? {
-        defaults.object(forKey: lastEnjoymentPromptKey) as? Date
-    }
-
+    /// Most recent moment we asked for a review. Falls back to the old
+    /// `lastEnjoymentPromptDate` key on upgrade so the cooldown carries
+    /// over for users who already saw a prompt under the previous
+    /// custom pre-prompt design. If both keys exist (i.e. the user has
+    /// also been prompted since upgrade), the more recent value wins.
     static var lastReviewRequestDate: Date? {
-        defaults.object(forKey: lastReviewRequestKey) as? Date
-    }
-
-    static var lastEnjoymentOutcome: Outcome? {
-        guard let raw = defaults.string(forKey: lastEnjoymentOutcomeKey) else {
-            return nil
+        let new = defaults.object(forKey: lastReviewRequestKey) as? Date
+        let legacy = defaults.object(forKey: legacyLastEnjoymentPromptKey) as? Date
+        switch (new, legacy) {
+        case let (a?, b?): return max(a, b)
+        case let (a?, nil): return a
+        case let (nil, b?): return b
+        case (nil, nil): return nil
         }
-        return Outcome(rawValue: raw)
     }
 
     // MARK: - Lifecycle hooks (call from app code)
@@ -207,21 +202,6 @@ enum ReviewPromptCoordinator {
         AppLogger.review.debug("Entries-logged counter is now \(next, privacy: .public).")
     }
 
-    /// Call when the enjoyment-prompt sheet is presented to the user,
-    /// regardless of which button they ultimately tap. Together with
-    /// `recordEnjoymentOutcome` this gives us both "have we shown it
-    /// recently" and "what did they say last time".
-    static func recordEnjoymentPromptShown() {
-        defaults.set(now(), forKey: lastEnjoymentPromptKey)
-        AppLogger.review.notice("Enjoyment prompt shown; cooldown timer reset.")
-    }
-
-    /// Call with the user's actual answer.
-    static func recordEnjoymentOutcome(_ outcome: Outcome) {
-        defaults.set(outcome.rawValue, forKey: lastEnjoymentOutcomeKey)
-        AppLogger.review.notice("Enjoyment prompt outcome: \(outcome.rawValue, privacy: .public).")
-    }
-
     /// Call right before invoking `requestReview()` so we can rate-limit
     /// ourselves more conservatively than Apple does.
     static func recordReviewRequest() {
@@ -231,12 +211,12 @@ enum ReviewPromptCoordinator {
 
     // MARK: - Decision API
 
-    /// Answer to "Should I show the enjoyment prompt right now?".
-    /// Read this from a SwiftUI view's `onAppear`/`task` — do NOT poll
-    /// it from a timer. The decision is intentionally cheap (a handful
-    /// of `UserDefaults` reads + a few date diffs) so it's fine to call
-    /// on every navigation.
-    static var shouldShowEnjoymentPrompt: Bool {
+    /// Answer to "Should I call `requestReview()` right now?". Read
+    /// this from a SwiftUI view's `onAppear`/`task` — do NOT poll it
+    /// from a timer. The decision is intentionally cheap (a handful
+    /// of `UserDefaults` reads + a few date diffs) so it's fine to
+    /// call on every navigation.
+    static var shouldShowReviewPrompt: Bool {
         let now = self.now()
 
         guard let first = firstLaunchDate else {
@@ -255,23 +235,10 @@ enum ReviewPromptCoordinator {
             return false
         }
 
-        if let last = lastEnjoymentPromptDate {
-            let sincePrompt = daysBetween(last, and: now)
-
-            if sincePrompt < minimumPromptSpacingDays {
+        if let last = lastReviewRequestDate {
+            let sinceLast = daysBetween(last, and: now)
+            guard sinceLast >= cooldownDays else {
                 return false
-            }
-
-            switch lastEnjoymentOutcome {
-            case .yes:
-                if sincePrompt < cooldownAfterYesDays { return false }
-            case .no:
-                if sincePrompt < cooldownAfterNoDays { return false }
-            case .none:
-                // Prompt shown but outcome never recorded — treat as
-                // dismissed and apply the conservative "no" cooldown
-                // rather than re-prompt the next session.
-                if sincePrompt < cooldownAfterNoDays { return false }
             }
         }
 

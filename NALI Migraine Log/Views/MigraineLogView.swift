@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreData
+import StoreKit
 
 struct MigraineLogView: View {
     @ObservedObject var viewModel: MigraineViewModel
@@ -16,14 +17,14 @@ struct MigraineLogView: View {
     /// existing recovery section in Settings.
     @State private var hasRecoveredStore = false
 
-    /// Drives the "Enjoying Headway?" pre-prompt that gates Apple's
-    /// native review sheet. We never set this directly — instead we
-    /// consult `ReviewPromptCoordinator.shouldShowEnjoymentPrompt`
-    /// from `onAppear` and only flip it to `true` when the policy
-    /// allows. See `Shared/Services/ReviewPromptCoordinator.swift`
-    /// for the full gating logic (tenure, entries logged, cooldowns).
-    @State private var showingEnjoymentPrompt = false
-    
+    /// Apple's native review-request action (iOS 16+ / iPadOS 16+).
+    /// Calling this surfaces the standard "Enjoying …? / Tap a star to
+    /// rate it on the App Store." sheet. Apple rate-limits the actual
+    /// prompt to ~3 per 365 days per user; our own gate
+    /// (`ReviewPromptCoordinator`) is an additional pre-filter that
+    /// keeps us from spending a quota slot on a brand-new install.
+    @Environment(\.requestReview) private var requestReview
+
     /// `.regular` ≈ iPad (any orientation) and Plus/Pro Max iPhones
     /// in landscape. Drives the two-column layout: master list +
     /// inline detail instead of the iPhone-only sheet pattern.
@@ -60,15 +61,14 @@ struct MigraineLogView: View {
         }
         .onAppear {
             refreshRecoveryBannerVisibility()
-            considerShowingEnjoymentPrompt()
+            considerShowingReviewPrompt()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             // A recovery may have happened while we were backgrounded
             // (e.g. CloudKit pull triggered a store reload that failed).
             refreshRecoveryBannerVisibility()
-            considerShowingEnjoymentPrompt()
+            considerShowingReviewPrompt()
         }
-        .enjoymentPrompt(isPresented: $showingEnjoymentPrompt)
         // Clear the inline detail when the underlying entry is deleted
         // out from under us (only meaningful on iPad — `.sheet(item:)`
         // self-dismisses on the iPhone path).
@@ -404,26 +404,31 @@ struct MigraineLogView: View {
     }
 
     /// Asks the coordinator whether the gate is open right now and, if so,
-    /// flips the prompt binding on. We do this from `onAppear` and from
-    /// foreground-resume because both moments coincide with the user
-    /// arriving at the log surface in a state where they've just (a)
-    /// returned to the app and (b) are not in the middle of any other
-    /// modal flow. Suppressed while another sheet is up so we never
-    /// stack a system alert on top of NewMigraine / Detail / Settings.
-    private func considerShowingEnjoymentPrompt() {
+    /// invokes Apple's native review prompt. We do this from `onAppear`
+    /// and from foreground-resume because both moments coincide with the
+    /// user arriving at the log surface in a state where they've just
+    /// (a) returned to the app and (b) are not in the middle of any
+    /// other modal flow. Suppressed while another sheet is up so we
+    /// never stack a system alert on top of NewMigraine / Detail /
+    /// Settings.
+    private func considerShowingReviewPrompt() {
         guard !showingNewMigraineSheet,
               selectedMigraine == nil,
               !showingSettings,
-              !hasRecoveredStore,
-              !showingEnjoymentPrompt
+              !hasRecoveredStore
         else {
             return
         }
-        guard ReviewPromptCoordinator.shouldShowEnjoymentPrompt else {
+        guard ReviewPromptCoordinator.shouldShowReviewPrompt else {
             return
         }
-        ReviewPromptCoordinator.recordEnjoymentPromptShown()
-        showingEnjoymentPrompt = true
+        ReviewPromptCoordinator.recordReviewRequest()
+
+        // SwiftUI's requestReview action is synchronous-call /
+        // asynchronous-effect: by the time we return, the system has
+        // queued the prompt (or decided to suppress it because it's
+        // already shown its annual quota). Either way our work is done.
+        requestReview()
     }
 
     /// Reads `PersistenceController.lastRecoveryFileDefaultsKey` from

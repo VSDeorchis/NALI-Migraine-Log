@@ -2,17 +2,12 @@
 //  FeedbackFormView.swift
 //  NALI Migraine Log
 //
-//  In-app feedback form. Used in two places:
-//
-//    1. As the "Not really" follow-up to the enjoyment pre-prompt
-//       (`EnjoymentPromptView`) — i.e. the user has already told us
-//       they aren't loving the app and we want to capture *why* before
-//       we ever think about asking again.
-//
-//    2. As the always-available "Send Feedback" entry point in
-//       Settings → Help & Feedback, for users who want to reach out
-//       unprompted (bug report, feature request, "you forgot a med
-//       in the dropdown", etc.).
+//  In-app feedback form. Reached from Settings → Help & Feedback
+//  → "Send Feedback" for users who want to reach out unprompted
+//  (bug report, feature request, "you forgot a med in the dropdown",
+//  etc.). There is no longer a path from a review pre-prompt — the
+//  app uses Apple's native `requestReview()` directly, and users who
+//  want to send feedback do so from Settings on their own initiative.
 //
 //  ──────────────────────────────────────────────────────────────────────
 //  WHY AN IN-APP FORM AND NOT JUST A `mailto:` LINK
@@ -64,11 +59,11 @@ import MessageUI
 
 struct FeedbackFormView: View {
 
-    /// Where the form was launched from. Affects copy ("you tapped
-    /// Not really…" vs "Send us feedback") and whether dismissing
-    /// records an enjoyment-prompt outcome on the way out.
+    /// Where the form was launched from. Currently only Settings
+    /// reaches this form, but the enum stays in place so future
+    /// entry points (e.g. an explicit "Report a bug" deep link)
+    /// can adjust the copy without touching the rest of the view.
     enum Origin {
-        case enjoymentPromptNegative
         case settings
     }
 
@@ -104,8 +99,6 @@ struct FeedbackFormView: View {
 
     private var headerText: String {
         switch origin {
-        case .enjoymentPromptNegative:
-            return "Sorry to hear that."
         case .settings:
             return "We read every message."
         }
@@ -113,8 +106,6 @@ struct FeedbackFormView: View {
 
     private var subheadText: String {
         switch origin {
-        case .enjoymentPromptNegative:
-            return "Tell us what's not working — bug, missing feature, anything. The more specific you can be, the more likely we can fix it."
         case .settings:
             return "Bugs, feature requests, gripes, kind words — all welcome. Replies come from the practice's team, not an autoresponder."
         }
@@ -250,9 +241,6 @@ struct FeedbackFormView: View {
 
     private func cancel() {
         AppLogger.review.notice("Feedback form cancelled (origin=\(String(describing: origin), privacy: .public)).")
-        // If we got here from the negative path of the enjoyment
-        // prompt, recordEnjoymentOutcome(.no) has already fired by the
-        // time this sheet was presented. Nothing else to do.
         dismiss()
     }
 
@@ -518,10 +506,6 @@ private struct MailComposer: UIViewControllerRepresentable {
 
 #Preview("From Settings") {
     FeedbackFormView(origin: .settings)
-}
-
-#Preview("After Not Really") {
-    FeedbackFormView(origin: .enjoymentPromptNegative)
 }
 
 #endif
