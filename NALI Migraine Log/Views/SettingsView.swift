@@ -49,6 +49,12 @@ struct SettingsView: View {
     @State private var isHealthBackfilling = false
     @State private var showingHealthBackfillAlert = false
     @State private var healthBackfillResult = ""
+    /// Drives our pre-prompt sheet for users who haven't yet seen the
+    /// HealthKit system permission sheet. We never auto-show this from
+    /// Settings — only the "Connect Apple Health" row opens it. See
+    /// `HealthKitPermissionPrimerView` for context on why a custom
+    /// primer exists in front of Apple's sheet.
+    @State private var showingHealthKitPrimer = false
 
     // Notifications. Both toggles are bound through `NotificationManager`
     // (which persists to UserDefaults on every change and triggers the
@@ -685,15 +691,78 @@ struct SettingsView: View {
                     .disabled(isHealthBackfilling || viewModel.migraines.isEmpty)
                     .accessibilityHint("Writes every migraine in your log to Apple Health, replacing any prior copies.")
                 }
+
+                // "Manage Permissions" surface. Two branches:
+                //   • Never asked → inline trigger that re-opens our
+                //     primer sheet (and ultimately Apple's permission
+                //     prompt). Useful when the user dismissed the
+                //     primer on first launch and now wants to enable
+                //     things.
+                //   • Already asked → deep-link to iOS Settings. Apple
+                //     does not allow apps to re-trigger the HealthKit
+                //     permission sheet for previously-decided
+                //     categories, so the user MUST change their mind
+                //     in iOS Settings → Privacy & Security → Health
+                //     → Headway. The `openSettingsURLString` URL drops
+                //     them on the Headway app's iOS Settings page,
+                //     where the "Health" row is tappable.
+                if healthKitManager.hasRequestedAuthorization {
+                    Button {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Manage Apple Health Permissions")
+                                Text("Opens iOS Settings → Headway. Tap Health to change which categories Headway can read or write.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "gear")
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    .accessibilityHint("Opens iOS Settings. From there, tap Health to change individual Apple Health permissions for Headway.")
+                } else {
+                    Button {
+                        showingHealthKitPrimer = true
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Connect Apple Health")
+                                Text("Let Headway read sleep, HRV, and other context to improve predictions.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "link")
+                                .foregroundColor(.blue)
+                        }
+                    }
+                }
             } header: {
                 Text("Apple Health")
             } footer: {
-                Text("Mirroring uses Apple Health's Headache type so your entries appear under Browse → Symptoms → Headache and become available to other Health-aware apps you've authorized. Pain levels 1–3 record as Mild, 4–6 as Moderate, and 7–10 as Severe. You can revoke access anytime in Health → Sharing → Apps.")
+                Text("Headway reads sleep, heart-rate variability, resting heart rate, step count, and (optionally) menstrual cycle samples to enrich each migraine entry and improve risk predictions. With the toggle above on, Headway also writes your logged migraines back as Headache samples (pain 1–3 → Mild, 4–6 → Moderate, 7–10 → Severe). Everything stays on your device. Change permissions anytime via Manage Apple Health Permissions above, or via Health → Sharing → Apps → Headway.")
             }
             .alert("Apple Health Sync", isPresented: $showingHealthBackfillAlert) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(healthBackfillResult)
+            }
+            .sheet(isPresented: $showingHealthKitPrimer) {
+                HealthKitPermissionPrimerView(
+                    onContinue: {
+                        Task { @MainActor in
+                            await healthKitManager.requestAuthorization()
+                        }
+                    },
+                    onSkip: {
+                        healthKitManager.markAuthorizationRequested()
+                    }
+                )
             }
         }
     }

@@ -22,6 +22,11 @@ struct StatisticsView: View {
     /// triggers `load(window:migraines:)` whenever the filter or migraine
     /// list changes; the section view + drill-downs read from the store.
     @StateObject private var healthCorrelationStore = HealthCorrelationStore()
+
+    /// Drives the "Connect Apple Health" primer when the user taps the
+    /// CTA on the Health Correlations card from the Analytics dashboard.
+    /// We never auto-present this — only the explicit CTA does.
+    @State private var showingHealthKitPrimer = false
     
     /// `.regular` ≈ iPad in any orientation + iPhone Plus/Pro Max in
     /// landscape. Drives the adaptive KPI grid below: 2 columns on
@@ -360,17 +365,34 @@ struct StatisticsView: View {
     }
     
     /// Sleep + HRV correlation cards, hidden entirely when HealthKit
-    /// isn't available on the device.
+    /// isn't available on the device. The CTA on this card opens our
+    /// primer (which then opens Apple's permission sheet) rather than
+    /// firing `requestAuthorization` directly — see
+    /// `HealthKitPermissionPrimerView` for why.
     private var healthCorrelationsSection: some View {
         HealthCorrelationsSectionView(
             store: healthCorrelationStore,
             onConnectTapped: {
-                Task {
-                    await HealthKitManager.shared.requestAuthorization()
-                    refreshHealthCorrelations()
-                }
+                showingHealthKitPrimer = true
             }
         )
+        .sheet(isPresented: $showingHealthKitPrimer) {
+            HealthKitPermissionPrimerView(
+                onContinue: {
+                    Task {
+                        await HealthKitManager.shared.requestAuthorization()
+                        refreshHealthCorrelations()
+                    }
+                },
+                onSkip: {
+                    HealthKitManager.shared.markAuthorizationRequested()
+                    // Re-evaluate authorization status so the section
+                    // moves from ".notDetermined" to ".denied" CTA copy
+                    // even if the user never opens Apple's sheet.
+                    refreshHealthCorrelations()
+                }
+            )
+        }
     }
     
     // MARK: - New dashboard sections

@@ -68,10 +68,23 @@ struct HealthCorrelationSummary: Equatable {
 /// State the store can be in. Drives loading spinners, empty states,
 /// and "Connect Health" calls-to-action without leaking authorization
 /// strings into the view layer.
+///
+/// The two "not authorized" cases (`notDetermined` and `denied`) look
+/// the same to HealthKit — Apple deliberately collapses them on the
+/// read side to prevent fingerprinting — but they trigger
+/// **fundamentally different** CTAs:
+///
+///   • `notDetermined`: we have never called `requestAuthorization`.
+///     Surface the in-app primer + system permission sheet.
+///   • `denied`: we have called `requestAuthorization`, but reads are
+///     not flowing (write-toggle denied, OR no read data despite
+///     having asked). Apple does not allow the app to re-prompt;
+///     deep-link to iOS Settings instead.
 enum HealthCorrelationStatus: Equatable {
     case idle
     case unavailable      // HealthKit not on this device (Mac, etc.)
-    case unauthorized     // user hasn't granted permission yet
+    case notDetermined    // never asked — show primer + system sheet
+    case denied           // asked already — must adjust in iOS Settings
     case loading
     case loaded
     case empty            // authorized but no samples in the window
@@ -240,7 +253,11 @@ final class HealthCorrelationStore: ObservableObject {
             return
         }
         guard manager.isAuthorized else {
-            status = .unauthorized
+            // Distinguish "never asked" from "asked-and-denied" using
+            // our own UserDefaults flag, since the HealthKit read-side
+            // authorization status is intentionally opaque (see
+            // `HealthKitManager.hasRequestedAuthorization` doc).
+            status = manager.hasRequestedAuthorization ? .denied : .notDetermined
             // Don't downgrade `cycleAvailability` if a previous load
             // already determined the user tracks cycles — that flag is
             // sticky for the lifetime of the store and only flips when

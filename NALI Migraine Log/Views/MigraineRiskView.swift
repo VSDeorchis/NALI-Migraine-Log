@@ -241,7 +241,20 @@ struct MigraineRiskView: View {
                     isActive: healthKit.isAuthorized,
                     color: .red
                 ) {
-                    if !healthKit.isAuthorized {
+                    // Three states:
+                    //   • already authorized → no-op (badge is
+                    //     informational)
+                    //   • never asked → show our primer + system sheet
+                    //   • asked-and-declined → Apple won't re-prompt;
+                    //     deep-link to iOS Settings instead
+                    if healthKit.isAuthorized {
+                        return
+                    }
+                    if healthKit.hasRequestedAuthorization {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    } else {
                         showingHealthKitSetup = true
                     }
                 }
@@ -586,7 +599,22 @@ struct MigraineRiskView: View {
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
-                
+
+                // Apple's permission sheet lists every category as a
+                // separate toggle in a scrollable list. On smaller
+                // iPhones the bottom toggles fall below the fold,
+                // which is the #1 reason users end up missing
+                // permissions. Set that expectation up-front so the
+                // user knows to scroll.
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .foregroundColor(.blue)
+                    Text("On the next screen, **scroll all the way down** and turn on every category you're comfortable sharing.")
+                        .font(.subheadline)
+                        .multilineTextAlignment(.leading)
+                }
+                .padding(.horizontal)
+
                 VStack(alignment: .leading, spacing: 12) {
                     healthBenefit(icon: "moon.zzz.fill", text: "Sleep duration & quality")
                     healthBenefit(icon: "heart.text.square", text: "Heart rate variability (HRV)")

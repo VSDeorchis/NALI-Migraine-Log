@@ -37,8 +37,10 @@ struct HealthCorrelationsSectionView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
             }
-        case .unauthorized:
+        case .notDetermined:
             sectionContainer { connectCTA }
+        case .denied:
+            sectionContainer { reconnectCTA }
         case .empty:
             sectionContainer { emptyState }
         case .loaded:
@@ -170,6 +172,10 @@ struct HealthCorrelationsSectionView: View {
     
     // MARK: - Connect-Health CTA
     
+    /// Shown when the user has NEVER been asked for HealthKit
+    /// permission. We can still trigger Apple's permission sheet from
+    /// here — the parent routes the tap through the
+    /// `HealthKitPermissionPrimerView`.
     private var connectCTA: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Connect Apple Health to see how your sleep and HRV correlate with your migraines.")
@@ -193,12 +199,75 @@ struct HealthCorrelationsSectionView: View {
             .buttonStyle(.plain)
         }
     }
+
+    /// Shown when we've already asked but reads aren't flowing — most
+    /// commonly because the user dismissed Apple's permission sheet
+    /// without scrolling to the read toggles, or explicitly denied
+    /// them. Apple does not allow us to re-prompt the system sheet, so
+    /// we deep-link straight into iOS Settings → Headway, where the
+    /// user can tap into Health and flip the toggles individually.
+    private var reconnectCTA: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Apple Health isn't sharing sleep, HRV, or other samples with Headway. You may have dismissed Apple's permission sheet before scrolling through every category.")
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "gear")
+                    Text("Open Settings")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.teal.opacity(0.12))
+                )
+                .foregroundStyle(.teal)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens iOS Settings. Tap Health to enable Sleep, HRV, and other categories for Headway.")
+        }
+    }
     
+    /// `.empty` means we have authorization but no samples returned.
+    /// Apple deliberately can't tell us *which* read permissions were
+    /// denied, so empty is ambiguous — either the device truly has
+    /// nothing in this window (no Apple Watch, no sleep schedule,
+    /// etc.) or the user denied Sleep/HRV in the system sheet. Offer a
+    /// Settings deep-link so they can check.
     private var emptyState: some View {
-        Text("No sleep or HRV data was found in this window. Once your Apple Watch records data here, correlations will appear automatically.")
-            .font(.system(size: 13))
-            .foregroundColor(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("No sleep or HRV data was found in this window. Either Apple Health has nothing recorded for these dates, or Sleep and HRV aren't shared with Headway.")
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "gear")
+                    Text("Check Permissions")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.teal.opacity(0.12))
+                )
+                .foregroundStyle(.teal)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens iOS Settings. Tap Health to confirm Sleep and HRV are enabled for Headway.")
+        }
     }
 }
 
