@@ -7,13 +7,12 @@
 //    • baseline state of every UserDefaults-backed accessor,
 //    • idempotency of `recordLaunch()` (first-launch date is sticky),
 //    • engagement counter behaviour (`recordEntryLogged()`),
-//    • enjoyment-prompt outcome round-trips,
-//    • each rejection path of `shouldShowEnjoymentPrompt`
-//      (tenure too short, too few entries, cooldown active, etc.),
-//    • the time-based recovery of the gate for both "yes" and "no"
-//      outcomes after their respective cooldowns elapse,
-//    • the conservative "no-outcome" branch (a prompt that was shown
-//      but never answered should apply the long cooldown).
+//    • each rejection path of `shouldShowReviewPrompt`
+//      (tenure too short, too few entries, cooldown active),
+//    • the time-based recovery of the gate after the 180-day cooldown
+//      elapses,
+//    • the legacy-key fallback that carries the cooldown over for
+//      users upgrading from the old custom-pre-prompt build.
 //
 //  The coordinator is `enum`-only static state backed by UserDefaults
 //  and a clock closure. Both seams are mutated per-test, so the suite
@@ -78,10 +77,8 @@ struct ReviewPromptCoordinatorTests {
         #expect(ReviewPromptCoordinator.firstLaunchDate == nil)
         #expect(ReviewPromptCoordinator.launchCount == 0)
         #expect(ReviewPromptCoordinator.entriesLoggedCount == 0)
-        #expect(ReviewPromptCoordinator.lastEnjoymentPromptDate == nil)
         #expect(ReviewPromptCoordinator.lastReviewRequestDate == nil)
-        #expect(ReviewPromptCoordinator.lastEnjoymentOutcome == nil)
-        #expect(ReviewPromptCoordinator.shouldShowEnjoymentPrompt == false)
+        #expect(ReviewPromptCoordinator.shouldShowReviewPrompt == false)
     }
 
     // MARK: - recordLaunch()
@@ -121,18 +118,7 @@ struct ReviewPromptCoordinatorTests {
         }
     }
 
-    // MARK: - recordEnjoymentOutcome()
-
-    @Test("Enjoyment outcome round-trips through the accessor")
-    func enjoymentOutcomeRoundTrip() {
-        ReviewPromptCoordinator.recordEnjoymentOutcome(.yes)
-        #expect(ReviewPromptCoordinator.lastEnjoymentOutcome == .yes)
-
-        ReviewPromptCoordinator.recordEnjoymentOutcome(.no)
-        #expect(ReviewPromptCoordinator.lastEnjoymentOutcome == .no)
-    }
-
-    // MARK: - shouldShowEnjoymentPrompt — rejection paths
+    // MARK: - shouldShowReviewPrompt — rejection paths
 
     @Test("Gate closed: launch recorded but tenure < 7 days")
     func gateClosed_TenureTooShort() {
@@ -143,7 +129,7 @@ struct ReviewPromptCoordinatorTests {
 
         // Six days later — still below the 7-day floor.
         freezeClock(at: date(daysFrom: day0, by: 6))
-        #expect(ReviewPromptCoordinator.shouldShowEnjoymentPrompt == false)
+        #expect(ReviewPromptCoordinator.shouldShowReviewPrompt == false)
     }
 
     @Test("Gate closed: tenure OK but fewer than 5 entries logged")
@@ -154,10 +140,10 @@ struct ReviewPromptCoordinatorTests {
         for _ in 0..<4 { ReviewPromptCoordinator.recordEntryLogged() }
 
         freezeClock(at: date(daysFrom: day0, by: 30))
-        #expect(ReviewPromptCoordinator.shouldShowEnjoymentPrompt == false)
+        #expect(ReviewPromptCoordinator.shouldShowReviewPrompt == false)
     }
 
-    // MARK: - shouldShowEnjoymentPrompt — happy path
+    // MARK: - shouldShowReviewPrompt — happy path
 
     @Test("Gate open: tenure ≥ 7 days, ≥ 5 entries, no prior prompt")
     func gateOpen_FreshUser() {
@@ -167,13 +153,13 @@ struct ReviewPromptCoordinatorTests {
         for _ in 0..<5 { ReviewPromptCoordinator.recordEntryLogged() }
 
         freezeClock(at: date(daysFrom: day0, by: 8))
-        #expect(ReviewPromptCoordinator.shouldShowEnjoymentPrompt == true)
+        #expect(ReviewPromptCoordinator.shouldShowReviewPrompt == true)
     }
 
-    // MARK: - shouldShowEnjoymentPrompt — cooldown after "yes"
+    // MARK: - shouldShowReviewPrompt — cooldown
 
-    @Test("Gate closed: 'yes' answer + 179 days < 180-day cooldown")
-    func gateClosed_AfterYes_WithinCooldown() {
+    @Test("Gate closed: prompt fired + 179 days < 180-day cooldown")
+    func gateClosed_WithinCooldown() {
         let day0 = Date(timeIntervalSince1970: 1_700_000_000)
         freezeClock(at: day0)
         ReviewPromptCoordinator.recordLaunch()
@@ -182,16 +168,15 @@ struct ReviewPromptCoordinatorTests {
         // First prompt fires at day 8.
         let promptDay = date(daysFrom: day0, by: 8)
         freezeClock(at: promptDay)
-        ReviewPromptCoordinator.recordEnjoymentPromptShown()
-        ReviewPromptCoordinator.recordEnjoymentOutcome(.yes)
+        ReviewPromptCoordinator.recordReviewRequest()
 
         // 179 days later — still inside the 180-day cooldown.
         freezeClock(at: date(daysFrom: promptDay, by: 179))
-        #expect(ReviewPromptCoordinator.shouldShowEnjoymentPrompt == false)
+        #expect(ReviewPromptCoordinator.shouldShowReviewPrompt == false)
     }
 
-    @Test("Gate open: 'yes' answer + 181 days clears the 180-day cooldown")
-    func gateOpen_AfterYes_BeyondCooldown() {
+    @Test("Gate open: prompt fired + 181 days clears the 180-day cooldown")
+    func gateOpen_BeyondCooldown() {
         let day0 = Date(timeIntervalSince1970: 1_700_000_000)
         freezeClock(at: day0)
         ReviewPromptCoordinator.recordLaunch()
@@ -199,87 +184,55 @@ struct ReviewPromptCoordinatorTests {
 
         let promptDay = date(daysFrom: day0, by: 8)
         freezeClock(at: promptDay)
-        ReviewPromptCoordinator.recordEnjoymentPromptShown()
-        ReviewPromptCoordinator.recordEnjoymentOutcome(.yes)
+        ReviewPromptCoordinator.recordReviewRequest()
 
         freezeClock(at: date(daysFrom: promptDay, by: 181))
-        #expect(ReviewPromptCoordinator.shouldShowEnjoymentPrompt == true)
+        #expect(ReviewPromptCoordinator.shouldShowReviewPrompt == true)
     }
 
-    // MARK: - shouldShowEnjoymentPrompt — cooldown after "no"
+    // MARK: - Legacy-key upgrade fallback
+    //
+    // Users upgrading from the previous custom-pre-prompt build have a
+    // `review.lastEnjoymentPromptDate` key in UserDefaults but no
+    // `review.lastReviewRequestDate`. The cooldown must still honor
+    // that legacy stamp so the new build doesn't immediately re-prompt
+    // someone who saw the old "Enjoying Headway?" alert last week.
 
-    @Test("Gate closed: 'no' answer + 364 days < 365-day cooldown")
-    func gateClosed_AfterNo_WithinCooldown() {
+    @Test("Gate closed: only the legacy lastEnjoymentPromptDate is set, within cooldown")
+    func gateClosed_LegacyKeyOnly_WithinCooldown() {
         let day0 = Date(timeIntervalSince1970: 1_700_000_000)
         freezeClock(at: day0)
         ReviewPromptCoordinator.recordLaunch()
         for _ in 0..<5 { ReviewPromptCoordinator.recordEntryLogged() }
 
-        let promptDay = date(daysFrom: day0, by: 8)
-        freezeClock(at: promptDay)
-        ReviewPromptCoordinator.recordEnjoymentPromptShown()
-        ReviewPromptCoordinator.recordEnjoymentOutcome(.no)
+        // Simulate an upgrade: legacy key was written 30 days ago, new
+        // key never has been.
+        let legacyPromptDay = date(daysFrom: day0, by: 8)
+        testDefaults.set(legacyPromptDay, forKey: "review.lastEnjoymentPromptDate")
 
-        freezeClock(at: date(daysFrom: promptDay, by: 364))
-        #expect(ReviewPromptCoordinator.shouldShowEnjoymentPrompt == false)
+        // 30 days later — still inside the 180-day cooldown via the
+        // legacy fallback.
+        freezeClock(at: date(daysFrom: legacyPromptDay, by: 30))
+        #expect(ReviewPromptCoordinator.shouldShowReviewPrompt == false)
     }
 
-    @Test("Gate open: 'no' answer + 366 days clears the 365-day cooldown")
-    func gateOpen_AfterNo_BeyondCooldown() {
+    @Test("Gate open: legacy lastEnjoymentPromptDate is older than the 180-day cooldown")
+    func gateOpen_LegacyKeyOnly_BeyondCooldown() {
         let day0 = Date(timeIntervalSince1970: 1_700_000_000)
         freezeClock(at: day0)
         ReviewPromptCoordinator.recordLaunch()
         for _ in 0..<5 { ReviewPromptCoordinator.recordEntryLogged() }
 
-        let promptDay = date(daysFrom: day0, by: 8)
-        freezeClock(at: promptDay)
-        ReviewPromptCoordinator.recordEnjoymentPromptShown()
-        ReviewPromptCoordinator.recordEnjoymentOutcome(.no)
+        let legacyPromptDay = date(daysFrom: day0, by: 8)
+        testDefaults.set(legacyPromptDay, forKey: "review.lastEnjoymentPromptDate")
 
-        freezeClock(at: date(daysFrom: promptDay, by: 366))
-        #expect(ReviewPromptCoordinator.shouldShowEnjoymentPrompt == true)
-    }
-
-    // MARK: - Dismiss-without-answer path
-
-    @Test("Gate closed: prompt shown but no outcome, treated as conservative 'no'")
-    func gateClosed_PromptShownNoOutcome_AppliesLongCooldown() {
-        let day0 = Date(timeIntervalSince1970: 1_700_000_000)
-        freezeClock(at: day0)
-        ReviewPromptCoordinator.recordLaunch()
-        for _ in 0..<5 { ReviewPromptCoordinator.recordEntryLogged() }
-
-        let promptDay = date(daysFrom: day0, by: 8)
-        freezeClock(at: promptDay)
-        ReviewPromptCoordinator.recordEnjoymentPromptShown()
-        // Deliberately do NOT record an outcome — simulates a swipe-down
-        // dismiss of the alert.
-
-        // 200 days later — past the 120-day floor and the 180-day "yes"
-        // cooldown, but BELOW the 365-day "no" cooldown that the
-        // no-outcome path is supposed to apply.
-        freezeClock(at: date(daysFrom: promptDay, by: 200))
-        #expect(ReviewPromptCoordinator.shouldShowEnjoymentPrompt == false)
-    }
-
-    @Test("Gate open: prompt shown without outcome, then 366 days elapse")
-    func gateOpen_PromptShownNoOutcome_AfterLongCooldown() {
-        let day0 = Date(timeIntervalSince1970: 1_700_000_000)
-        freezeClock(at: day0)
-        ReviewPromptCoordinator.recordLaunch()
-        for _ in 0..<5 { ReviewPromptCoordinator.recordEntryLogged() }
-
-        let promptDay = date(daysFrom: day0, by: 8)
-        freezeClock(at: promptDay)
-        ReviewPromptCoordinator.recordEnjoymentPromptShown()
-
-        freezeClock(at: date(daysFrom: promptDay, by: 366))
-        #expect(ReviewPromptCoordinator.shouldShowEnjoymentPrompt == true)
+        freezeClock(at: date(daysFrom: legacyPromptDay, by: 181))
+        #expect(ReviewPromptCoordinator.shouldShowReviewPrompt == true)
     }
 
     // MARK: - recordReviewRequest()
 
-    @Test("recordReviewRequest() stamps the timestamp")
+    @Test("recordReviewRequest() stamps lastReviewRequestDate")
     func recordReviewRequestStamps() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         freezeClock(at: now)
