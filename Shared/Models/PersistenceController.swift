@@ -111,11 +111,11 @@ public final class PersistenceController: ObservableObject {
                 description.setOption(value, forKey: key)
             }
             
-            // Enable CloudKit sync unless the user has opted out. New installs
-            // default to ON (see `headwayICloudSyncEnabled`) so the app syncs
-            // across a user's devices out of the box. Never attach CloudKit to
-            // the in-memory store used by previews/tests — a simulator with no
-            // signed-in iCloud account can trip CloudKit setup.
+            // Enable CloudKit sync unless the user has explicitly opted out
+            // (see `headwayICloudSyncEnabled`, which defaults ON) so the app
+            // syncs across a user's devices out of the box. Never attach
+            // CloudKit to the in-memory store used by previews/tests — a
+            // simulator with no signed-in iCloud account can trip CloudKit setup.
             let syncEnabled = !inMemory && UserDefaults.standard.headwayICloudSyncEnabled
             if syncEnabled {
                 description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
@@ -133,7 +133,17 @@ public final class PersistenceController: ObservableObject {
         container.loadPersistentStores { description, error in
             if let error = error {
                 AppLogger.coreData.error("Core Data failed to load: \(error.localizedDescription, privacy: .public)")
-                self.handlePersistentStoreError(error)
+                // If the failing store had CloudKit attached, the error may be
+                // CloudKit-specific (account state, container/entitlement, etc.)
+                // rather than genuine store corruption. Try loading the SAME
+                // file locally first so the user keeps all their data visible,
+                // and only fall back to the move-aside recovery if even a plain
+                // local load fails.
+                if description.cloudKitContainerOptions != nil {
+                    self.loadLocallyAfterCloudKitFailure(originalError: error)
+                } else {
+                    self.handlePersistentStoreError(error)
+                }
             }
         }
         
@@ -162,6 +172,53 @@ public final class PersistenceController: ObservableObject {
     /// store is recorded. A future "Recover from backup" UI in Settings can
     /// surface this so users can hand the file to support or attempt re-import.
     public static let lastRecoveryFileDefaultsKey = "lastCoreDataRecoveryFilePath"
+
+    /// Last-resort-avoidance step when a CloudKit-attached store fails to load.
+    ///
+    /// Re-adds the **same** SQLite file with CloudKit detached so the user keeps
+    /// every record they had (sync simply stays off for this launch). No file
+    /// is moved or deleted. Only if this plain local load also fails do we
+    /// escalate to `handlePersistentStoreError`, which preserves the bytes by
+    /// moving them aside rather than deleting them.
+    private func loadLocallyAfterCloudKitFailure(originalError: Error) {
+        guard let description = container.persistentStoreDescriptions.first,
+              let storeURL = description.url else {
+            handlePersistentStoreError(originalError)
+            return
+        }
+
+        // Detach CloudKit so the retry is a plain local store load.
+        description.setOption(false as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
+        description.cloudKitContainerOptions = nil
+
+        do {
+            // Drop any partially-added store from the failed CloudKit attempt.
+            for store in container.persistentStoreCoordinator.persistentStores {
+                try container.persistentStoreCoordinator.remove(store)
+            }
+
+            try container.persistentStoreCoordinator.addPersistentStore(
+                ofType: NSSQLiteStoreType,
+                configurationName: nil,
+                at: storeURL,
+                options: [
+                    NSMigratePersistentStoresAutomaticallyOption: true as NSNumber,
+                    NSInferMappingModelAutomaticallyOption: true as NSNumber,
+                    NSPersistentHistoryTrackingKey: true as NSNumber,
+                    NSSQLitePragmasOption: ["journal_mode": "WAL"] as NSObject
+                ]
+            )
+
+            isCloudKitEnabled = false
+            syncStatus = .error("iCloud sync unavailable — your data is safe and stored on this device.")
+            AppLogger.coreData.notice("CloudKit store load failed; loaded the same store locally with data intact. Sync disabled for this launch. Underlying error: \(originalError.localizedDescription, privacy: .public)")
+        } catch {
+            // Even a plain local load failed — treat as a real store problem and
+            // preserve the bytes via the move-aside recovery path.
+            AppLogger.coreData.error("Local fallback load also failed: \(error.localizedDescription, privacy: .public)")
+            handlePersistentStoreError(originalError)
+        }
+    }
 
     /// Recovery handler invoked when `loadPersistentStores` reports an error
     /// (corrupt store, failed migration, transient I/O glitch, etc.).
@@ -335,17 +392,19 @@ extension UserDefaults {
     /// Effective default for the "Enable iCloud Sync" preference.
     ///
     /// - An explicit choice (the user toggled the switch at any point) always
-    ///   wins.
-    /// - Otherwise the key has never been written: a *new* install (onboarding
-    ///   not yet completed) defaults to ON so the app syncs across the user's
-    ///   devices out of the box, while a user who onboarded before this default
-    ///   existed stays OFF until they opt in — we never silently flip an
-    ///   existing user's data into iCloud.
+    ///   wins — anyone who previously turned sync OFF persisted `false` and is
+    ///   left untouched.
+    /// - Otherwise the key has never been written, so we default ON. This makes
+    ///   the app sync across a user's devices out of the box, including existing
+    ///   users upgrading from a build where sync was off by default.
+    ///
+    /// Turning sync on never deletes data: the existing local store is reused
+    /// in place and its records are exported to the user's private CloudKit
+    /// database (see `PersistenceController.init` / `reloadStore`).
     var headwayICloudSyncEnabled: Bool {
         if let explicit = object(forKey: "useICloudSync") as? Bool {
             return explicit
         }
-        let hasOnboarded = bool(forKey: "hasAcceptedDisclaimer")
-        return !hasOnboarded
+        return true
     }
 } 
