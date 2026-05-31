@@ -383,9 +383,12 @@ struct SettingsView: View {
                 .onChange(of: settings.useICloudSync) { _, newValue in
                     if newValue {
                         showingMigrationAlert = true
-                    } else {
+                    } else if PersistenceController.shared.isCloudKitEnabled {
                         // Detach CloudKit from the live store immediately so
                         // turning sync off takes effect without a relaunch.
+                        // Guarded so cancelling the migration alert (which
+                        // resets the toggle to false) doesn't needlessly tear
+                        // down a store that was never CloudKit-backed.
                         PersistenceController.shared.reloadStore(cloudKitEnabled: false)
                     }
                 }
