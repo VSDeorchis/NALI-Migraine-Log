@@ -88,6 +88,15 @@ struct DisclaimerView: View {
                 
                 Button("Accept") {
                     UserDefaults.standard.set(true, forKey: Constants.hasAcceptedDisclaimer)
+
+                    // Persist the onboarding sync choice explicitly and apply it
+                    // to the live store if it differs from how the container
+                    // launched (e.g. the user turned sync off on this screen).
+                    UserDefaults.standard.set(settings.useICloudSync, forKey: "useICloudSync")
+                    if PersistenceController.shared.isCloudKitEnabled != settings.useICloudSync {
+                        PersistenceController.shared.reloadStore(cloudKitEnabled: settings.useICloudSync)
+                    }
+
                     hasAcceptedDisclaimer = true
                     
                     // Request location permission if user enabled it

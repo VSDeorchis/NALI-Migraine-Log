@@ -75,6 +75,12 @@ import SwiftUI
 
 public final class PersistenceController: ObservableObject {
     @Published public var syncStatus: SyncStatus = .notConfigured
+
+    /// Whether the currently-loaded store is mirroring to CloudKit. Reflects the
+    /// live container, not just the saved preference, so onboarding/settings can
+    /// avoid a redundant reload when the desired state already matches.
+    public private(set) var isCloudKitEnabled: Bool = false
+
     public static let shared = PersistenceController()
     
     static var preview: PersistenceController = {
@@ -105,8 +111,13 @@ public final class PersistenceController: ObservableObject {
                 description.setOption(value, forKey: key)
             }
             
-            // Enable CloudKit sync if user has opted in
-            if UserDefaults.standard.bool(forKey: "useICloudSync") {
+            // Enable CloudKit sync unless the user has opted out. New installs
+            // default to ON (see `headwayICloudSyncEnabled`) so the app syncs
+            // across a user's devices out of the box. Never attach CloudKit to
+            // the in-memory store used by previews/tests — a simulator with no
+            // signed-in iCloud account can trip CloudKit setup.
+            let syncEnabled = !inMemory && UserDefaults.standard.headwayICloudSyncEnabled
+            if syncEnabled {
                 description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
                 description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
                     containerIdentifier: "iCloud.com.nali.migrainelog"
@@ -116,6 +127,7 @@ public final class PersistenceController: ObservableObject {
                 // Explicitly disable CloudKit sync
                 description.cloudKitContainerOptions = nil
             }
+            isCloudKitEnabled = syncEnabled
         }
         
         container.loadPersistentStores { description, error in
@@ -255,8 +267,85 @@ public final class PersistenceController: ObservableObject {
         container.viewContext.reset()
     }
     
+    /// Called from the Settings "Enable iCloud Sync" flow. "Migrating to the new
+    /// store" really means reloading the existing SQLite file with CloudKit
+    /// mirroring attached — the bytes on disk are reused as-is, we only change
+    /// whether `NSPersistentCloudKitContainer` syncs them to the user's private
+    /// CloudKit database. This is what makes the toggle take effect immediately
+    /// instead of only after the next cold launch.
     func migrateDataToNewStore(completion: @escaping (Result<Void, Error>) -> Void) {
-        // Implement migration logic here
-        completion(.success(()))
+        reloadStore(cloudKitEnabled: true, completion: completion)
+    }
+
+    /// Errors raised while reconfiguring the persistent store for a sync change.
+    public enum SyncReconfigurationError: Error {
+        case noStoreDescription
+    }
+
+    /// Tears down the currently-loaded persistent store and reloads it with (or
+    /// without) CloudKit attached, so toggling iCloud sync applies to the live
+    /// container without forcing a relaunch. No data is copied or deleted — the
+    /// same on-disk store is reused; only the CloudKit mirroring option changes.
+    public func reloadStore(cloudKitEnabled: Bool, completion: ((Result<Void, Error>) -> Void)? = nil) {
+        let coordinator = container.persistentStoreCoordinator
+        guard let description = container.persistentStoreDescriptions.first else {
+            completion?(.failure(SyncReconfigurationError.noStoreDescription))
+            return
+        }
+
+        do {
+            for store in coordinator.persistentStores {
+                try coordinator.remove(store)
+            }
+        } catch {
+            AppLogger.coreData.error("Failed to detach store before reconfiguring iCloud sync: \(error.localizedDescription, privacy: .public)")
+            completion?(.failure(error))
+            return
+        }
+
+        if cloudKitEnabled {
+            description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
+            description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
+                containerIdentifier: "iCloud.com.nali.migrainelog"
+            )
+        } else {
+            description.setOption(false as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
+            description.cloudKitContainerOptions = nil
+        }
+
+        container.loadPersistentStores { [weak self] _, error in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                if let error = error {
+                    AppLogger.coreData.error("Failed to reload store after toggling iCloud sync: \(error.localizedDescription, privacy: .public)")
+                    self.syncStatus = .error(error.localizedDescription)
+                    completion?(.failure(error))
+                    return
+                }
+                self.isCloudKitEnabled = cloudKitEnabled
+                self.container.viewContext.refreshAllObjects()
+                self.syncStatus = cloudKitEnabled ? .enabled : .disabled
+                completion?(.success(()))
+            }
+        }
+    }
+}
+
+extension UserDefaults {
+    /// Effective default for the "Enable iCloud Sync" preference.
+    ///
+    /// - An explicit choice (the user toggled the switch at any point) always
+    ///   wins.
+    /// - Otherwise the key has never been written: a *new* install (onboarding
+    ///   not yet completed) defaults to ON so the app syncs across the user's
+    ///   devices out of the box, while a user who onboarded before this default
+    ///   existed stays OFF until they opt in — we never silently flip an
+    ///   existing user's data into iCloud.
+    var headwayICloudSyncEnabled: Bool {
+        if let explicit = object(forKey: "useICloudSync") as? Bool {
+            return explicit
+        }
+        let hasOnboarded = bool(forKey: "hasAcceptedDisclaimer")
+        return !hasOnboarded
     }
 } 

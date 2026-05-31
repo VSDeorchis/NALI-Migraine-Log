@@ -17,6 +17,14 @@ struct NALI_Migraine_Log_macOSApp: App {
     let persistenceController = PersistenceController.shared
     
     init() {
+        // Concretize the iCloud sync preference once so the `@AppStorage`-backed
+        // Settings/Disclaimer toggles reflect the real default (ON for new
+        // installs, OFF for users who onboarded before this default existed)
+        // instead of a hard-coded literal that could misrepresent the store.
+        if UserDefaults.standard.object(forKey: "useICloudSync") == nil {
+            UserDefaults.standard.set(UserDefaults.standard.headwayICloudSyncEnabled, forKey: "useICloudSync")
+        }
+
         let context = PersistenceController.shared.container.viewContext
         _viewModel = StateObject(wrappedValue: MigraineViewModel(context: context))
 

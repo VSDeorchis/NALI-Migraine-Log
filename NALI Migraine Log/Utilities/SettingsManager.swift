@@ -63,7 +63,7 @@ class SettingsManager: ObservableObject {
     }
     
     init() {
-        self.useICloudSync = UserDefaults.standard.bool(forKey: "useICloudSync")
+        self.useICloudSync = UserDefaults.standard.headwayICloudSyncEnabled
         self.colorScheme = ColorSchemePreference(rawValue: 
             UserDefaults.standard.string(forKey: "colorScheme") ?? "System"
         ) ?? .system

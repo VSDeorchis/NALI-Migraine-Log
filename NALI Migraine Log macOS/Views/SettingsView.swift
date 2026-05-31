@@ -97,13 +97,18 @@ struct UnitsSettingsView: View {
 // MARK: - Sync Settings
 
 struct SyncSettingsView: View {
-    @AppStorage("useICloudSync") private var useICloudSync = true
+    @AppStorage("useICloudSync") private var useICloudSync = false
     
     var body: some View {
         Form {
             Section("iCloud") {
                 Toggle("Enable iCloud Sync", isOn: $useICloudSync)
                     .toggleStyle(.switch)
+                    .onChange(of: useICloudSync) { _, newValue in
+                        // Apply to the live store immediately so the toggle
+                        // takes effect without relaunching the app.
+                        PersistenceController.shared.reloadStore(cloudKitEnabled: newValue)
+                    }
                 Text("Sync your migraine data across all your devices using iCloud.")
                     .font(.caption)
                     .foregroundColor(.secondary)
