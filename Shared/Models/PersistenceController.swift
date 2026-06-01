@@ -70,6 +70,7 @@
 //  ──────────────────────────────────────────────────────────────────────
 //
 
+import CloudKit
 import CoreData
 import SwiftUI
 
@@ -80,6 +81,9 @@ public final class PersistenceController: ObservableObject {
     /// live container, not just the saved preference, so onboarding/settings can
     /// avoid a redundant reload when the desired state already matches.
     public private(set) var isCloudKitEnabled: Bool = false
+
+    /// CloudKit container that backs iCloud sync across the user's devices.
+    private static let cloudKitContainerIdentifier = "iCloud.com.nali.migrainelog"
 
     public static let shared = PersistenceController()
     
@@ -120,7 +124,7 @@ public final class PersistenceController: ObservableObject {
             if syncEnabled {
                 description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
                 description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
-                    containerIdentifier: "iCloud.com.nali.migrainelog"
+                    containerIdentifier: Self.cloudKitContainerIdentifier
                 )
                 syncStatus = .syncing(0.0)
             } else {
@@ -158,13 +162,82 @@ public final class PersistenceController: ObservableObject {
             object: container.persistentStoreCoordinator
         )
         
-        // Listen for CloudKit remote change notifications
+        // Refresh the UI when CloudKit imports remote changes from another device.
         NotificationCenter.default.addObserver(
             forName: .NSPersistentStoreRemoteChange,
             object: container.persistentStoreCoordinator,
             queue: .main) { [weak self] _ in
                 self?.container.viewContext.refreshAllObjects()
-                self?.syncStatus = .enabled
+        }
+
+        // Drive an accurate sync status (and surface CloudKit errors) from the
+        // container's own setup/import/export events instead of guessing.
+        NotificationCenter.default.addObserver(
+            forName: NSPersistentCloudKitContainer.eventChangedNotification,
+            object: container,
+            queue: .main) { [weak self] notification in
+                self?.handleCloudKitEvent(notification)
+        }
+
+        // If sync is on, confirm the device actually has an iCloud account so we
+        // can tell the user to sign in rather than silently failing to sync.
+        if isCloudKitEnabled {
+            verifyCloudAccountAvailable()
+        }
+    }
+
+    /// Translates `NSPersistentCloudKitContainer` setup/import/export events into
+    /// the user-facing `syncStatus`. Errors here are how we learn that, e.g.,
+    /// the user isn't signed into iCloud or their storage is full.
+    private func handleCloudKitEvent(_ notification: Notification) {
+        guard isCloudKitEnabled,
+              let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
+                as? NSPersistentCloudKitContainer.Event else { return }
+
+        if let error = event.error {
+            AppLogger.coreData.error("CloudKit sync event failed: \(error.localizedDescription, privacy: .public)")
+            syncStatus = .error(Self.userFacingSyncMessage(for: error))
+        } else if event.endDate == nil {
+            // A setup/import/export is in progress.
+            syncStatus = .syncing(0.0)
+        } else {
+            syncStatus = .enabled
+        }
+    }
+
+    /// Checks the iCloud account state for the sync container and, when it isn't
+    /// usable, surfaces a clear, actionable message via `syncStatus`.
+    private func verifyCloudAccountAvailable() {
+        CKContainer(identifier: Self.cloudKitContainerIdentifier).accountStatus { [weak self] status, _ in
+            DispatchQueue.main.async {
+                guard let self = self, self.isCloudKitEnabled else { return }
+                switch status {
+                case .available:
+                    break
+                case .noAccount:
+                    self.syncStatus = .error("Sign in to iCloud in the Settings app to sync across your devices.")
+                case .restricted:
+                    self.syncStatus = .error("iCloud is restricted on this device, so sync is unavailable.")
+                case .couldNotDetermine, .temporarilyUnavailable:
+                    self.syncStatus = .error("iCloud is temporarily unavailable. Your data is safe on this device.")
+                @unknown default:
+                    break
+                }
+            }
+        }
+    }
+
+    /// Maps a CloudKit error to a short, non-technical message for the UI.
+    private static func userFacingSyncMessage(for error: Error) -> String {
+        switch (error as? CKError)?.code {
+        case .some(.notAuthenticated):
+            return "Sign in to iCloud in the Settings app to sync across your devices."
+        case .some(.quotaExceeded):
+            return "Your iCloud storage is full, so new changes can't sync."
+        case .some(.networkUnavailable), .some(.networkFailure):
+            return "No internet connection. Sync will resume when you're back online."
+        default:
+            return "iCloud sync hit a problem. Your data is safe on this device."
         }
     }
     
@@ -242,17 +315,38 @@ public final class PersistenceController: ObservableObject {
             // as `.public` so support can ask the user to read it back.
             AppLogger.coreData.notice("Core Data store moved aside to: \(recoveryURL.path, privacy: .public)")
 
+            // Re-add the (now fresh) store with the SAME options the app uses
+            // normally — crucially keeping NSPersistentHistoryTracking on, which
+            // both CloudKit mirroring and our remote-change handling require.
+            // Passing `options: nil` here previously dropped history tracking and
+            // left sync broken until the next cold launch.
             try container.persistentStoreCoordinator.addPersistentStore(
                 ofType: NSSQLiteStoreType,
                 configurationName: nil,
                 at: storeURL,
-                options: nil
+                options: [
+                    NSMigratePersistentStoresAutomaticallyOption: true as NSNumber,
+                    NSInferMappingModelAutomaticallyOption: true as NSNumber,
+                    NSPersistentHistoryTrackingKey: true as NSNumber,
+                    NSSQLitePragmasOption: ["journal_mode": "WAL"] as NSObject
+                ]
             )
+
+            // If the user had sync on, reattach CloudKit to the fresh store via
+            // the normal reload path so a recovered store keeps syncing.
+            if isCloudKitEnabled {
+                DispatchQueue.main.async { [weak self] in
+                    self?.reloadStore(cloudKitEnabled: true)
+                }
+            }
         } catch {
-            // Even on recovery failure we have NOT deleted user data.
-            // The original store (if it still exists) is untouched on disk.
+            // Even on recovery failure we have NOT deleted user data — the
+            // moved-aside bytes are intact on disk. Surface an error instead of
+            // crashing the app with `fatalError`.
             AppLogger.coreData.fault("Failed to recover from persistent store error: \(error.localizedDescription, privacy: .public)")
-            fatalError("Unresolvable Core Data error: \(error)")
+            DispatchQueue.main.async { [weak self] in
+                self?.syncStatus = .error("Couldn't open your data store. Your data is preserved on this device \u{2014} please contact support.")
+            }
         }
     }
 
@@ -363,7 +457,7 @@ public final class PersistenceController: ObservableObject {
         if cloudKitEnabled {
             description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
             description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
-                containerIdentifier: "iCloud.com.nali.migrainelog"
+                containerIdentifier: Self.cloudKitContainerIdentifier
             )
         } else {
             description.setOption(false as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
@@ -382,6 +476,9 @@ public final class PersistenceController: ObservableObject {
                 self.isCloudKitEnabled = cloudKitEnabled
                 self.container.viewContext.refreshAllObjects()
                 self.syncStatus = cloudKitEnabled ? .enabled : .disabled
+                if cloudKitEnabled {
+                    self.verifyCloudAccountAvailable()
+                }
                 completion?(.success(()))
             }
         }
