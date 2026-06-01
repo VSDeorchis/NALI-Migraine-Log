@@ -2,7 +2,7 @@ import SwiftUI
 
 struct DisclaimerView: View {
     @Binding var hasAcceptedDisclaimer: Bool
-    @AppStorage("useICloudSync") private var useICloudSync = true
+    @AppStorage("useICloudSync") private var useICloudSync = false
     let dismissAction: () -> Void
     @State private var showingICloudAlert = false
     
@@ -34,6 +34,13 @@ struct DisclaimerView: View {
                 
                 Button("Accept") {
                     UserDefaults.standard.set(true, forKey: Constants.hasAcceptedDisclaimer)
+
+                    // Apply the onboarding sync choice to the live store if it
+                    // differs from how the container launched.
+                    if PersistenceController.shared.isCloudKitEnabled != useICloudSync {
+                        PersistenceController.shared.reloadStore(cloudKitEnabled: useICloudSync)
+                    }
+
                     hasAcceptedDisclaimer = true
                 }
             }
