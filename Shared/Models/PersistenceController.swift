@@ -85,6 +85,21 @@ public final class PersistenceController: ObservableObject {
     /// CloudKit container that backs iCloud sync across the user's devices.
     private static let cloudKitContainerIdentifier = "iCloud.com.nali.migrainelog"
 
+    /// CloudKit mirroring is driven from the phone/desktop only. The watch app
+    /// relays its entries to the paired iPhone via `WatchConnectivity`, and the
+    /// phone is the single device that writes to the shared CloudKit container.
+    /// Mirroring on the watch *as well* would double-replicate the same store —
+    /// CloudKit enforces no uniqueness on our `id`, so a watch-logged entry could
+    /// arrive on the phone both as its own CloudKit record and as a WatchConnectivity
+    /// copy, producing duplicates. Keeping it off on watchOS avoids that.
+    private static var cloudKitMirroringSupported: Bool {
+        #if os(watchOS)
+        return false
+        #else
+        return true
+        #endif
+    }
+
     public static let shared = PersistenceController()
     
     static var preview: PersistenceController = {
@@ -120,7 +135,7 @@ public final class PersistenceController: ObservableObject {
             // syncs across a user's devices out of the box. Never attach
             // CloudKit to the in-memory store used by previews/tests — a
             // simulator with no signed-in iCloud account can trip CloudKit setup.
-            let syncEnabled = !inMemory && UserDefaults.standard.headwayICloudSyncEnabled
+            let syncEnabled = !inMemory && Self.cloudKitMirroringSupported && UserDefaults.standard.headwayICloudSyncEnabled
             if syncEnabled {
                 description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
                 description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
@@ -437,7 +452,10 @@ public final class PersistenceController: ObservableObject {
     /// without) CloudKit attached, so toggling iCloud sync applies to the live
     /// container without forcing a relaunch. No data is copied or deleted — the
     /// same on-disk store is reused; only the CloudKit mirroring option changes.
-    public func reloadStore(cloudKitEnabled: Bool, completion: ((Result<Void, Error>) -> Void)? = nil) {
+    public func reloadStore(cloudKitEnabled requestedCloudKit: Bool, completion: ((Result<Void, Error>) -> Void)? = nil) {
+        // Never attach CloudKit on platforms where mirroring is intentionally
+        // off (watchOS) even if a caller asks for it.
+        let cloudKitEnabled = requestedCloudKit && Self.cloudKitMirroringSupported
         let coordinator = container.persistentStoreCoordinator
         guard let description = container.persistentStoreDescriptions.first else {
             completion?(.failure(SyncReconfigurationError.noStoreDescription))
