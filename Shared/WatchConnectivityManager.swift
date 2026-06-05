@@ -238,31 +238,13 @@ class WatchConnectivityManager: NSObject, ObservableObject {
                     migraine = MigraineEvent(context: context)
                     migraine.id = id
                 }
-                
-                // Update basic properties
-                if let startTimeDouble = migraineData["startTime"] as? TimeInterval {
-                    migraine.startTime = Date(timeIntervalSince1970: startTimeDouble)
-                }
-                if let endTimeDouble = migraineData["endTime"] as? TimeInterval {
-                    migraine.endTime = Date(timeIntervalSince1970: endTimeDouble)
-                }
-                migraine.painLevel = migraineData["painLevel"] as? Int16 ?? 0
-                migraine.location = migraineData["location"] as? String
-                migraine.notes = migraineData["notes"] as? String
-                
-                // Update boolean properties
-                migraine.hasAura = migraineData["hasAura"] as? Bool ?? false
-                migraine.hasPhotophobia = migraineData["hasPhotophobia"] as? Bool ?? false
-                migraine.hasPhonophobia = migraineData["hasPhonophobia"] as? Bool ?? false
-                migraine.hasNausea = migraineData["hasNausea"] as? Bool ?? false
-                migraine.hasVomiting = migraineData["hasVomiting"] as? Bool ?? false
-                migraine.hasWakeUpHeadache = migraineData["hasWakeUpHeadache"] as? Bool ?? false
-                migraine.hasTinnitus = migraineData["hasTinnitus"] as? Bool ?? false
-                migraine.hasVertigo = migraineData["hasVertigo"] as? Bool ?? false
-                migraine.missedWork = migraineData["missedWork"] as? Bool ?? false
-                migraine.missedSchool = migraineData["missedSchool"] as? Bool ?? false
-                migraine.missedEvents = migraineData["missedEvents"] as? Bool ?? false
-                
+
+                // Map every field via the shared decoder so symptoms,
+                // medications, and triggers all round-trip. Hand-rolling a
+                // subset here previously dropped all medication and trigger
+                // booleans on the receiving device.
+                migraine.updateFromDictionary(migraineData)
+
             } catch {
                 AppLogger.watch.error("Error processing migraine data: \(error.localizedDescription, privacy: .public)")
             }
