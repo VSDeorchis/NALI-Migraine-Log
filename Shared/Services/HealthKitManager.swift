@@ -758,7 +758,7 @@ class HealthKitManager: ObservableObject {
         // produces a zero-duration sample that Apple Health treats as a
         // point-in-time event, which we'll widen on the next edit once
         // the user records when it ended.
-        let endTime = migraine.endTime ?? startTime
+        let endTime = Self.clampedHealthSampleEnd(start: startTime, end: migraine.endTime)
         let severity = severityValue(forPainLevel: Int(migraine.painLevel))
 
         do {
@@ -877,6 +877,22 @@ class HealthKitManager: ObservableObject {
         #endif
     }
     #endif
+
+    /// Clamp a migraine's end time so it can never precede its start time.
+    ///
+    /// `HKCategorySample.init(type:value:start:end:metadata:)` raises an
+    /// Objective-C `NSInvalidArgumentException` — which Swift `do/catch`
+    /// cannot trap, so it crashes the whole app — when `end < start`. The
+    /// migraine editor historically let users pick an end time earlier than
+    /// the start time, so a single such stored entry would crash the
+    /// "Sync All Migraines Now" backfill (which writes every entry). When the
+    /// migraine is still ongoing (`end == nil`) we fall back to the start,
+    /// producing a zero-duration point-in-time sample.
+    ///
+    /// Pure and `nonisolated` so it's unit-testable without HealthKit/iCloud.
+    nonisolated static func clampedHealthSampleEnd(start: Date, end: Date?) -> Date {
+        max(end ?? start, start)
+    }
 }
 
 // MARK: - Historical sample value types

@@ -190,9 +190,9 @@ struct MigraineDetailView: View {
                 ))
                 if endTime != nil {
                     DatePicker("End Time", selection: Binding(
-                        get: { endTime ?? startTime },
-                        set: { endTime = $0 }
-                    ))
+                        get: { max(endTime ?? startTime, startTime) },
+                        set: { endTime = max($0, startTime) }
+                    ), in: startTime...)
                 }
                 PainSlider(value: Binding(
                     get: { Int16(painLevel) },
