@@ -363,8 +363,8 @@ struct EditMigraineView: View {
                 
                 if endTime != nil {
                     DatePicker("End Time", selection: Binding(
-                        get: { endTime ?? Date() },
-                        set: { endTime = $0 }
+                        get: { max(endTime ?? startTime, startTime) },
+                        set: { endTime = max($0, startTime) }
                     ), in: startTime...Date())
                     .datePickerStyle(.field)
                 }

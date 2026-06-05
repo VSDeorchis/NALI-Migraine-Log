@@ -129,9 +129,9 @@ struct NewMigraineView: View {
                     ))
                     if endTime != nil {
                         DatePicker("End Time", selection: Binding(
-                            get: { endTime ?? Date() },
-                            set: { endTime = $0 }
-                        ), displayedComponents: [.date, .hourAndMinute])
+                            get: { max(endTime ?? startTime, startTime) },
+                            set: { endTime = max($0, startTime) }
+                        ), in: startTime..., displayedComponents: [.date, .hourAndMinute])
                     }
                     PainSlider(value: $painLevel)
                     locationPicker
