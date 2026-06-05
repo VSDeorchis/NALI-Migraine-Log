@@ -40,37 +40,43 @@ class LocationManager: NSObject, ObservableObject {
     override private init() {
         super.init()
         
-        // Set delegate first
+        // Set delegate + configuration. These are cheap, local operations that
+        // are safe to run synchronously on the main thread.
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyKilometer
         locationManager.distanceFilter = 1000 // Update only if moved 1km
-        
-        // Check authorization status using the class method (more reliable)
-        let currentStatus: CLAuthorizationStatus
-        if #available(iOS 14.0, *) {
-            currentStatus = locationManager.authorizationStatus
-        } else {
-            currentStatus = CLLocationManager.authorizationStatus()
-        }
-        
-        authorizationStatus = currentStatus
 
-        AppLogger.location.notice("LocationManager initialized; status=\(self.statusDescription(currentStatus), privacy: .public)")
+        // The first read of `authorizationStatus` (and `startUpdatingLocation()`)
+        // makes a synchronous XPC round-trip to `locationd`. Doing that here — on
+        // the main thread, inside the SwiftUI `@StateObject` init that runs during
+        // the first scene update at launch — can block long enough to trip iOS's
+        // launch watchdog (`0x8BADF00D`) and crash the app before it draws a frame.
+        // Hop off the main thread for the status read; the `@Published` mutation
+        // and any CoreLocation start/request calls are bounced back to the main
+        // actor (CLLocationManager wants a thread with a run loop).
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
 
-        // If already authorized, start monitoring
-        if Self.isStatusAuthorized(currentStatus) {
-            AppLogger.location.debug("Already authorized; starting monitoring")
-            locationManager.startUpdatingLocation()
-        }
+            let currentStatus = self.locationManager.authorizationStatus
 
-        // IMPORTANT: Request authorization early so iOS recognizes this app uses location
-        // This makes "While Using the App" appear in Settings
-        // If user already responded, this does nothing (won't show dialog again)
-        if currentStatus == .notDetermined {
-            AppLogger.location.debug("Proactively requesting authorization so iOS shows full permission options")
-            // Delay slightly to ensure app is fully initialized
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.locationManager.requestWhenInUseAuthorization()
+            Task { @MainActor in
+                self.authorizationStatus = currentStatus
+
+                AppLogger.location.notice("LocationManager initialized; status=\(self.statusDescription(currentStatus), privacy: .public)")
+
+                // If already authorized, start monitoring.
+                if Self.isStatusAuthorized(currentStatus) {
+                    AppLogger.location.debug("Already authorized; starting monitoring")
+                    self.locationManager.startUpdatingLocation()
+                }
+
+                // IMPORTANT: Request authorization early so iOS recognizes this app
+                // uses location (makes "While Using the App" appear in Settings).
+                // If the user already responded, this is a no-op (no dialog).
+                if currentStatus == .notDetermined {
+                    AppLogger.location.debug("Proactively requesting authorization so iOS shows full permission options")
+                    self.locationManager.requestWhenInUseAuthorization()
+                }
             }
         }
     }
