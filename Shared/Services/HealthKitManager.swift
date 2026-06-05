@@ -738,19 +738,24 @@ class HealthKitManager: ObservableObject {
     ///   • the user hasn't enabled `isHealthSyncEnabled`
     ///   • the OS version is below iOS 17 / watchOS 10
     ///   • the migraine is missing `id` or `startTime`
+    /// Returns `true` when the sample was successfully written to Health, and
+    /// `false` when the write was skipped (sync off / unauthorized / type
+    /// unavailable / missing id or startTime) or the save failed. Callers that
+    /// don't care about the outcome can ignore the result.
     @available(iOS 17.0, watchOS 10.0, *)
-    func writeMigraineToHealth(_ migraine: MigraineEvent) async {
+    @discardableResult
+    func writeMigraineToHealth(_ migraine: MigraineEvent) async -> Bool {
         #if canImport(HealthKit)
-        guard isHealthSyncEnabled, isAuthorized else { return }
-        guard let healthStore = healthStore else { return }
+        guard isHealthSyncEnabled, isAuthorized else { return false }
+        guard let healthStore = healthStore else { return false }
         guard let headacheType = HKObjectType.categoryType(forIdentifier: .headache) else {
             AppLogger.health.error("Headache category type not available on this OS")
-            return
+            return false
         }
         guard let migraineID = migraine.id?.uuidString,
               let startTime = migraine.startTime else {
             AppLogger.health.error("Migraine missing id or startTime; skipping Health write")
-            return
+            return false
         }
 
         // Headache samples must have endDate >= startDate. If the user
@@ -776,9 +781,13 @@ class HealthKitManager: ObservableObject {
 
             try await healthStore.save(sample)
             AppLogger.health.notice("Wrote migraine to Health: \(migraineID, privacy: .public) severity=\(severity, privacy: .public)")
+            return true
         } catch {
             AppLogger.health.error("Failed to write migraine to Health: \(error.localizedDescription, privacy: .public)")
+            return false
         }
+        #else
+        return false
         #endif
     }
 
@@ -849,8 +858,11 @@ class HealthKitManager: ObservableObject {
                 failed += 1
                 continue
             }
-            await writeMigraineToHealth(migraine)
-            written += 1
+            if await writeMigraineToHealth(migraine) {
+                written += 1
+            } else {
+                failed += 1
+            }
         }
         AppLogger.health.notice("Backfill complete: written=\(written, privacy: .public) failed=\(failed, privacy: .public)")
         return (written, failed)

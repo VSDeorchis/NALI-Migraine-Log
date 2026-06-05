@@ -82,6 +82,20 @@ public final class PersistenceController: ObservableObject {
     /// avoid a redundant reload when the desired state already matches.
     public private(set) var isCloudKitEnabled: Bool = false
 
+    /// A CloudKit sync failure isn't surfaced to the user immediately — many are
+    /// transient (a dropped connection mid-export, a momentary account hiccup)
+    /// and clear themselves on the very next event. Instead we arm this work
+    /// item when a failure arrives and only flip `syncStatus` to `.error` if no
+    /// successful event lands within `syncErrorDebounceInterval`. Any success
+    /// (or a fresh failure) cancels the pending item, so the banner only shows
+    /// for problems that actually persist.
+    private var pendingSyncErrorWorkItem: DispatchWorkItem?
+
+    /// How long a CloudKit failure must go un-recovered before the error banner
+    /// is shown. Long enough to ride out transient blips, short enough that a
+    /// genuinely broken sync still surfaces promptly.
+    private static let syncErrorDebounceInterval: TimeInterval = 10
+
     /// CloudKit container that backs iCloud sync across the user's devices.
     private static let cloudKitContainerIdentifier = "iCloud.com.nali.migrainelog"
 
@@ -211,13 +225,40 @@ public final class PersistenceController: ObservableObject {
 
         if let error = event.error {
             AppLogger.coreData.error("CloudKit sync event failed: \(error.localizedDescription, privacy: .public)")
-            syncStatus = .error(Self.userFacingSyncMessage(for: error))
+            scheduleSyncErrorBanner(for: error)
         } else if event.endDate == nil {
             // A setup/import/export is in progress.
             syncStatus = .syncing(0.0)
         } else {
+            // A successful event means sync recovered — cancel any pending
+            // error banner so a transient earlier failure never surfaces.
+            cancelPendingSyncErrorBanner()
             syncStatus = .enabled
         }
+    }
+
+    /// Arms the debounced error banner for a CloudKit failure. The first failure
+    /// starts a `syncErrorDebounceInterval` timer; if a successful event lands
+    /// before it fires, the timer is cancelled and the banner never shows. A
+    /// burst of further failures does NOT reset the timer (otherwise a steady
+    /// stream of failures arriving faster than the interval would keep the
+    /// banner suppressed forever) — the already-armed timer still fires.
+    private func scheduleSyncErrorBanner(for error: Error) {
+        guard pendingSyncErrorWorkItem == nil else { return }
+
+        let message = Self.userFacingSyncMessage(for: error)
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, self.isCloudKitEnabled else { return }
+            self.pendingSyncErrorWorkItem = nil
+            self.syncStatus = .error(message)
+        }
+        pendingSyncErrorWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.syncErrorDebounceInterval, execute: workItem)
+    }
+
+    private func cancelPendingSyncErrorBanner() {
+        pendingSyncErrorWorkItem?.cancel()
+        pendingSyncErrorWorkItem = nil
     }
 
     /// Checks the iCloud account state for the sync container and, when it isn't
