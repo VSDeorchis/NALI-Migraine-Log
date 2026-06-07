@@ -124,7 +124,15 @@ struct SyncSettingsView: View {
 struct DataSettingsView: View {
     @State private var showingExportSuccess = false
     @State private var exportMessage = ""
-    
+
+    /// App version + build, read from the bundle's Info.plist so support and
+    /// users see a single, consistent version string.
+    private var appVersionString: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"
+        return "\(version) (\(build))"
+    }
+
     var body: some View {
         Form {
             Section("Export") {
@@ -144,6 +152,13 @@ struct DataSettingsView: View {
             }
             
             Section("Info") {
+                HStack {
+                    Text("Version")
+                    Spacer()
+                    Text(appVersionString)
+                        .foregroundColor(.secondary)
+                }
+
                 let migraineCount = countMigraines()
                 HStack {
                     Text("Total Entries")

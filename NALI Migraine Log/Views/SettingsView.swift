@@ -89,6 +89,7 @@ struct SettingsView: View {
         case units
         case export
         case feedback
+        case about
         
         var id: Self { self }
         
@@ -103,6 +104,7 @@ struct SettingsView: View {
             case .units:         return "Units"
             case .export:        return "Export Data"
             case .feedback:      return "Help & Feedback"
+            case .about:         return "About"
             }
         }
         
@@ -117,6 +119,7 @@ struct SettingsView: View {
             case .units:         return "ruler"
             case .export:        return "square.and.arrow.up"
             case .feedback:      return "questionmark.circle"
+            case .about:         return "info.circle"
             }
         }
         
@@ -134,6 +137,7 @@ struct SettingsView: View {
             case .units:         return .indigo
             case .export:        return .teal
             case .feedback:      return .green
+            case .about:         return .gray
             }
         }
     }
@@ -270,6 +274,7 @@ struct SettingsView: View {
                 appleHealthSection
                 exportSection
                 feedbackSection
+                aboutSection
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -340,6 +345,7 @@ struct SettingsView: View {
             .units,
             .export,
             .feedback,
+            .about,
         ])
         return cats
     }
@@ -371,6 +377,8 @@ struct SettingsView: View {
                 exportSection
             case .feedback:
                 feedbackSection
+            case .about:
+                aboutSection
             }
         }
     }
@@ -874,6 +882,33 @@ struct SettingsView: View {
             Text("Help & Feedback")
         } footer: {
             Text("Reviews help other migraine sufferers find Headway. Feedback goes directly to the developer — replies come from a real person, not an autoresponder.")
+        }
+    }
+
+    /// App version + build, read from the bundle's Info.plist. Mirrors the
+    /// values surfaced in `AboutView` and the feedback form so support and
+    /// users see a single, consistent version string.
+    private var appVersionString: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"
+        return "\(version) (\(build))"
+    }
+
+    /// Shows the installed app version so users can report exactly what
+    /// build they're on when contacting support.
+    private var aboutSection: some View {
+        Section {
+            HStack {
+                Text("Version")
+                    .foregroundStyle(.primary)
+                Spacer()
+                Text(appVersionString)
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("App version \(appVersionString)")
+        } header: {
+            Text("About")
         }
     }
 
