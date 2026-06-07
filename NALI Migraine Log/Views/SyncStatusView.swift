@@ -15,10 +15,17 @@ struct SyncStatusView: View {
                     Label("Syncing…", systemImage: "arrow.triangle.2.circlepath")
                         .foregroundColor(.blue)
                 case .error(let message):
-                    // Surfaces real CloudKit problems (not signed into iCloud,
-                    // storage full, offline, etc.) instead of a misleading green tick.
+                    // Surfaces real CloudKit problems (storage full, offline,
+                    // server errors, etc.) instead of a misleading green tick.
                     Label(message, systemImage: "exclamationmark.icloud.fill")
                         .foregroundColor(.orange)
+                        .multilineTextAlignment(.leading)
+                case .signInRequired(let message):
+                    // Not signed into iCloud — a normal state, not a failure.
+                    // Styled calmly (secondary, no warning color) so the user
+                    // gets a gentle prompt rather than an alarming error.
+                    Label(message, systemImage: "icloud.slash")
+                        .foregroundColor(.secondary)
                         .multilineTextAlignment(.leading)
                 case .enabled, .pendingChanges, .disabled, .notConfigured:
                     Label("Sync Enabled", systemImage: "checkmark.icloud.fill")

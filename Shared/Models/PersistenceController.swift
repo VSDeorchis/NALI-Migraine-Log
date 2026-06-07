@@ -225,7 +225,15 @@ public final class PersistenceController: ObservableObject {
 
         if let error = event.error {
             AppLogger.coreData.error("CloudKit sync event failed: \(error.localizedDescription, privacy: .public)")
-            scheduleSyncErrorBanner(for: error)
+            if Self.isNoAccountError(error) {
+                // Not signed into iCloud isn't a failure to ride out — it's a
+                // stable state with a clear fix. Surface it calmly right away
+                // (no debounce, no scary error banner) and drop any pending one.
+                cancelPendingSyncErrorBanner()
+                syncStatus = .signInRequired(Self.signInRequiredMessage)
+            } else {
+                scheduleSyncErrorBanner(for: error)
+            }
         } else if event.endDate == nil {
             // A setup/import/export is in progress.
             syncStatus = .syncing(0.0)
@@ -271,7 +279,7 @@ public final class PersistenceController: ObservableObject {
                 case .available:
                     break
                 case .noAccount:
-                    self.syncStatus = .error("Sign in to iCloud in the Settings app to sync across your devices.")
+                    self.syncStatus = .signInRequired(Self.signInRequiredMessage)
                 case .restricted:
                     self.syncStatus = .error("iCloud is restricted on this device, so sync is unavailable.")
                 case .couldNotDetermine, .temporarilyUnavailable:
@@ -283,11 +291,37 @@ public final class PersistenceController: ObservableObject {
         }
     }
 
+    /// Shown when sync is on but the device has no iCloud account. Phrased as a
+    /// gentle, actionable prompt rather than an error.
+    static let signInRequiredMessage = "Sign in to iCloud in the Settings app to sync across your devices."
+
+    /// True when `error` means "there's no iCloud account on this device."
+    ///
+    /// `NSPersistentCloudKitContainer` doesn't hand us a tidy `CKError` for this
+    /// case — its setup event fails with `NSCocoaErrorDomain` code **134400**
+    /// ("Unable to initialize without an iCloud account (CKAccountStatusNoAccount)"),
+    /// and the originating `CKError.notAuthenticated` is usually buried in the
+    /// underlying-error chain. We check all three so the not-signed-in state is
+    /// reliably recognized regardless of how Core Data wraps it.
+    static func isNoAccountError(_ error: Error) -> Bool {
+        if let ckError = error as? CKError, ckError.code == .notAuthenticated {
+            return true
+        }
+        let nsError = error as NSError
+        if nsError.domain == NSCocoaErrorDomain && nsError.code == 134400 {
+            return true
+        }
+        if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? Error {
+            return isNoAccountError(underlying)
+        }
+        return false
+    }
+
     /// Maps a CloudKit error to a short, non-technical message for the UI.
     private static func userFacingSyncMessage(for error: Error) -> String {
         switch (error as? CKError)?.code {
         case .some(.notAuthenticated):
-            return "Sign in to iCloud in the Settings app to sync across your devices."
+            return signInRequiredMessage
         case .some(.quotaExceeded):
             return "Your iCloud storage is full, so new changes can't sync."
         case .some(.networkUnavailable), .some(.networkFailure):

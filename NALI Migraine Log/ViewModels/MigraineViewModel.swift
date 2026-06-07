@@ -860,7 +860,7 @@ class MigraineViewModel: NSObject, ObservableObject {
             autoSyncTimer?.invalidate()
             autoSyncTimer = nil
             AppLogger.sync.notice("CloudKit sync disabled — using local storage only")
-        case .error:
+        case .error, .signInRequired:
             autoSyncTimer?.invalidate()
             autoSyncTimer = nil
         case .notConfigured, .pendingChanges, .syncing:

@@ -13,6 +13,7 @@
 
 import Testing
 import Foundation
+import CloudKit
 @testable import NALI_Migraine_Log
 
 @Suite("iCloud sync preference default")
@@ -65,6 +66,7 @@ struct SyncStatusTests {
         #expect(!SyncStatus.disabled.isActive)
         #expect(!SyncStatus.notConfigured.isActive)
         #expect(!SyncStatus.error("boom").isActive)
+        #expect(!SyncStatus.signInRequired("sign in").isActive)
     }
 
     @Test("syncing description renders an integer percentage")
@@ -72,5 +74,44 @@ struct SyncStatusTests {
         #expect(SyncStatus.syncing(0.0).description == "Syncing 0%")
         #expect(SyncStatus.syncing(0.42).description == "Syncing 42%")
         #expect(SyncStatus.syncing(1.0).description == "Syncing 100%")
+    }
+
+    @Test("signInRequired surfaces its message verbatim (no 'Error:' prefix)")
+    func signInRequiredDescription() {
+        #expect(SyncStatus.signInRequired("Sign in to iCloud").description == "Sign in to iCloud")
+    }
+}
+
+@Suite("No-iCloud-account error detection")
+struct NoAccountErrorTests {
+
+    @Test("Recognizes the Cocoa 134400 'no iCloud account' setup error")
+    func cocoa134400IsNoAccount() {
+        // NSPersistentCloudKitContainer reports a missing account this way:
+        // NSCocoaErrorDomain Code=134400 "Unable to initialize without an
+        // iCloud account (CKAccountStatusNoAccount)."
+        let error = NSError(domain: NSCocoaErrorDomain, code: 134400)
+        #expect(PersistenceController.isNoAccountError(error))
+    }
+
+    @Test("Recognizes a direct CKError.notAuthenticated")
+    func directNotAuthenticatedIsNoAccount() {
+        #expect(PersistenceController.isNoAccountError(CKError(.notAuthenticated)))
+    }
+
+    @Test("Recognizes a CKError.notAuthenticated buried in the underlying-error chain")
+    func nestedNotAuthenticatedIsNoAccount() {
+        let nested = NSError(
+            domain: "SomeWrapperDomain",
+            code: 1,
+            userInfo: [NSUnderlyingErrorKey: CKError(.notAuthenticated)]
+        )
+        #expect(PersistenceController.isNoAccountError(nested))
+    }
+
+    @Test("Unrelated errors are not treated as no-account")
+    func unrelatedErrorIsNotNoAccount() {
+        #expect(!PersistenceController.isNoAccountError(CKError(.networkUnavailable)))
+        #expect(!PersistenceController.isNoAccountError(NSError(domain: NSCocoaErrorDomain, code: 134060)))
     }
 }
