@@ -296,7 +296,11 @@ final class NotificationManager: ObservableObject {
         let content = UNMutableNotificationContent()
         content.title = "Anything to add to Headway?"
         content.body = "It's been a while since your last entry. If you've had any migraines, take a moment to log them so your trends stay accurate."
-        content.sound = .default
+        // Intentionally silent: this is the "quiet nudge" the Settings copy
+        // promises. It still appears on the lock screen / Notification Center,
+        // but never plays an alert sound — a re-engagement reminder after a
+        // calm stretch shouldn't startle the user like an urgent alert.
+        content.sound = nil
         content.threadIdentifier = "headway.reengagement"
 
         let request = UNNotificationRequest(
