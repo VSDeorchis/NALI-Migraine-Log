@@ -236,11 +236,43 @@ public final class PersistenceController: ObservableObject {
     /// `Development` for this single run, then revert it.
     private func initializeCloudKitSchemaIfRequested() {
         guard ProcessInfo.processInfo.arguments.contains("-InitializeCloudKitSchema") else { return }
-        do {
-            try container.initializeCloudKitSchema(options: [])
-            AppLogger.coreData.notice("CloudKit schema initialized in Development. Next: deploy Development → Production in the CloudKit Console, then remove the -InitializeCloudKitSchema launch argument.")
-        } catch {
-            AppLogger.coreData.error("CloudKit schema initialization failed: \(error.localizedDescription, privacy: .public). If this references the production environment, temporarily set icloud-container-environment to Development for this run.")
+
+        // `initializeCloudKitSchema` can fail transiently (e.g. the account
+        // token isn't ready yet — surfaced only as a generic "A Core Data error
+        // occurred"), so retry a few times before giving up.
+        let maxAttempts = 4
+        for attempt in 1...maxAttempts {
+            do {
+                try container.initializeCloudKitSchema(options: [])
+                AppLogger.coreData.notice("CloudKit schema initialized in Development (attempt \(attempt)/\(maxAttempts)). Next: deploy Development → Production in the CloudKit Console, then remove the -InitializeCloudKitSchema launch argument.")
+                return
+            } catch {
+                Self.logSchemaInitError(error, attempt: attempt, maxAttempts: maxAttempts)
+                if attempt < maxAttempts {
+                    Thread.sleep(forTimeInterval: 3.0)
+                }
+            }
+        }
+        AppLogger.coreData.error("CloudKit schema initialization gave up after \(maxAttempts) attempts. If the underlying errors above reference the production environment, set icloud-container-environment to Development for this run; if they look transient, just run again.")
+    }
+
+    /// Logs the full error chain from a failed `initializeCloudKitSchema` call.
+    /// Core Data collapses these into a generic "A Core Data error occurred,"
+    /// so we walk `userInfo`/`NSUnderlyingErrorKey` to surface the real cause
+    /// (e.g. the originating `CKError`).
+    private static func logSchemaInitError(_ error: Error, attempt: Int, maxAttempts: Int) {
+        let ns = error as NSError
+        AppLogger.coreData.error("CloudKit schema init failed (attempt \(attempt)/\(maxAttempts)): domain=\(ns.domain, privacy: .public) code=\(ns.code) — \(ns.localizedDescription, privacy: .public)")
+        if let reason = ns.localizedFailureReason {
+            AppLogger.coreData.error("  failureReason: \(reason, privacy: .public)")
+        }
+        AppLogger.coreData.error("  userInfo: \(ns.userInfo.description, privacy: .public)")
+        var current = ns.userInfo[NSUnderlyingErrorKey] as? NSError
+        var depth = 0
+        while let underlying = current, depth < 6 {
+            AppLogger.coreData.error("  underlying[\(depth)]: domain=\(underlying.domain, privacy: .public) code=\(underlying.code) — \(underlying.localizedDescription, privacy: .public); userInfo=\(underlying.userInfo.description, privacy: .public)")
+            current = underlying.userInfo[NSUnderlyingErrorKey] as? NSError
+            depth += 1
         }
     }
     #endif
