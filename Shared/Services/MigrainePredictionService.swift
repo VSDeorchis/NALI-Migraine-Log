@@ -650,7 +650,7 @@ class MigrainePredictionService: ObservableObject {
             }
             
             // Write CSV for CreateML
-            let csvURL = getTrainingDataURL()
+            let csvURL = try getTrainingDataURL()
             try writeCSV(trainingData, to: csvURL)
             
             modelStatus = .trainingML(progress: 0.5)
@@ -668,7 +668,9 @@ class MigrainePredictionService: ObservableObject {
             
             modelStatus = .trainingML(progress: 0.9)
             
-            let modelURL = getTrainedModelURL()!
+            guard let modelURL = getTrainedModelURL() else {
+                throw FilePathError.documentsDirectoryUnavailable
+            }
             try classifier.write(to: modelURL)
             
             UserDefaults.standard.set(Date(), forKey: lastTrainKey)
@@ -744,8 +746,14 @@ class MigrainePredictionService: ObservableObject {
         return docs.appendingPathComponent("MigrainePredictor.mlmodel")
     }
     
-    private func getTrainingDataURL() -> URL {
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+    private enum FilePathError: Error {
+        case documentsDirectoryUnavailable
+    }
+
+    private func getTrainingDataURL() throws -> URL {
+        guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            throw FilePathError.documentsDirectoryUnavailable
+        }
         return docs.appendingPathComponent("training_data.csv")
     }
     
