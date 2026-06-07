@@ -212,8 +212,38 @@ public final class PersistenceController: ObservableObject {
         // can tell the user to sign in rather than silently failing to sync.
         if isCloudKitEnabled {
             verifyCloudAccountAvailable()
+            #if DEBUG && !os(watchOS)
+            initializeCloudKitSchemaIfRequested()
+            #endif
         }
     }
+
+    #if DEBUG && !os(watchOS)
+    /// Developer-only: pushes the current Core Data model to the CloudKit
+    /// **Development** environment so its record types (`CD_MigraineEvent` and
+    /// every `CD_*` field) exist there and can then be promoted to Production
+    /// via the CloudKit Console's "Deploy Schema Changes…".
+    ///
+    /// This must NEVER run on a user's device. It only compiles in `DEBUG`
+    /// builds and only runs when the app is launched with the
+    /// `-InitializeCloudKitSchema` argument (Xcode: Edit Scheme → Run →
+    /// Arguments → "Arguments Passed On Launch"). Remove the argument once the
+    /// schema has been initialized.
+    ///
+    /// Note: `initializeCloudKitSchema` targets the Development environment. If
+    /// it fails because the entitlement pins the container to Production,
+    /// temporarily set `com.apple.developer.icloud-container-environment` to
+    /// `Development` for this single run, then revert it.
+    private func initializeCloudKitSchemaIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("-InitializeCloudKitSchema") else { return }
+        do {
+            try container.initializeCloudKitSchema(options: [])
+            AppLogger.coreData.notice("CloudKit schema initialized in Development. Next: deploy Development → Production in the CloudKit Console, then remove the -InitializeCloudKitSchema launch argument.")
+        } catch {
+            AppLogger.coreData.error("CloudKit schema initialization failed: \(error.localizedDescription, privacy: .public). If this references the production environment, temporarily set icloud-container-environment to Development for this run.")
+        }
+    }
+    #endif
 
     /// Translates `NSPersistentCloudKitContainer` setup/import/export events into
     /// the user-facing `syncStatus`. Errors here are how we learn that, e.g.,
