@@ -3,14 +3,14 @@ import CoreData
 
 struct WatchMigraineLogView: View {
     @ObservedObject var viewModel: MigraineViewModel
-    @State private var showingNewEntry = false
+    @ObservedObject private var navigator = WatchNavigationCoordinator.shared
     
     var body: some View {
         List {
             // Quick actions
             Section {
                 Button(action: {
-                    showingNewEntry = true
+                    navigator.requestNewEntry()
                 }) {
                     Label("New Entry", systemImage: "plus.circle.fill")
                         .foregroundColor(.blue)
@@ -38,7 +38,10 @@ struct WatchMigraineLogView: View {
             }
         }
         .navigationTitle("Headway")
-        .sheet(isPresented: $showingNewEntry) {
+        // A single New Entry sheet driven by the shared coordinator, so
+        // both the in-app button and a Siri / Shortcuts "open new entry"
+        // intent present the same screen without competing bindings.
+        .sheet(isPresented: $navigator.showNewEntry) {
             WatchNewMigraineView(viewModel: viewModel)
         }
     }
