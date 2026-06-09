@@ -15,6 +15,10 @@ struct NALI_Migraine_LogApp: App {
     @StateObject private var connectivityManager = WatchConnectivityManager.shared
     @StateObject private var settings = SettingsManager.shared
     @StateObject private var locationManager = LocationManager.shared
+    /// Receives "open a screen" requests from App Intents (Siri /
+    /// Shortcuts). Currently drives the New Entry sheet below via
+    /// `OpenNewEntryIntent`.
+    @StateObject private var navigator = AppNavigationCoordinator.shared
     @State private var showingSplash = true
     @State private var hasAcceptedDisclaimer = UserDefaults.standard.bool(forKey: Constants.hasAcceptedDisclaimer)
     @State private var showingSettings = false
@@ -111,6 +115,13 @@ struct NALI_Migraine_LogApp: App {
                     .environmentObject(locationManager)
                     .sheet(isPresented: $showingSettings) {
                         SettingsView(viewModel: viewModel)
+                    }
+                    // Siri / Shortcuts "Open New Migraine Entry" lands
+                    // here regardless of which tab is showing.
+                    // `NewMigraineView` brings its own NavigationStack +
+                    // toolbar, so present it bare.
+                    .sheet(isPresented: $navigator.showNewEntry) {
+                        NewMigraineView(viewModel: viewModel)
                     }
                     .onAppear {
                         AppLogger.ui.debug("Main TabView appeared")
