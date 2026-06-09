@@ -82,10 +82,20 @@ struct LogMigraineIntent: AppIntent {
     )
     var notes: String?
 
+    /// Optional start time. Defaults to "now" when omitted, which is the
+    /// common case for a just-now voice log. Power users can set it in
+    /// the Shortcuts app to back-date a completed migraine (paired with
+    /// `endTime`).
+    @Parameter(
+        title: "Start Time",
+        description: "When the migraine began. Defaults to now if left empty."
+    )
+    var startTime: Date?
+
     /// Optional end time. Left empty for an ongoing migraine (the common
-    /// case for a just-now voice log). Power users can wire it up in the
-    /// Shortcuts app for back-dated entries. Ignored if it isn't after
-    /// the start time.
+    /// case for a just-now voice log). For a completed migraine, set both
+    /// `startTime` and `endTime` in the past. Ignored if it isn't after
+    /// the effective start time.
     @Parameter(
         title: "End Time",
         description: "When the migraine ended, if it's already over. Leave empty if it's still ongoing."
@@ -113,6 +123,7 @@ struct LogMigraineIntent: AppIntent {
     /// bare voice phrase stays a one-tap, zero-prompt action.
     static var parameterSummary: some ParameterSummary {
         Summary("Log a migraine with pain level \(\.$painLevel)") {
+            \.$startTime
             \.$endTime
             \.$triggers
             \.$symptoms
@@ -130,12 +141,16 @@ struct LogMigraineIntent: AppIntent {
 
         let migraine = MigraineEvent(context: context)
         migraine.id = UUID()
-        let start = Date()
+        // Default to "now" for a hands-free quick log; honor an explicit
+        // start time when the user back-dates a completed migraine via
+        // the Shortcuts app.
+        let start = startTime ?? Date()
         migraine.startTime = start
-        // Only honor an end time that's genuinely after the start. A
-        // reversed range would later crash the Apple Health export
-        // (the end-before-start bug fixed in an earlier release), so we
-        // defensively drop a bad value and treat the entry as ongoing.
+        // Only honor an end time that's genuinely after the (effective)
+        // start. A reversed range would later crash the Apple Health
+        // export (the end-before-start bug fixed in an earlier release),
+        // so we defensively drop a bad value and treat the entry as
+        // ongoing.
         if let endTime, endTime > start {
             migraine.endTime = endTime
         } else {
