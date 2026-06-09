@@ -49,35 +49,41 @@ struct WhatsNewView: View {
             AnimatedGradientBackground(animationPhase: 0)
                 .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                Spacer(minLength: 12)
-
+            // The card scrolls if it's taller than the screen, but
+            // centers vertically when it fits. Pinning the content's
+            // minHeight to the viewport lets the surrounding Spacers
+            // balance the card in the middle; the button stays at the
+            // bottom of that stack.
+            GeometryReader { geo in
                 ScrollView {
-                    VStack(spacing: 22) {
-                        header
+                    VStack(spacing: 28) {
+                        Spacer(minLength: 0)
 
-                        VStack(spacing: 18) {
-                            ForEach(features) { feature in
-                                featureRow(feature)
+                        VStack(spacing: 22) {
+                            header
+
+                            VStack(spacing: 18) {
+                                ForEach(features) { feature in
+                                    featureRow(feature)
+                                }
                             }
                         }
+                        .padding(.horizontal, 26)
+                        .padding(.vertical, 30)
+                        .background(
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .fill(.ultraThinMaterial)
+                                .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 8)
+                        )
+
+                        Spacer(minLength: 0)
+
+                        dismissButton
                     }
-                    .padding(.horizontal, 26)
-                    .padding(.vertical, 30)
-                    .background(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .fill(.ultraThinMaterial)
-                            .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 8)
-                    )
+                    .frame(minHeight: geo.size.height)
                     .padding(.horizontal, 20)
-                    .padding(.top, 8)
+                    .padding(.vertical, 16)
                 }
-
-                Spacer(minLength: 12)
-
-                dismissButton
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 16)
             }
         }
     }
