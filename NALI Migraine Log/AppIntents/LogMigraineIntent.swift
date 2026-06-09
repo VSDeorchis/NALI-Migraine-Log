@@ -290,11 +290,11 @@ enum MigraineSymptomOption: String, AppEnum {
 /// model stays free of any AppIntents dependency on watchOS / macOS.
 @available(iOS 17.0, *)
 extension MigraineTrigger: AppEnum {
-    static var typeDisplayRepresentation: TypeDisplayRepresentation {
+    public static var typeDisplayRepresentation: TypeDisplayRepresentation {
         TypeDisplayRepresentation(name: "Migraine Trigger")
     }
 
-    static var caseDisplayRepresentations: [MigraineTrigger: DisplayRepresentation] {
+    public static var caseDisplayRepresentations: [MigraineTrigger: DisplayRepresentation] {
         [
             .stress: "Stress",
             .lackOfSleep: "Lack of Sleep",
