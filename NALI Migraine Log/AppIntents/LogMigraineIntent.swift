@@ -82,6 +82,55 @@ struct LogMigraineIntent: AppIntent {
     )
     var notes: String?
 
+    /// Optional start time. Defaults to "now" when omitted, which is the
+    /// common case for a just-now voice log. Power users can set it in
+    /// the Shortcuts app to back-date a completed migraine (paired with
+    /// `endTime`).
+    @Parameter(
+        title: "Start Time",
+        description: "When the migraine began. Defaults to now if left empty."
+    )
+    var startTime: Date?
+
+    /// Optional end time. Left empty for an ongoing migraine (the common
+    /// case for a just-now voice log). For a completed migraine, set both
+    /// `startTime` and `endTime` in the past. Ignored if it isn't after
+    /// the effective start time.
+    @Parameter(
+        title: "End Time",
+        description: "When the migraine ended, if it's already over. Leave empty if it's still ongoing."
+    )
+    var endTime: Date?
+
+    /// Optional triggers. Not prompted for a bare "log a migraine"
+    /// invocation — only filled in when the user configures the shortcut
+    /// to include them.
+    @Parameter(
+        title: "Triggers",
+        description: "Any suspected triggers for this migraine."
+    )
+    var triggers: [MigraineTrigger]?
+
+    /// Optional symptoms, same opt-in behavior as triggers.
+    @Parameter(
+        title: "Symptoms",
+        description: "Symptoms you experienced with this migraine."
+    )
+    var symptoms: [MigraineSymptomOption]?
+
+    /// Shown in the Shortcuts editor. Pain level is the headline; the
+    /// optional details live behind the "Show More" disclosure so the
+    /// bare voice phrase stays a one-tap, zero-prompt action.
+    static var parameterSummary: some ParameterSummary {
+        Summary("Log a migraine with pain level \(\.$painLevel)") {
+            \.$startTime
+            \.$endTime
+            \.$triggers
+            \.$symptoms
+            \.$notes
+        }
+    }
+
     /// Run on the main actor because Core Data's view context (and
     /// our HealthKit / ReviewPromptCoordinator side-effects) are all
     /// MainActor-isolated. App Intents short-running operations on
@@ -92,29 +141,43 @@ struct LogMigraineIntent: AppIntent {
 
         let migraine = MigraineEvent(context: context)
         migraine.id = UUID()
-        migraine.startTime = Date()
-        migraine.endTime = nil
+        // Default to "now" for a hands-free quick log; honor an explicit
+        // start time when the user back-dates a completed migraine via
+        // the Shortcuts app.
+        let start = startTime ?? Date()
+        migraine.startTime = start
+        // Only honor an end time that's genuinely after the (effective)
+        // start. A reversed range would later crash the Apple Health
+        // export (the end-before-start bug fixed in an earlier release),
+        // so we defensively drop a bad value and treat the entry as
+        // ongoing.
+        if let endTime, endTime > start {
+            migraine.endTime = endTime
+        } else {
+            migraine.endTime = nil
+        }
         migraine.painLevel = Int16(painLevel)
         migraine.location = "Whole Head"
         migraine.notes = notes
 
-        // Match the field initialization the in-app `addMigraine` does
-        // so we don't ship a half-formed object into Core Data + CloudKit.
-        // All the booleans default to `false`; the weather struct gets
-        // zeroed so the standard backfill path can pick this entry up
-        // later when location is available.
-        migraine.hasAura = false
-        migraine.hasPhotophobia = false
-        migraine.hasPhonophobia = false
-        migraine.hasNausea = false
-        migraine.hasVomiting = false
-        migraine.hasWakeUpHeadache = false
-        migraine.hasTinnitus = false
-        migraine.hasVertigo = false
+        // Map the optional symptom multi-select onto the underlying
+        // booleans. Anything not chosen stays `false`, matching the
+        // in-app `addMigraine` default. The weather struct gets zeroed
+        // so the standard backfill path can pick this entry up later
+        // when location is available.
+        let symptomSet = Set(symptoms ?? [])
+        migraine.hasAura = symptomSet.contains(.aura)
+        migraine.hasPhotophobia = symptomSet.contains(.photophobia)
+        migraine.hasPhonophobia = symptomSet.contains(.phonophobia)
+        migraine.hasNausea = symptomSet.contains(.nausea)
+        migraine.hasVomiting = symptomSet.contains(.vomiting)
+        migraine.hasWakeUpHeadache = symptomSet.contains(.wakeUpHeadache)
+        migraine.hasTinnitus = symptomSet.contains(.tinnitus)
+        migraine.hasVertigo = symptomSet.contains(.vertigo)
         migraine.missedWork = false
         migraine.missedSchool = false
         migraine.missedEvents = false
-        migraine.triggers = []
+        migraine.triggers = Set(triggers ?? [])
         migraine.medications = []
         migraine.hasWeatherData = false
         migraine.weatherTemperature = 0
@@ -186,6 +249,80 @@ struct HeadwayAppShortcuts: AppShortcutsProvider {
             shortTitle: "Log Migraine",
             systemImageName: "brain.head.profile"
         )
+        AppShortcut(
+            intent: OpenNewEntryIntent(),
+            phrases: [
+                "Open a new migraine entry in \(.applicationName)",
+                "Open \(.applicationName) to log a migraine",
+                "New migraine entry in \(.applicationName)",
+                "Add a migraine in \(.applicationName)",
+            ],
+            shortTitle: "New Migraine Entry",
+            systemImageName: "square.and.pencil"
+        )
+    }
+}
+
+// MARK: - App Intents value types
+
+/// Symptom options exposed to Siri / Shortcuts as a multi-select.
+///
+/// These mirror the `has*` booleans on `MigraineEvent`. We use a
+/// dedicated `AppEnum` rather than the raw booleans so the Shortcuts
+/// editor shows a friendly checklist with the same labels the in-app
+/// form uses.
+@available(iOS 17.0, *)
+enum MigraineSymptomOption: String, AppEnum {
+    case aura
+    case photophobia
+    case phonophobia
+    case nausea
+    case vomiting
+    case wakeUpHeadache
+    case tinnitus
+    case vertigo
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation {
+        TypeDisplayRepresentation(name: "Symptom")
+    }
+
+    static var caseDisplayRepresentations: [MigraineSymptomOption: DisplayRepresentation] {
+        [
+            .aura: "Aura",
+            .photophobia: "Light Sensitivity",
+            .phonophobia: "Sound Sensitivity",
+            .nausea: "Nausea",
+            .vomiting: "Vomiting",
+            .wakeUpHeadache: "Wake-up Headache",
+            .tinnitus: "Tinnitus",
+            .vertigo: "Vertigo",
+        ]
+    }
+}
+
+/// Make the shared `MigraineTrigger` selectable in Siri / Shortcuts.
+/// Retroactive `AppEnum` conformance lives here (iOS-only) so the shared
+/// model stays free of any AppIntents dependency on watchOS / macOS.
+@available(iOS 17.0, *)
+extension MigraineTrigger: AppEnum {
+    public static var typeDisplayRepresentation: TypeDisplayRepresentation {
+        TypeDisplayRepresentation(name: "Migraine Trigger")
+    }
+
+    public static var caseDisplayRepresentations: [MigraineTrigger: DisplayRepresentation] {
+        [
+            .stress: "Stress",
+            .lackOfSleep: "Lack of Sleep",
+            .dehydration: "Dehydration",
+            .weather: "Weather",
+            .menstrual: "Menstrual",
+            .alcohol: "Alcohol",
+            .caffeine: "Caffeine",
+            .food: "Food",
+            .exercise: "Exercise",
+            .screenTime: "Screen Time",
+            .other: "Other",
+        ]
     }
 }
 
