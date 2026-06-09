@@ -22,6 +22,10 @@ struct NALI_Migraine_LogApp: App {
     @State private var showingSplash = true
     @State private var hasAcceptedDisclaimer = UserDefaults.standard.bool(forKey: Constants.hasAcceptedDisclaimer)
     @State private var showingSettings = false
+    /// One-time "What's New" announcement after a feature update. Gated
+    /// by `WhatsNew` so it shows once per release and never to a
+    /// brand-new install.
+    @State private var showingWhatsNew = false
     @Environment(\.scenePhase) private var scenePhase
     let persistenceController = PersistenceController.shared
     
@@ -123,10 +127,29 @@ struct NALI_Migraine_LogApp: App {
                     .sheet(isPresented: $navigator.showNewEntry) {
                         NewMigraineView(viewModel: viewModel)
                     }
+                    // Immersive one-time update announcement. Uses a
+                    // fullScreenCover (not another `.sheet`) so it can't
+                    // collide with the Settings / New Entry sheets above.
+                    .fullScreenCover(isPresented: $showingWhatsNew) {
+                        WhatsNewView(onDismiss: {
+                            WhatsNew.markSeen()
+                            showingWhatsNew = false
+                        })
+                    }
                     .onAppear {
                         AppLogger.ui.debug("Main TabView appeared")
                         // Request location permission on first launch
                         locationManager.requestPermission()
+                        // Surface the What's New sheet to upgrading users
+                        // once the main UI is visible (post-splash).
+                        // `launchCount` is @MainActor; onAppear already runs
+                        // on the main actor, so assumeIsolated is safe and
+                        // matches the idiom used in `init()` above.
+                        MainActor.assumeIsolated {
+                            if WhatsNew.shouldPresentOnLaunch(launchCount: ReviewPromptCoordinator.launchCount) {
+                                showingWhatsNew = true
+                            }
+                        }
                     }
                 }
             }
