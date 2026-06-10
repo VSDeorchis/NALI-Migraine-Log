@@ -44,7 +44,7 @@ struct LogMigraineIntent: AppIntent {
     static let title: LocalizedStringResource = "Log a Migraine"
 
     static let description = IntentDescription(
-        "Quickly log a migraine starting now from your Apple Watch. You can optionally provide a pain level from 1 to 10. Other details can be added later by editing the entry.",
+        "Quickly log a migraine starting now from your wrist. You can optionally provide a pain level from 1 to 10. Other details can be added later by editing the entry.",
         categoryName: "Migraine Logging",
         searchKeywords: ["migraine", "headache", "pain", "log", "headway", "track"]
     )
@@ -139,7 +139,7 @@ struct OpenNewEntryIntent: AppIntent {
     static let title: LocalizedStringResource = "Open New Migraine Entry"
 
     static let description = IntentDescription(
-        "Opens Headway on your Apple Watch to the New Migraine Entry screen so you can record the full details.",
+        "Opens Headway on your watch to the New Migraine Entry screen so you can record the full details.",
         categoryName: "Migraine Logging",
         searchKeywords: ["migraine", "headache", "log", "headway", "new", "entry", "open"]
     )
