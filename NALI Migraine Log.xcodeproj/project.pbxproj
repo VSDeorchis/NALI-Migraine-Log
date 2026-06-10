@@ -893,7 +893,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
-				MARKETING_VERSION = 2.75;
+				MARKETING_VERSION = 2.82;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.nali.NALI-Migraine-Log-macOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -923,7 +923,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
-				MARKETING_VERSION = 2.75;
+				MARKETING_VERSION = 2.82;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.nali.NALI-Migraine-Log-macOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1154,7 +1154,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.75;
+				MARKETING_VERSION = 2.82;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neuroli.Headway;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -1188,7 +1188,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.75;
+				MARKETING_VERSION = 2.82;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neuroli.Headway;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -1284,7 +1284,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.75;
+				MARKETING_VERSION = 2.82;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neuroli.Headway.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1315,7 +1315,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.75;
+				MARKETING_VERSION = 2.82;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neuroli.Headway.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
