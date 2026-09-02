@@ -13,7 +13,7 @@ import CoreLocation
 struct WeatherData: Codable {
     let latitude: Double
     let longitude: Double
-    let timezone: String
+    let timezone: String?
     let hourly: HourlyWeather
     
     enum CodingKeys: String, CodingKey {
@@ -21,13 +21,15 @@ struct WeatherData: Codable {
     }
 }
 
+/// Hourly series are decoded as optionals because Open-Meteo emits `null`
+/// for hours it has no data for (very recent archive hours, model gaps).
 struct HourlyWeather: Codable {
     let time: [String]
-    let temperature2m: [Double]
-    let surfacePressure: [Double]
-    let precipitation: [Double]
-    let cloudCover: [Int]
-    let weatherCode: [Int]
+    let temperature2m: [Double?]
+    let surfacePressure: [Double?]
+    let precipitation: [Double?]
+    let cloudCover: [Int?]
+    let weatherCode: [Int?]
     
     enum CodingKeys: String, CodingKey {
         case time
@@ -82,173 +84,126 @@ class WeatherService: ObservableObject {
         latitude: Double,
         longitude: Double
     ) async throws -> WeatherSnapshot {
+        try OpenMeteo.validate(latitude: latitude, longitude: longitude)
+
         isLoading = true
         defer { isLoading = false }
-        
-        let calendar = Calendar.current
-        
-        // Get the date range: 24 hours before to 1 hour after the migraine
-        let startDate = calendar.date(byAdding: .hour, value: -24, to: date) ?? date
-        let endDate = calendar.date(byAdding: .hour, value: 1, to: date) ?? date
-        
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        
-        let startDateString = dateFormatter.string(from: startDate)
-        let endDateString = dateFormatter.string(from: endDate)
-        
-        // Build URL with parameters
-        var components = URLComponents(string: baseURL)!
-        components.queryItems = [
-            URLQueryItem(name: "latitude", value: String(format: "%.4f", latitude)),
-            URLQueryItem(name: "longitude", value: String(format: "%.4f", longitude)),
-            URLQueryItem(name: "start_date", value: startDateString),
-            URLQueryItem(name: "end_date", value: endDateString),
+
+        // Request a generous window (2 days back, 1 day forward) in UTC so the
+        // 24-hour pressure baseline is present regardless of the offset
+        // between the device's zone and the location's zone.
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC") ?? .current
+        // The archive endpoint rejects future dates.
+        let endDate = min(utc.date(byAdding: .day, value: 1, to: date) ?? date, Date())
+        let startDate = min(utc.date(byAdding: .day, value: -2, to: date) ?? date, endDate)
+
+        let dayFormatter = DateFormatter()
+        dayFormatter.locale = Locale(identifier: "en_US_POSIX")
+        dayFormatter.timeZone = utc.timeZone
+        dayFormatter.dateFormat = "yyyy-MM-dd"
+
+        let url = try OpenMeteo.makeURL(base: baseURL, queryItems: [
+            URLQueryItem(name: "latitude", value: OpenMeteo.coordinateString(latitude)),
+            URLQueryItem(name: "longitude", value: OpenMeteo.coordinateString(longitude)),
+            URLQueryItem(name: "start_date", value: dayFormatter.string(from: startDate)),
+            URLQueryItem(name: "end_date", value: dayFormatter.string(from: endDate)),
             URLQueryItem(name: "hourly", value: "temperature_2m,surface_pressure,precipitation,cloudcover,weathercode"),
             URLQueryItem(name: "temperature_unit", value: "fahrenheit"),
             URLQueryItem(name: "precipitation_unit", value: "inch"),
             URLQueryItem(name: "timezone", value: "auto")
-        ]
-        
-        guard let url = components.url else {
-            throw WeatherError.invalidURL
-        }
-        
-        // URL query string contains the user's coordinates — keep redacted
-        // in release. `.private` (default) gives `<private>` in non-debug.
-        AppLogger.weather.debug("Fetching weather from: \(url.absoluteString)")
+        ])
+
+        AppLogger.weather.debug("Fetching archive weather for \(dayFormatter.string(from: startDate), privacy: .public)..\(dayFormatter.string(from: endDate), privacy: .public)")
 
         let (data, response) = try await session.data(from: url)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw WeatherError.invalidResponse
-        }
-        
-        guard httpResponse.statusCode == 200 else {
-            throw WeatherError.httpError(statusCode: httpResponse.statusCode)
-        }
-        
-        let decoder = JSONDecoder()
-        let weatherData = try decoder.decode(WeatherData.self, from: data)
-        
-        // Find the closest hour to the migraine time
-        let snapshot = try createSnapshot(from: weatherData, targetDate: date)
-        
-        return snapshot
+        try OpenMeteo.validateHTTP(response)
+
+        // Decoding + nearest-hour search are pure functions of the payload;
+        // run them off the main actor.
+        let target = date
+        return try await Task.detached(priority: .userInitiated) {
+            let weatherData = try JSONDecoder().decode(WeatherData.self, from: data)
+            return try Self.createSnapshot(from: weatherData, targetDate: target)
+        }.value
     }
     
-    /// Calculate 24-hour pressure change
-    func calculatePressureChange(pressureData: [Double], targetIndex: Int) -> Double {
-        guard targetIndex >= 24, targetIndex < pressureData.count else {
-            // If we don't have 24 hours of data, calculate what we can
-            let startIndex = max(0, targetIndex - min(targetIndex, 24))
-            let currentPressure = pressureData[targetIndex]
-            let previousPressure = pressureData[startIndex]
-            return currentPressure - previousPressure
+    /// Pressure change over the 24 hours preceding `targetIndex`, falling
+    /// back to the earliest available reading when fewer than 24 hours of
+    /// data precede it. Returns `nil` if either endpoint is missing.
+    nonisolated static func calculatePressureChange(pressureData: [Double?], targetIndex: Int) -> Double? {
+        guard pressureData.indices.contains(targetIndex),
+              let currentPressure = pressureData[targetIndex] else {
+            return nil
         }
-        
-        let currentPressure = pressureData[targetIndex]
-        let pressure24hAgo = pressureData[targetIndex - 24]
-        return currentPressure - pressure24hAgo
+        let baselineIndex = max(0, targetIndex - 24)
+        // Walk forward from the ideal baseline until a non-null sample is found.
+        for index in baselineIndex..<targetIndex {
+            if let previous = pressureData[index] {
+                return currentPressure - previous
+            }
+        }
+        return 0
     }
     
     // MARK: - Private Methods
     
-    private func createSnapshot(from weatherData: WeatherData, targetDate: Date) throws -> WeatherSnapshot {
+    nonisolated private static func createSnapshot(from weatherData: WeatherData, targetDate: Date) throws -> WeatherSnapshot {
         let hourly = weatherData.hourly
-        
-        guard !hourly.time.isEmpty else {
-            throw WeatherError.noData
-        }
-        
-        // Open-Meteo returns dates in format "2025-11-28T00:00" (no timezone suffix)
-        // We need to try multiple formats
-        let dateFormatter = DateFormatter()
-        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        
-        // Try parsing with the Open-Meteo format first (most common)
-        let formats = [
-            "yyyy-MM-dd'T'HH:mm",      // Open-Meteo format: 2025-11-28T00:00
-            "yyyy-MM-dd'T'HH:mm:ss",   // With seconds: 2025-11-28T00:00:00
-            "yyyy-MM-dd'T'HH:mm:ssZ",  // With timezone: 2025-11-28T00:00:00Z
-            "yyyy-MM-dd'T'HH:mm:ssXXX" // With offset: 2025-11-28T00:00:00+00:00
-        ]
-        
-        func parseDate(_ timeString: String) -> Date? {
-            for format in formats {
-                dateFormatter.dateFormat = format
-                if let date = dateFormatter.date(from: timeString) {
-                    return date
-                }
-            }
-            // Also try ISO8601 as fallback
-            let isoFormatter = ISO8601DateFormatter()
-            isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = isoFormatter.date(from: timeString) {
-                return date
-            }
-            isoFormatter.formatOptions = [.withInternetDateTime]
-            return isoFormatter.date(from: timeString)
-        }
-        
-        var closestIndex = 0
-        var smallestDifference = TimeInterval.infinity
-        var foundValidDate = false
-        
+
+        try OpenMeteo.requireAlignedSeries(timeCount: hourly.time.count, series: [
+            ("temperature_2m", hourly.temperature2m.count),
+            ("surface_pressure", hourly.surfacePressure.count),
+            ("precipitation", hourly.precipitation.count),
+            ("cloudcover", hourly.cloudCover.count),
+            ("weathercode", hourly.weatherCode.count)
+        ])
+
+        let parser = OpenMeteo.TimeParser(timeZoneIdentifier: weatherData.timezone)
+
+        // Nearest hour that has a complete set of readings.
+        var best: (index: Int, timestamp: Date, distance: TimeInterval)?
         for (index, timeString) in hourly.time.enumerated() {
-            guard let timestamp = parseDate(timeString) else {
+            guard let timestamp = parser.date(from: timeString) else {
                 AppLogger.weather.error("Could not parse date string: \(timeString, privacy: .public)")
                 continue
             }
-            foundValidDate = true
-            let difference = abs(timestamp.timeIntervalSince(targetDate))
-            if difference < smallestDifference {
-                smallestDifference = difference
-                closestIndex = index
-            }
+            guard hourly.temperature2m[index] != nil,
+                  hourly.surfacePressure[index] != nil,
+                  hourly.weatherCode[index] != nil else { continue }
+            let distance = abs(timestamp.timeIntervalSince(targetDate))
+            if let current = best, distance >= current.distance { continue }
+            best = (index, timestamp, distance)
         }
-        
-        // If no valid dates were found, throw an error
-        guard foundValidDate else {
-            let sample = hourly.time.prefix(3).joined(separator: ", ")
-            AppLogger.weather.error("No valid dates in weather payload. Sample: \(sample, privacy: .public)")
-            throw WeatherError.invalidDate
+
+        guard let best,
+              let temperature = hourly.temperature2m[best.index],
+              let pressure = hourly.surfacePressure[best.index],
+              let weatherCode = hourly.weatherCode[best.index] else {
+            AppLogger.weather.error("No usable hourly sample in weather payload (\(hourly.time.count, privacy: .public) hours)")
+            throw WeatherError.noData
         }
-        
-        // Extract data for the closest hour
-        let temperature = hourly.temperature2m[closestIndex]
-        let pressure = hourly.surfacePressure[closestIndex]
-        let precipitation = hourly.precipitation[closestIndex]
-        let cloudCover = hourly.cloudCover[closestIndex]
-        let weatherCode = hourly.weatherCode[closestIndex]
-        
-        // Calculate 24-hour pressure change
+        let closestIndex = best.index
+        let timestamp = best.timestamp
+
         let pressureChange = calculatePressureChange(
             pressureData: hourly.surfacePressure,
             targetIndex: closestIndex
-        )
-        
-        let condition = Self.weatherCondition(for: weatherCode)
-        let icon = Self.weatherIcon(for: weatherCode)
-        
-        // Get the timestamp for the snapshot
-        guard let timestamp = parseDate(hourly.time[closestIndex]) else {
-            AppLogger.weather.error("Could not parse timestamp at index \(closestIndex, privacy: .public): \(hourly.time[closestIndex], privacy: .public)")
-            throw WeatherError.invalidDate
-        }
+        ) ?? 0
 
+        let condition = Self.weatherCondition(for: weatherCode)
         AppLogger.weather.debug("Weather snapshot built: \(condition, privacy: .public) at \(temperature, privacy: .public)°F, pressure \(pressure, privacy: .public) hPa")
-        
+
         return WeatherSnapshot(
             timestamp: timestamp,
             temperature: temperature,
             pressure: pressure,
             pressureChange24h: pressureChange,
-            precipitation: precipitation,
-            cloudCover: cloudCover,
+            precipitation: hourly.precipitation[closestIndex] ?? 0,
+            cloudCover: hourly.cloudCover[closestIndex] ?? 0,
             weatherCode: weatherCode,
             weatherCondition: condition,
-            weatherIcon: icon
+            weatherIcon: Self.weatherIcon(for: weatherCode)
         )
     }
     
@@ -335,10 +290,12 @@ class WeatherService: ObservableObject {
 
 // MARK: - Weather Errors
 
-enum WeatherError: LocalizedError {
+enum WeatherError: LocalizedError, Equatable {
     case invalidURL
+    case invalidCoordinates
     case invalidResponse
     case httpError(statusCode: Int)
+    case malformedResponse(field: String)
     case noData
     case invalidDate
     case locationUnavailable
@@ -347,10 +304,14 @@ enum WeatherError: LocalizedError {
         switch self {
         case .invalidURL:
             return "Invalid weather API URL"
+        case .invalidCoordinates:
+            return "Location coordinates are out of range"
         case .invalidResponse:
             return "Invalid response from weather service"
         case .httpError(let code):
             return "Weather service error (HTTP \(code))"
+        case .malformedResponse(let field):
+            return "Weather service returned incomplete data (\(field))"
         case .noData:
             return "No weather data available for this date"
         case .invalidDate:

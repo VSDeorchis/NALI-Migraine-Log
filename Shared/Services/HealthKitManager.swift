@@ -815,6 +815,23 @@ class HealthKitManager: ObservableObject {
         #endif
     }
 
+    /// Removes every headache sample this app has ever written, regardless
+    /// of whether mirroring is currently enabled. Health only lets an app
+    /// delete objects from its own `HKSource`, so this can never touch
+    /// samples the user logged elsewhere. Used by "Delete All Data".
+    @available(iOS 17.0, watchOS 10.0, *)
+    func deleteAllMirroredSamples() async throws {
+        #if canImport(HealthKit)
+        guard let healthStore = healthStore,
+              let headacheType = HKObjectType.categoryType(forIdentifier: .headache) else {
+            return
+        }
+        let predicate = HKQuery.predicateForObjects(from: HKSource.default())
+        let removed = try await healthStore.deleteObjects(of: headacheType, predicate: predicate)
+        AppLogger.health.notice("Removed \(removed, privacy: .public) mirrored headache samples from Health")
+        #endif
+    }
+
     /// Convenience entry point used when the user *deletes* a migraine in
     /// Headway. Mirrors the deletion into Health if mirroring is enabled
     /// and the user has authorized writes. Errors are swallowed and logged

@@ -632,7 +632,7 @@ class MigrainePredictionService: ObservableObject {
         guard migraines.count >= mlMinimumEntries else { return }
         
         // Check if we already trained recently
-        let lastTrainKey = "lastMLTrainDate"
+        let lastTrainKey = Self.lastTrainKey
         if let lastTrain = UserDefaults.standard.object(forKey: lastTrainKey) as? Date,
            Date().timeIntervalSince(lastTrain) < 7 * 86_400 { // once per week
             return
@@ -672,6 +672,7 @@ class MigrainePredictionService: ObservableObject {
                 throw FilePathError.documentsDirectoryUnavailable
             }
             try classifier.write(to: modelURL)
+            Self.excludeFromBackup(modelURL)
             
             UserDefaults.standard.set(Date(), forKey: lastTrainKey)
             modelStatus = .mlActive(confidence: 0.70)
@@ -734,7 +735,56 @@ class MigrainePredictionService: ObservableObject {
             csv += values.joined(separator: ",") + "\n"
         }
         
-        try csv.write(to: url, atomically: true, encoding: .utf8)
+        guard let bytes = csv.data(using: .utf8) else { return }
+        try bytes.write(to: url, options: Self.protectedWriteOptions)
+        Self.excludeFromBackup(url)
+    }
+
+    private static let lastTrainKey = "lastMLTrainDate"
+
+    /// Training rows are derived from health data, so they get the same
+    /// at-rest protection class as the Core Data store on platforms that
+    /// support per-file Data Protection.
+    private static var protectedWriteOptions: Data.WritingOptions {
+        #if os(macOS)
+        return [.atomic]
+        #else
+        return [.atomic, .completeFileProtection]
+        #endif
+    }
+
+    /// Deletes the on-device training CSV and trained model and returns the
+    /// engine to the rule-based tier. Used by "Delete All Data"; the next
+    /// risk calculation with enough entries re-trains from scratch.
+    func clearTrainedArtifacts() {
+        let fm = FileManager.default
+        var urls: [URL] = []
+        if let modelURL = getTrainedModelURL() { urls.append(modelURL) }
+        if let csvURL = try? getTrainingDataURL() { urls.append(csvURL) }
+        for url in urls where fm.fileExists(atPath: url.path) {
+            do {
+                try fm.removeItem(at: url)
+            } catch {
+                AppLogger.prediction.error("Failed to remove \(url.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        UserDefaults.standard.removeObject(forKey: Self.lastTrainKey)
+        modelStatus = .ruleBased
+        currentRisk = nil
+        hourlyForecast = []
+    }
+
+    /// Training artifacts are derived data; they are regenerated on demand
+    /// and should never travel in an iCloud/iTunes backup.
+    private static func excludeFromBackup(_ url: URL) {
+        var url = url
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        do {
+            try url.setResourceValues(values)
+        } catch {
+            AppLogger.prediction.debug("Could not mark \(url.lastPathComponent, privacy: .public) as excluded from backup: \(error.localizedDescription, privacy: .public)")
+        }
     }
     
     // MARK: - File Paths

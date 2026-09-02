@@ -192,7 +192,11 @@ struct LogMigraineIntent: AppIntent {
         do {
             try context.save()
             AppLogger.coreData.notice("Logged migraine via Siri intent: pain=\(self.painLevel, privacy: .public)")
+            if let id = migraine.id {
+                WatchConnectivityManager.shared.recordChange(of: id)
+            }
         } catch {
+            context.rollback()
             AppLogger.coreData.error("Siri intent save failed: \(error.localizedDescription, privacy: .public)")
             // Surface the error so Siri/Shortcuts shows it to the user
             // rather than silently swallowing it.

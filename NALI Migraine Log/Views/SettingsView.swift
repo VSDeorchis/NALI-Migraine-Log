@@ -41,6 +41,14 @@ struct SettingsView: View {
     // straight `Link` to the App Store deep link.
     @State private var showingFeedbackForm = false
 
+    // Privacy & Data — "Delete All Data" runs `viewModel.deleteAllData()`
+    // behind a destructive confirmation; the result alert reports whether
+    // Health cleanup also succeeded.
+    @State private var showingDeleteAllConfirm = false
+    @State private var isDeletingAll = false
+    @State private var showingDeleteAllResult = false
+    @State private var deleteAllResultMessage = ""
+
     // Apple Health mirroring. The toggle is bound directly through
     // `HealthKitManager.shared.isHealthSyncEnabled` (which persists to
     // UserDefaults on every change), so we only need local state for the
@@ -88,6 +96,7 @@ struct SettingsView: View {
         case appearance
         case units
         case export
+        case privacy
         case feedback
         case about
         
@@ -103,6 +112,7 @@ struct SettingsView: View {
             case .appearance:    return "Appearance"
             case .units:         return "Units"
             case .export:        return "Export Data"
+            case .privacy:       return "Privacy & Data"
             case .feedback:      return "Help & Feedback"
             case .about:         return "About"
             }
@@ -118,6 +128,7 @@ struct SettingsView: View {
             case .appearance:    return "paintbrush"
             case .units:         return "ruler"
             case .export:        return "square.and.arrow.up"
+            case .privacy:       return "hand.raised"
             case .feedback:      return "questionmark.circle"
             case .about:         return "info.circle"
             }
@@ -136,6 +147,7 @@ struct SettingsView: View {
             case .appearance:    return .purple
             case .units:         return .indigo
             case .export:        return .teal
+            case .privacy:       return .red
             case .feedback:      return .green
             case .about:         return .gray
             }
@@ -219,7 +231,10 @@ struct SettingsView: View {
             } message: {
                 Text("⚠️ IMPORTANT: Your exported data will NOT be encrypted.\n\nThis file will contain sensitive health information including:\n• Migraine dates and times\n• Pain levels and symptoms\n• Medications taken\n• Personal notes\n• Location/weather data\n\nOnly share this file with trusted healthcare providers. Delete the file after use to protect your privacy.")
             }
-            .sheet(isPresented: $showingExportSheet) {
+            .sheet(isPresented: $showingExportSheet, onDismiss: {
+                exportURL = nil
+                MigraineViewModel.removeExportFiles()
+            }) {
                 if let url = exportURL {
                     ShareSheet(items: [url])
                 }
@@ -231,6 +246,23 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showingFeedbackForm) {
                 FeedbackFormView(origin: .settings)
+            }
+            .confirmationDialog(
+                "Delete all migraine data?",
+                isPresented: $showingDeleteAllConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Delete Everything", role: .destructive) {
+                    Task { await performDeleteAll() }
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This permanently removes every entry on this device, from iCloud, from your Apple Watch, and the headache samples Headway wrote to Apple Health. Exported files you saved elsewhere are not affected. This cannot be undone.")
+            }
+            .alert("Data Deleted", isPresented: $showingDeleteAllResult) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(deleteAllResultMessage)
             }
             .confirmationDialog(
                 "Dismiss recovered database notice?",
@@ -273,6 +305,7 @@ struct SettingsView: View {
                 notificationsSection
                 appleHealthSection
                 exportSection
+                privacySection
                 feedbackSection
                 aboutSection
             }
@@ -344,6 +377,7 @@ struct SettingsView: View {
             .appearance,
             .units,
             .export,
+            .privacy,
             .feedback,
             .about,
         ])
@@ -375,6 +409,8 @@ struct SettingsView: View {
                 unitsSection
             case .export:
                 exportSection
+            case .privacy:
+                privacySection
             case .feedback:
                 feedbackSection
             case .about:
@@ -831,6 +867,47 @@ struct SettingsView: View {
         }
     }
     
+    // MARK: - Privacy & Data
+
+    private var privacySection: some View {
+        Section {
+            Button(role: .destructive) {
+                showingDeleteAllConfirm = true
+            } label: {
+                HStack {
+                    Label("Delete All Data", systemImage: "trash")
+                    if isDeletingAll {
+                        Spacer()
+                        ProgressView()
+                    }
+                }
+            }
+            .disabled(isDeletingAll || viewModel.migraines.isEmpty)
+            .accessibilityLabel("Delete all migraine data")
+            .accessibilityHint("Permanently removes every entry from this device, iCloud, Apple Watch, and Apple Health")
+        } header: {
+            Text("Privacy & Data")
+        } footer: {
+            Text("Your migraine history is stored on this device and, if iCloud sync is on, in your private iCloud database. Deleting all data also removes the headache samples Headway wrote to Apple Health and the on-device prediction model.")
+        }
+    }
+
+    private func performDeleteAll() async {
+        isDeletingAll = true
+        defer { isDeletingAll = false }
+        do {
+            let outcome = try await viewModel.deleteAllData()
+            if let healthError = outcome.healthCleanupError {
+                deleteAllResultMessage = "Removed \(outcome.deletedCount) entries. Apple Health samples could not be removed (\(healthError.localizedDescription)); you can delete them from the Health app under Browse › Symptoms › Headache."
+            } else {
+                deleteAllResultMessage = "Removed \(outcome.deletedCount) entries from this device, iCloud, Apple Watch, and Apple Health."
+            }
+        } catch {
+            deleteAllResultMessage = "Delete failed: \(error.localizedDescription). No data was removed."
+        }
+        showingDeleteAllResult = true
+    }
+
     // MARK: - Help & Feedback
 
     /// Always-available entry points for rating the app on the App Store
@@ -1231,10 +1308,16 @@ struct SettingsView: View {
             csvContent += row.joined(separator: ",") + "\n"
         }
         
-        let fileName = "Headway_Migraine_Export_\(fileDateFormatter.string(from: Date())).csv"
+        let fileName = "\(MigraineViewModel.exportFilePrefix)Export_\(fileDateFormatter.string(from: Date())).csv"
+        return try writeProtectedExport(Data(csvContent.utf8), named: fileName)
+    }
+
+    /// Exports hold unencrypted health data, so they are written with
+    /// complete file protection and only live in tmp until the share
+    /// sheet is dismissed (see `removeExportFiles`).
+    private func writeProtectedExport(_ data: Data, named fileName: String) throws -> URL {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-        try csvContent.write(to: tempURL, atomically: true, encoding: .utf8)
-        
+        try data.write(to: tempURL, options: [.atomic, .completeFileProtection])
         return tempURL
     }
     
@@ -1482,11 +1565,8 @@ struct SettingsView: View {
             footer.draw(in: CGRect(x: margin, y: currentY, width: contentWidth, height: 20), withAttributes: footerAttrs)
         }
         
-        let fileName = "Headway_Migraine_Report_\(fileDateFormatter.string(from: Date())).pdf"
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-        try data.write(to: tempURL)
-        
-        return tempURL
+        let fileName = "\(MigraineViewModel.exportFilePrefix)Report_\(fileDateFormatter.string(from: Date())).pdf"
+        return try writeProtectedExport(data, named: fileName)
     }
     
     private func escapeCSV(_ string: String) -> String {

@@ -156,68 +156,8 @@ extension MigraineEvent {
         }
     }
     
-    func toWatchSyncDictionary() -> [String: Any] {
-        var dict: [String: Any] = [
-            "id": id?.uuidString ?? UUID().uuidString,
-            "startTime": startTime?.timeIntervalSince1970 ?? Date().timeIntervalSince1970,
-            "painLevel": painLevel,
-            "location": location ?? "",
-            
-            // Boolean symptoms
-            "hasAura": hasAura,
-            "hasPhotophobia": hasPhotophobia,
-            "hasPhonophobia": hasPhonophobia,
-            "hasNausea": hasNausea,
-            "hasVomiting": hasVomiting,
-            "hasWakeUpHeadache": hasWakeUpHeadache,
-            "hasTinnitus": hasTinnitus,
-            "hasVertigo": hasVertigo,
-            "missedWork": missedWork,
-            "missedSchool": missedSchool,
-            "missedEvents": missedEvents,
-            
-            // Medication booleans
-            "tookTylenol": tookTylenol,
-            "tookIbuprofin": tookIbuprofin,
-            "tookNaproxen": tookNaproxen,
-            "tookExcedrin": tookExcedrin,
-            "tookUbrelvy": tookUbrelvy,
-            "tookNurtec": tookNurtec,
-            "tookSymbravo": tookSymbravo,
-            "tookSumatriptan": tookSumatriptan,
-            "tookRizatriptan": tookRizatriptan,
-            "tookEletriptan": tookEletriptan,
-            "tookNaratriptan": tookNaratriptan,
-            "tookFrovatriptan": tookFrovatriptan,
-            "tookReyvow": tookReyvow,
-            "tookTrudhesa": tookTrudhesa,
-            "tookElyxyb": tookElyxyb,
-            "tookOther": tookOther,
-            
-            // Trigger booleans
-            "isTriggerStress": isTriggerStress,
-            "isTriggerLackOfSleep": isTriggerLackOfSleep,
-            "isTriggerDehydration": isTriggerDehydration,
-            "isTriggerWeather": isTriggerWeather,
-            "isTriggerHormones": isTriggerHormones,
-            "isTriggerAlcohol": isTriggerAlcohol,
-            "isTriggerCaffeine": isTriggerCaffeine,
-            "isTriggerFood": isTriggerFood,
-            "isTriggerExercise": isTriggerExercise,
-            "isTriggerScreenTime": isTriggerScreenTime,
-            "isTriggerOther": isTriggerOther
-        ]
-        
-        if let endTime = endTime {
-            dict["endTime"] = endTime.timeIntervalSince1970
-        }
-        if let notes = notes {
-            dict["notes"] = notes
-        }
-        
-        return dict
-    }
-    
+    /// Decodes the pre-v2 WatchConnectivity dictionary format. Retained only so
+    /// a device running an older build can still seed entries here.
     func updateFromDictionary(_ dict: [String: Any]) {
         if let idString = dict["id"] as? String {
             id = UUID(uuidString: idString)
@@ -277,12 +217,6 @@ extension MigraineEvent {
         isTriggerExercise = dict["isTriggerExercise"] as? Bool ?? false
         isTriggerScreenTime = dict["isTriggerScreenTime"] as? Bool ?? false
         isTriggerOther = dict["isTriggerOther"] as? Bool ?? false
-    }
-    
-    static func from(dictionary dict: [String: Any], in context: NSManagedObjectContext) throws -> MigraineEvent {
-        let migraine = MigraineEvent(context: context)
-        migraine.updateFromDictionary(dict)
-        return migraine
     }
 }
 
