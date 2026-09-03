@@ -3,7 +3,7 @@ import CoreData
 
 struct WatchMigraineLogView: View {
     @ObservedObject var viewModel: MigraineViewModel
-    @ObservedObject private var navigator = WatchNavigationCoordinator.shared
+    @Bindable private var navigator = WatchNavigationCoordinator.shared
     
     var body: some View {
         List {

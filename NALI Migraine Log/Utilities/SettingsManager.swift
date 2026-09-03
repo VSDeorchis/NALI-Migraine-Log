@@ -1,27 +1,29 @@
 import SwiftUI
 
-class SettingsManager: ObservableObject {
+@Observable
+@MainActor
+final class SettingsManager {
     static let shared = SettingsManager()
     
-    @Published var useICloudSync: Bool {
+    var useICloudSync: Bool {
         didSet {
             UserDefaults.standard.set(useICloudSync, forKey: "useICloudSync")
         }
     }
     
-    @Published var colorScheme: ColorSchemePreference {
+    var colorScheme: ColorSchemePreference {
         didSet {
             UserDefaults.standard.set(colorScheme.rawValue, forKey: "colorScheme")
         }
     }
     
-    @Published var temperatureUnit: TemperatureUnit {
+    var temperatureUnit: TemperatureUnit {
         didSet {
             UserDefaults.standard.set(temperatureUnit.rawValue, forKey: "temperatureUnit")
         }
     }
     
-    @Published var pressureUnit: PressureUnit {
+    var pressureUnit: PressureUnit {
         didSet {
             UserDefaults.standard.set(pressureUnit.rawValue, forKey: "pressureUnit")
         }

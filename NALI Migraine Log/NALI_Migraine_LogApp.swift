@@ -13,12 +13,12 @@ import CoreData
 struct NALI_Migraine_LogApp: App {
     @StateObject private var viewModel: MigraineViewModel
     @StateObject private var connectivityManager = WatchConnectivityManager.shared
-    @StateObject private var settings = SettingsManager.shared
+    private var settings = SettingsManager.shared
     @StateObject private var locationManager = LocationManager.shared
     /// Receives "open a screen" requests from App Intents (Siri /
     /// Shortcuts). Currently drives the New Entry sheet below via
     /// `OpenNewEntryIntent`.
-    @StateObject private var navigator = AppNavigationCoordinator.shared
+    @Bindable private var navigator = AppNavigationCoordinator.shared
     /// One-time launch work (legacy import, version upgrade steps) runs
     /// from `.task` below; the splash stays up only until it finishes
     /// (floor matches the splash intro animation length).

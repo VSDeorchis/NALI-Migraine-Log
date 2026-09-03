@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 import PDFKit
 
 struct SettingsView: View {
-    @StateObject private var settings = SettingsManager.shared
+    @Bindable private var settings = SettingsManager.shared
     @StateObject private var locationManager = LocationManager.shared
     @ObservedObject var viewModel: MigraineViewModel
     @Environment(\.dismiss) var dismiss

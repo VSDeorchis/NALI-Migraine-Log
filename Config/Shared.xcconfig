@@ -12,4 +12,9 @@ IPHONEOS_DEPLOYMENT_TARGET = 18.2
 WATCHOS_DEPLOYMENT_TARGET = 11.2
 MACOSX_DEPLOYMENT_TARGET = 15.2
 
-SWIFT_VERSION = 6.0
+// Swift 5 language mode with complete concurrency checking: every data-race
+// finding the Swift 6 mode would reject is surfaced as a warning, so the
+// remaining isolation cleanup can land incrementally and the flip to
+// SWIFT_VERSION = 6.0 becomes a one-line change once the build is warning-free.
+SWIFT_VERSION = 5.0
+SWIFT_STRICT_CONCURRENCY = complete
