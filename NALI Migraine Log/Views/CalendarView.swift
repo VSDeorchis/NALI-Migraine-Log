@@ -19,6 +19,7 @@ struct CalendarView: View {
     /// Drives the side-by-side layout on iPad. iPhone keeps the
     /// existing single-column flow with NavigationLink-based pushes.
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var containerWidth: CGFloat = 0
     
     private let calendar = Calendar.current
     private let dateFormatter: DateFormatter = {
@@ -33,12 +34,13 @@ struct CalendarView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if horizontalSizeClass == .regular {
+                if AdaptiveColumns.usesTwoColumns(sizeClass: horizontalSizeClass, width: containerWidth) {
                     iPadBody
                 } else {
                     iPhoneBody
                 }
             }
+            .measureWidth(into: $containerWidth)
             .navigationTitle("Calendar")
             .sheet(isPresented: $showingNewMigraine) {
                 NewMigraineView(viewModel: viewModel)
@@ -117,7 +119,7 @@ struct CalendarView: View {
             Divider()
             
             iPadDetailColumn
-                .frame(width: 380)
+                .frame(width: AdaptiveColumns.masterWidth(for: containerWidth))
                 .background(Color(.systemGroupedBackground))
         }
     }

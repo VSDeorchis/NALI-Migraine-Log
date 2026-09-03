@@ -29,6 +29,11 @@ struct MigraineLogView: View {
     /// in landscape. Drives the two-column layout: master list +
     /// inline detail instead of the iPhone-only sheet pattern.
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var containerWidth: CGFloat = 0
+    
+    private var usesTwoColumns: Bool {
+        AdaptiveColumns.usesTwoColumns(sizeClass: horizontalSizeClass, width: containerWidth)
+    }
     
     enum FilterOption: String, CaseIterable {
         case all = "All"
@@ -43,12 +48,13 @@ struct MigraineLogView: View {
     
     var body: some View {
         Group {
-            if horizontalSizeClass == .regular {
+            if usesTwoColumns {
                 iPadBody
             } else {
                 iPhoneBody
             }
         }
+        .measureWidth(into: $containerWidth)
         .sheet(isPresented: $showingNewMigraineSheet) {
             NewMigraineView(viewModel: viewModel)
         }
@@ -151,7 +157,7 @@ struct MigraineLogView: View {
                     iPadMasterHeader
                     masterColumnContent
                 }
-                .frame(width: 380)
+                .frame(width: AdaptiveColumns.masterWidth(for: containerWidth))
                 
                 Divider()
                 

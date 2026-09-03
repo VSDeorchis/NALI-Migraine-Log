@@ -54,8 +54,17 @@ enum AppDestination: Int, CaseIterable, Identifiable {
 struct iOSContentView: View {
     @StateObject private var viewModel: MigraineViewModel
     @StateObject private var connectivityManager = WatchConnectivityManager.shared
-    @State private var selectedDestination: AppDestination = .log
+    @SceneStorage("app.selectedDestination") private var selectedDestinationRaw: Int = AppDestination.log.rawValue
     @State private var showingNewMigraine = false
+
+    /// Backed by `@SceneStorage` so each iPad window restores the tab or
+    /// sidebar row it was showing; unknown stored values fall back to Log.
+    private var selectedDestination: Binding<AppDestination> {
+        Binding(
+            get: { AppDestination(rawValue: selectedDestinationRaw) ?? .log },
+            set: { selectedDestinationRaw = $0.rawValue }
+        )
+    }
 
     /// `.regular` ≈ iPad in any orientation, plus iPhone Plus/Pro Max in
     /// landscape. We only swap to the sidebar in that case; everything
@@ -105,7 +114,7 @@ struct iOSContentView: View {
             
             ForEach(AppDestination.allCases) { destination in
                 Button("Switch to \(destination.title)") {
-                    selectedDestination = destination
+                    selectedDestination.wrappedValue = destination
                 }
                 .keyboardShortcut(destination.shortcutKey, modifiers: .command)
             }
@@ -118,7 +127,7 @@ struct iOSContentView: View {
     // MARK: - iPhone (compact)
 
     private var iPhoneTabLayout: some View {
-        TabView(selection: $selectedDestination) {
+        TabView(selection: selectedDestination) {
             ForEach(AppDestination.allCases) { destination in
                 destinationView(for: destination)
                     .tabItem {
@@ -138,9 +147,9 @@ struct iOSContentView: View {
     private var iPadSplitLayout: some View {
         NavigationSplitView {
             List(selection: Binding(
-                get: { Optional(selectedDestination) },
+                get: { Optional(selectedDestination.wrappedValue) },
                 set: { newValue in
-                    if let value = newValue { selectedDestination = value }
+                    if let value = newValue { selectedDestination.wrappedValue = value }
                 }
             )) {
                 ForEach(AppDestination.allCases) { destination in
@@ -179,8 +188,8 @@ struct iOSContentView: View {
                 }
             }
         } detail: {
-            destinationView(for: selectedDestination)
-                .id(selectedDestination)
+            destinationView(for: selectedDestination.wrappedValue)
+                .id(selectedDestination.wrappedValue)
         }
     }
     
