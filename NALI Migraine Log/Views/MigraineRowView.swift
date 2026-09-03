@@ -3,7 +3,7 @@ import UIKit
 
 struct MigraineRowView: View {
     let viewModel: MigraineViewModel
-    @ObservedObject private var settings = SettingsManager.shared
+    private let settings = SettingsManager.shared
     let migraine: MigraineEvent
     
     private let dateFormatter: DateFormatter = {

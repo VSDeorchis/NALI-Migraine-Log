@@ -29,7 +29,9 @@ enum DataMigrationHelper {
     private static let migrationCompletedKey = "hasPerformedCoreDateMigration"
     private static let legacyDataKey = "migraines"
 
-    static func checkAndMigrateData(context: NSManagedObjectContext) {
+    /// Imports the pre-Core Data log once. Throws when legacy data exists
+    /// but could not be decoded or saved, leaving it in place for a retry.
+    static func migrateLegacyDataIfNeeded(context: NSManagedObjectContext) throws {
         guard !UserDefaults.standard.bool(forKey: migrationCompletedKey) else {
             return
         }
@@ -41,46 +43,47 @@ enum DataMigrationHelper {
             return
         }
 
-        do {
-            let oldMigraines = try JSONDecoder().decode([OldMigraineEvent].self, from: data)
+        let oldMigraines = try JSONDecoder().decode([OldMigraineEvent].self, from: data)
 
-            for old in oldMigraines {
-                let migraine = MigraineEvent(context: context)
-                migraine.id = old.id
-                migraine.startTime = old.startTime
-                migraine.endTime = old.endTime
-                migraine.painLevel = Int16(old.painLevel)
-                migraine.location = old.location
-                migraine.notes = old.notes
+        for old in oldMigraines {
+            let migraine = MigraineEvent(context: context)
+            migraine.id = old.id
+            migraine.startTime = old.startTime
+            migraine.endTime = old.endTime
+            migraine.painLevel = Int16(old.painLevel)
+            migraine.location = old.location
+            migraine.notes = old.notes
 
-                migraine.hasAura = old.hasAura
-                migraine.hasPhotophobia = old.hasPhotophobia
-                migraine.hasPhonophobia = old.hasPhonophobia
-                migraine.hasNausea = old.hasNausea
-                migraine.hasVomiting = old.hasVomiting
-                migraine.hasWakeUpHeadache = old.hasWakeUpHeadache
-                migraine.hasTinnitus = old.hasTinnitus
-                migraine.hasVertigo = old.hasVertigo
-                migraine.missedWork = old.missedWork
-                migraine.missedSchool = old.missedSchool
-                migraine.missedEvents = old.missedEvents
+            migraine.hasAura = old.hasAura
+            migraine.hasPhotophobia = old.hasPhotophobia
+            migraine.hasPhonophobia = old.hasPhonophobia
+            migraine.hasNausea = old.hasNausea
+            migraine.hasVomiting = old.hasVomiting
+            migraine.hasWakeUpHeadache = old.hasWakeUpHeadache
+            migraine.hasTinnitus = old.hasTinnitus
+            migraine.hasVertigo = old.hasVertigo
+            migraine.missedWork = old.missedWork
+            migraine.missedSchool = old.missedSchool
+            migraine.missedEvents = old.missedEvents
 
-                // Round-trip through the enum facades so legacy synonyms
-                // (e.g. "Hormones" → .menstrual, "Ibuprofin" → .ibuprofin)
-                // are honored, and so any new cases added to MigraineTrigger /
-                // MigraineMedication are picked up automatically.
-                migraine.triggers = Set(old.triggers.compactMap(MigraineTrigger.init(displayName:)))
-                migraine.medications = Set(old.medications.compactMap(MigraineMedication.init(displayName:)))
-            }
-
-            try context.save()
-
-            UserDefaults.standard.set(true, forKey: migrationCompletedKey)
-            UserDefaults.standard.removeObject(forKey: legacyDataKey)
-
-            AppLogger.migration.notice("Migrated \(oldMigraines.count, privacy: .public) migraines from UserDefaults to Core Data")
-        } catch {
-            AppLogger.migration.error("Failed migrating data to Core Data: \(error.localizedDescription, privacy: .public)")
+            // Round-trip through the enum facades so legacy synonyms
+            // (e.g. "Hormones" → .menstrual, "Ibuprofin" → .ibuprofin)
+            // are honored, and so any new cases added to MigraineTrigger /
+            // MigraineMedication are picked up automatically.
+            migraine.triggers = Set(old.triggers.compactMap(MigraineTrigger.init(displayName:)))
+            migraine.medications = Set(old.medications.compactMap(MigraineMedication.init(displayName:)))
         }
+
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            throw error
+        }
+
+        UserDefaults.standard.set(true, forKey: migrationCompletedKey)
+        UserDefaults.standard.removeObject(forKey: legacyDataKey)
+
+        AppLogger.migration.notice("Migrated \(oldMigraines.count, privacy: .public) migraines from UserDefaults to Core Data")
     }
 }

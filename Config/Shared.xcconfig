@@ -1,0 +1,20 @@
+// Single source of truth for settings that must stay in lockstep across
+// the iOS, watchOS and macOS targets. Target-level overrides for these
+// keys were removed from project.pbxproj; edit them here.
+//
+// App Store requires the WatchKit app's CFBundleVersion/CFBundleShortVersionString
+// to match the companion iOS app, so both versions live here only.
+
+MARKETING_VERSION = 2.83
+CURRENT_PROJECT_VERSION = 14
+
+IPHONEOS_DEPLOYMENT_TARGET = 18.2
+WATCHOS_DEPLOYMENT_TARGET = 11.2
+MACOSX_DEPLOYMENT_TARGET = 15.2
+
+// Swift 5 language mode with complete concurrency checking: every data-race
+// finding the Swift 6 mode would reject is surfaced as a warning, so the
+// remaining isolation cleanup can land incrementally and the flip to
+// SWIFT_VERSION = 6.0 becomes a one-line change once the build is warning-free.
+SWIFT_VERSION = 5.0
+SWIFT_STRICT_CONCURRENCY = complete

@@ -14,27 +14,23 @@ struct WatchMigraineRiskView: View {
     @State private var isRefreshing = false
     @State private var lastRefresh: Date?
     
-    /// True when we have a recent synced risk from iPhone (less than 30 min old)
-    private var hasFreshSyncedRisk: Bool {
-        guard let ts = connectivity.syncedRiskTimestamp,
-              connectivity.syncedRiskPercentage != nil else { return false }
-        return Date().timeIntervalSince(ts) < 1800 // 30 minutes
+    /// iPhone-synced risk when it is recent (less than 30 min old); otherwise nil.
+    private var freshSyncedRisk: WatchRiskPayload? {
+        guard let synced = connectivity.syncedRisk,
+              Date().timeIntervalSince(synced.timestamp) < 1800 else { return nil }
+        return synced
     }
+
+    private var hasFreshSyncedRisk: Bool { freshSyncedRisk != nil }
     
     /// Effective risk percentage to display (prefer iPhone-synced value)
     private var displayRiskPercentage: Int {
-        if hasFreshSyncedRisk, let synced = connectivity.syncedRiskPercentage {
-            return synced
-        }
-        return predictionService.currentRisk?.riskPercentage ?? 0
+        freshSyncedRisk?.riskPercentage ?? predictionService.currentRisk?.riskPercentage ?? 0
     }
     
     /// Effective risk level string
     private var displayRiskLevel: String {
-        if hasFreshSyncedRisk, let synced = connectivity.syncedRiskLevel {
-            return synced
-        }
-        return predictionService.currentRisk?.riskLevel.rawValue ?? "Low"
+        freshSyncedRisk?.riskLevel ?? predictionService.currentRisk?.riskLevel.rawValue ?? "Low"
     }
     
     /// Effective risk color
@@ -49,7 +45,7 @@ struct WatchMigraineRiskView: View {
     
     /// Effective recommendations
     private var displayRecommendations: [String] {
-        if hasFreshSyncedRisk, let recs = connectivity.syncedRiskRecommendations, !recs.isEmpty {
+        if let recs = freshSyncedRisk?.recommendations, !recs.isEmpty {
             return Array(recs.prefix(2))
         }
         return Array((predictionService.currentRisk?.recommendations ?? []).prefix(2))
@@ -57,13 +53,9 @@ struct WatchMigraineRiskView: View {
     
     /// Effective factors for display
     private var displayFactors: [RiskFactor] {
-        if hasFreshSyncedRisk, let factorsData = connectivity.syncedRiskFactors {
-            return factorsData.compactMap { dict -> RiskFactor? in
-                guard let name = dict["name"] as? String,
-                      let contribution = dict["contribution"] as? Double,
-                      let icon = dict["icon"] as? String else { return nil }
-                let detail = dict["detail"] as? String ?? ""
-                return RiskFactor(name: name, contribution: contribution, icon: icon, color: .orange, detail: detail)
+        if let factors = freshSyncedRisk?.factors {
+            return factors.map {
+                RiskFactor(name: $0.name, contribution: $0.contribution, icon: $0.icon, color: .orange, detail: $0.detail)
             }
         }
         return Array((predictionService.currentRisk?.topFactors ?? []).prefix(3))
@@ -71,10 +63,7 @@ struct WatchMigraineRiskView: View {
     
     /// Last updated time
     private var displayLastUpdated: Date? {
-        if hasFreshSyncedRisk, let ts = connectivity.syncedRiskTimestamp {
-            return ts
-        }
-        return lastRefresh
+        freshSyncedRisk?.timestamp ?? lastRefresh
     }
     
     var body: some View {

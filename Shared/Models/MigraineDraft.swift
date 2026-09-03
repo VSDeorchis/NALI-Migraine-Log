@@ -3,7 +3,7 @@ import Foundation
 /// User-editable fields of a migraine entry, independent of Core Data.
 /// The iOS, macOS and watchOS entry forms all funnel through this so the
 /// mapping onto `MigraineEvent` lives in exactly one place.
-struct MigraineDraft {
+struct MigraineDraft: Codable, Equatable, Sendable {
     var startTime: Date
     var endTime: Date?
     var painLevel: Int16

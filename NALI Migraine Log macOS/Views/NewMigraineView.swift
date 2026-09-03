@@ -37,10 +37,6 @@ struct NewMigraineView: View {
         .stress, .lackOfSleep, .weather, .food, .caffeine,
         .alcohol, .exercise, .screenTime, .menstrual, .other
     ]
-    private let medicationOptions: [MigraineMedication] = [
-        .sumatriptan, .rizatriptan, .frovatriptan, .naratriptan, .ubrelvy,
-        .nurtec, .symbravo, .tylenol, .ibuprofin, .excedrin, .other
-    ]
     
     var body: some View {
         VStack(spacing: 0) {
@@ -126,19 +122,7 @@ struct NewMigraineView: View {
                 }
                 
                 Section("Medications") {
-                    ForEach(medicationOptions) { medication in
-                        Toggle(medication.displayName, isOn: Binding(
-                            get: { selectedMedications.contains(medication) },
-                            set: { isSelected in
-                                if isSelected {
-                                    selectedMedications.insert(medication)
-                                } else {
-                                    selectedMedications.remove(medication)
-                                }
-                            }
-                        ))
-                        .toggleStyle(.switch)
-                    }
+                    MedicationPickerRows(selection: $selectedMedications)
                 }
                 
                 Section("Impact") {

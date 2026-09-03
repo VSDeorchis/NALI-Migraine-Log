@@ -162,7 +162,7 @@ enum MigrationCoordinator {
                 AppLogger.migration.notice("Running upgrade step: \(step.id, privacy: .public)")
                 try step.perform(context)
             } catch {
-                AppLogger.migration.error("Upgrade step \(step.id, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+                AppLogger.migration.error("Upgrade step \(step.id, privacy: .public) failed: \(error.localizedDescription, privacy: .private)")
             }
         }
 
@@ -176,7 +176,7 @@ enum MigrationCoordinator {
                 try context.save()
                 AppLogger.migration.notice("Saved upgrade-step changes for \(from, privacy: .public) → \(to, privacy: .public).")
             } catch {
-                AppLogger.migration.error("Failed to save upgrade-step changes: \(error.localizedDescription, privacy: .public)")
+                AppLogger.migration.error("Failed to save upgrade-step changes: \(error.localizedDescription, privacy: .private)")
             }
         }
     }

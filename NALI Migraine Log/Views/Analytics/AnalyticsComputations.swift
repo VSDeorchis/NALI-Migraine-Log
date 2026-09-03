@@ -183,6 +183,138 @@ extension Array where Element == MigraineEvent {
     }
 }
 
+// MARK: - Dashboard aggregates
+
+extension Array where Element == MigraineEvent {
+
+    /// Mean duration of entries that have an explicit end time; `nil` when
+    /// no entry in the set has been closed out.
+    var averageDuration: TimeInterval? {
+        let durations = compactMap { migraine -> TimeInterval? in
+            guard let start = migraine.startTime, let end = migraine.endTime else { return nil }
+            return end.timeIntervalSince(start)
+        }
+        guard !durations.isEmpty else { return nil }
+        return durations.reduce(0, +) / Double(durations.count)
+    }
+
+    /// Number of entries that contribute to `averageDuration`.
+    var completedCount: Int {
+        reduce(0) { $0 + ($1.endTime == nil ? 0 : 1) }
+    }
+
+    /// Mean pain level, or 0 for an empty set.
+    var averagePain: Double {
+        guard !isEmpty else { return 0 }
+        return reduce(0.0) { $0 + Double($1.painLevel) } / Double(count)
+    }
+
+    /// Total medication doses across all entries (one per flagged medication).
+    var totalMedicationUses: Int {
+        reduce(0) { $0 + $1.medications.count }
+    }
+
+    /// Entries whose start time falls inside `interval`.
+    func count(in interval: DateInterval) -> Int {
+        reduce(0) { acc, migraine in
+            guard let start = migraine.startTime, interval.contains(start) else { return acc }
+            return acc + 1
+        }
+    }
+
+    /// One point per pain level 1...10, including zero counts.
+    var painLevelDistribution: [PainLevelPoint] {
+        var counts: [Int: Int] = [:]
+        for migraine in self {
+            counts[Int(migraine.painLevel), default: 0] += 1
+        }
+        return (1...10).map { PainLevelPoint(level: $0, count: counts[$0] ?? 0) }
+    }
+
+    /// Triggers sorted by frequency, most common first; zero-count triggers omitted.
+    var triggerDistribution: [TriggerPoint] {
+        var counts: [MigraineTrigger: Int] = [:]
+        for migraine in self {
+            for trigger in migraine.triggers { counts[trigger, default: 0] += 1 }
+        }
+        return counts
+            .filter { $0.value > 0 }
+            .map { TriggerPoint(trigger: $0.key.displayName, count: $0.value) }
+            .sorted { $0.count > $1.count }
+    }
+
+    /// Medications sorted by frequency, most used first; zero-count medications omitted.
+    var medicationDistribution: [MedicationPoint] {
+        var counts: [MigraineMedication: Int] = [:]
+        for migraine in self {
+            for medication in migraine.medications { counts[medication, default: 0] += 1 }
+        }
+        return counts
+            .filter { $0.value > 0 }
+            .map { MedicationPoint(medication: $0.key.displayName, count: $0.value) }
+            .sorted { $0.count > $1.count }
+    }
+
+    static var timeOfDaySlots: [String] { ["Morning", "Afternoon", "Evening", "Night"] }
+
+    /// Onset counts per part of day (Morning 5–12, Afternoon 12–17,
+    /// Evening 17–22, Night otherwise). Always emits all four slots.
+    func timeOfDayDistribution(calendar: Calendar = .current) -> [TimeOfDayPoint] {
+        var counts: [String: Int] = [:]
+        for migraine in self {
+            guard let date = migraine.startTime else { continue }
+            let slot: String
+            switch calendar.component(.hour, from: date) {
+            case 5..<12:  slot = "Morning"
+            case 12..<17: slot = "Afternoon"
+            case 17..<22: slot = "Evening"
+            default:      slot = "Night"
+            }
+            counts[slot, default: 0] += 1
+        }
+        return Self.timeOfDaySlots.map { TimeOfDayPoint(timeOfDay: $0, count: counts[$0] ?? 0) }
+    }
+
+    /// Missed work / school / events counts, always three points.
+    var qualityOfLifeDistribution: [QualityOfLifePoint] {
+        [
+            QualityOfLifePoint(type: "Missed Work", count: filter(\.missedWork).count),
+            QualityOfLifePoint(type: "Missed School", count: filter(\.missedSchool).count),
+            QualityOfLifePoint(type: "Missed Events", count: filter(\.missedEvents).count)
+        ]
+    }
+
+    /// Entries per calendar month for the `monthsBack` months ending with
+    /// the month containing `now`. Months without entries are included.
+    func monthlyDistribution(monthsBack: Int = 6,
+                             now: Date = Date(),
+                             calendar: Calendar = .current) -> [MonthlyPoint] {
+        let currentMonthStart = calendar.date(
+            from: calendar.dateComponents([.year, .month], from: now)
+        ) ?? now
+        let windowStart = calendar.date(byAdding: .month, value: -monthsBack, to: currentMonthStart) ?? currentMonthStart
+        let windowEnd = calendar.date(byAdding: .month, value: 1, to: currentMonthStart) ?? now
+
+        var counts: [Date: Int] = [:]
+        var cursor = windowStart
+        while cursor < windowEnd {
+            counts[cursor] = 0
+            guard let next = calendar.date(byAdding: .month, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+
+        for migraine in self {
+            guard let date = migraine.startTime, date >= windowStart, date < windowEnd,
+                  let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: date))
+            else { continue }
+            counts[monthStart, default: 0] += 1
+        }
+
+        return counts.map { MonthlyPoint(month: $0.key, count: $0.value) }
+            .sorted { $0.month < $1.month }
+    }
+}
+
 // MARK: - Day-of-week
 
 extension Array where Element == MigraineEvent {

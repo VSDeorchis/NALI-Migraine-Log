@@ -713,7 +713,7 @@ struct MigraineRiskView: View {
                     dailyCheckIn: DailyCheckInData.loadToday()
                 )
             } catch {
-                AppLogger.prediction.error("Forecast fetch failed: \(error.localizedDescription, privacy: .public)")
+                AppLogger.prediction.error("Forecast fetch failed: \(error.localizedDescription, privacy: .private)")
             }
         }
         

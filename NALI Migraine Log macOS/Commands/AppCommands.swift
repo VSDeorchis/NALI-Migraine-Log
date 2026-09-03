@@ -1,24 +1,30 @@
 import SwiftUI
 
+/// Menu-bar commands. Everything here targets the key window through
+/// `FocusedValues` (see `MacFocusedValues.swift`), so items are disabled
+/// when no window — or no migraine list — can handle them.
 struct AppCommands: Commands {
-    @ObservedObject var viewModel: MigraineViewModel
-    @Binding var showingNewMigraine: Bool
-    @Binding var selectedTab: Int
+    @FocusedValue(\.newMigraine) private var newMigraine
+    @FocusedValue(\.refreshMigraines) private var refreshMigraines
+    @FocusedValue(\.selectedTab) private var selectedTab
+    @FocusedValue(\.migraineListActions) private var listActions
     
     var body: some Commands {
         // File menu
         CommandGroup(after: .newItem) {
             Button("New Migraine") {
-                showingNewMigraine = true
+                newMigraine?()
             }
             .keyboardShortcut("n", modifiers: .command)
+            .disabled(newMigraine == nil)
             
             Divider()
             
-            Button("Export All Data…") {
-                exportAllData()
+            Button("Export Entries as CSV…") {
+                listActions?.exportCSV()
             }
             .keyboardShortcut("e", modifiers: [.command, .shift])
+            .disabled(listActions == nil)
             
             Divider()
             
@@ -30,6 +36,23 @@ struct AppCommands: Commands {
                 }
             }
             .keyboardShortcut(",", modifiers: .command)
+        }
+        
+        // Edit menu
+        CommandGroup(after: .pasteboard) {
+            Divider()
+            
+            Button("Edit Migraine") {
+                listActions?.editSelected()
+            }
+            .keyboardShortcut("e", modifiers: .command)
+            .disabled(listActions?.hasSelection != true)
+            
+            Button("Delete Migraine…") {
+                listActions?.deleteSelected()
+            }
+            .keyboardShortcut(.delete, modifiers: .command)
+            .disabled(listActions?.hasSelection != true)
         }
         
         // Sidebar
@@ -44,36 +67,20 @@ struct AppCommands: Commands {
         // View menu
         CommandMenu("View") {
             Button("Refresh Data") {
-                viewModel.fetchMigraines()
+                refreshMigraines?()
             }
             .keyboardShortcut("r", modifiers: .command)
+            .disabled(refreshMigraines == nil)
             
             Divider()
             
-            Button("Migraine Log") {
-                selectedTab = 0
+            ForEach(MacDestination.allCases) { destination in
+                Button(destination.title) {
+                    selectedTab?.wrappedValue = destination.rawValue
+                }
+                .keyboardShortcut(destination.shortcutKey, modifiers: .command)
+                .disabled(selectedTab == nil)
             }
-            .keyboardShortcut("1", modifiers: .command)
-            
-            Button("Calendar") {
-                selectedTab = 1
-            }
-            .keyboardShortcut("2", modifiers: .command)
-            
-            Button("Predict") {
-                selectedTab = 2
-            }
-            .keyboardShortcut("3", modifiers: .command)
-            
-            Button("Analytics") {
-                selectedTab = 3
-            }
-            .keyboardShortcut("4", modifiers: .command)
-            
-            Button("About") {
-                selectedTab = 4
-            }
-            .keyboardShortcut("5", modifiers: .command)
         }
         
         // Help menu
@@ -123,10 +130,12 @@ struct AppCommands: Commands {
             
             Group {
                 Text("⌘N  New Migraine")
+                Text("⌘E  Edit Selected Migraine")
+                Text("⌘⌫  Delete Selected Migraine")
                 Text("⌘1-5  Switch Views")
                 Text("⌘R  Refresh Data")
                 Text("⌘I  Toggle Inspector")
-                Text("⇧⌘E  Export Data")
+                Text("⇧⌘E  Export Entries as CSV")
                 Text("⌘,  Settings")
             }
             .font(.caption)
@@ -134,42 +143,4 @@ struct AppCommands: Commands {
         }
     }
     
-    private func exportAllData() {
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.commaSeparatedText]
-        panel.nameFieldStringValue = "Headway_Export_\(dateStamp()).csv"
-        panel.title = "Export All Migraine Data"
-        
-        panel.begin { response in
-            guard response == .OK, let url = panel.url else { return }
-            
-            var csv = "Date,Time,Pain Level,Location,Duration,Triggers,Medications,Notes\n"
-            
-            for m in viewModel.migraines {
-                let date = m.startTime.map { DateFormatter.localizedString(from: $0, dateStyle: .short, timeStyle: .none) } ?? ""
-                let time = m.startTime.map { DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short) } ?? ""
-                let pain = "\(m.painLevel)"
-                let location = m.location ?? ""
-                var duration = ""
-                if let s = m.startTime, let e = m.endTime {
-                    let mins = Int(e.timeIntervalSince(s) / 60)
-                    let h = mins / 60; let min = mins % 60
-                    duration = h > 0 ? "\(h)h \(min)m" : "\(min)m"
-                }
-                let triggers = m.orderedTriggers.map(\.displayName).joined(separator: "; ")
-                let medications = m.orderedMedications.map(\.fullDisplayName).joined(separator: "; ")
-                let notes = (m.notes ?? "").replacingOccurrences(of: "\"", with: "\"\"")
-                
-                csv += "\"\(date)\",\"\(time)\",\(pain),\"\(location)\",\"\(duration)\",\"\(triggers)\",\"\(medications)\",\"\(notes)\"\n"
-            }
-            
-            try? csv.write(to: url, atomically: true, encoding: .utf8)
-        }
-    }
-    
-    private func dateStamp() -> String {
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd"
-        return fmt.string(from: Date())
-    }
 }

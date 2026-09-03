@@ -59,7 +59,7 @@ struct GeneralSettingsView: View {
 // MARK: - Units Settings
 
 struct UnitsSettingsView: View {
-    @ObservedObject private var settings = SettingsManager.shared
+    @Bindable private var settings = SettingsManager.shared
     
     var body: some View {
         Form {

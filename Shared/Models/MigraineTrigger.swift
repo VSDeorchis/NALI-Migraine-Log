@@ -8,7 +8,7 @@ import CoreData
 /// On-disk storage and CloudKit schema are unchanged — every read/write still
 /// goes through the same booleans, so existing data and sync paths are
 /// completely unaffected.
-public enum MigraineTrigger: String, CaseIterable, Identifiable, Hashable, Sendable {
+public enum MigraineTrigger: String, CaseIterable, Identifiable, Hashable, Codable, Sendable {
     case stress
     case lackOfSleep
     case dehydration

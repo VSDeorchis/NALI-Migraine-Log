@@ -35,8 +35,8 @@
 #         matter.
 #
 #   * The runner image is pinned to `macos-15`. As of writing it ships
-#     with Xcode 16.x, which satisfies the iOS 18.6 / macOS 15.2 /
-#     watchOS 11.6 deployment targets declared in project.pbxproj.
+#     with Xcode 16.x, which satisfies the iOS 18.2 / macOS 15.2 /
+#     watchOS 11.2 deployment targets declared in Config/Shared.xcconfig.
 #     Bump to `macos-26` (or whichever image GitHub publishes for Xcode
 #     26.x) when we want to test on the same toolchain devs use locally.
 #

@@ -19,11 +19,6 @@ struct NALI_Migraine_Log_Watch_AppApp: App {
         let context = PersistenceController.shared.container.viewContext
         _viewModel = StateObject(wrappedValue: MigraineViewModel(context: context))
 
-        // Per-launch version-change check. Empty step registry today, but
-        // the hook is wired so any future data backfill can land as a
-        // single edit to `MigrationCoordinator.upgradeSteps`.
-        MigrationCoordinator.runLaunchSequence(context: context)
-
         // Initialize WatchConnectivity
         if WCSession.isSupported() {
             WCSession.default.activate()
@@ -36,6 +31,13 @@ struct NALI_Migraine_Log_Watch_AppApp: App {
                 .environmentObject(viewModel)
                 .environmentObject(connectivityManager)
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
+                // Per-launch version-change check, off the synchronous
+                // init path so the first frame isn't blocked by it.
+                .task {
+                    MigrationCoordinator.runLaunchSequence(
+                        context: persistenceController.container.viewContext
+                    )
+                }
         }
     }
 }

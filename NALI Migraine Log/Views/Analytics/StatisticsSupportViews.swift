@@ -59,6 +59,53 @@ struct MonthlyPoint: Identifiable {
     let count: Int
 }
 
+/// Compact `ContentUnavailableView` sized to sit where a chart would be,
+/// so cards keep a stable height when a period has no data.
+struct ChartEmptyState: View {
+    let title: String
+    var systemImage: String = "chart.bar.xaxis"
+    var message: String = "Try a different time range, or log a migraine to start seeing this chart."
+    var height: CGFloat = 200
+
+    var body: some View {
+        ContentUnavailableView {
+            Label(title, systemImage: systemImage)
+                .scaledFont(size: 15, weight: .semibold, design: .rounded)
+        } description: {
+            Text(message)
+                .scaledFont(size: 13)
+        }
+        .frame(maxWidth: .infinity, minHeight: height)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// "Based on N entries" footnote under a chart so users can judge how
+/// much weight to give a pattern.
+struct SampleSizeLabel: View {
+    let count: Int
+    var noun: String = "entry"
+    var suffix: String? = nil
+
+    private var pluralNoun: String {
+        noun.hasSuffix("y") && count != 1
+            ? String(noun.dropLast()) + "ies"
+            : (count == 1 ? noun : noun + "s")
+    }
+
+    private var text: String {
+        let base = "Based on \(count) \(pluralNoun)"
+        guard let suffix else { return base }
+        return "\(base) \(suffix)"
+    }
+
+    var body: some View {
+        Text(text)
+            .scaledFont(size: 12)
+            .foregroundStyle(.secondary)
+    }
+}
+
 // Supporting Views
 struct ChartSection<Content: View>: View {
     let title: String
@@ -255,32 +302,5 @@ struct ImpactBadge: View {
             )
         }
         .buttonStyle(.plain)
-    }
-}
-
-// Add helper extension for date generation
-extension Calendar {
-    func generateDates(
-        inside interval: DateInterval,
-        matching components: DateComponents
-    ) -> [Date] {
-        var dates: [Date] = []
-        dates.append(interval.start)
-        
-        enumerateDates(
-            startingAfter: interval.start,
-            matching: components,
-            matchingPolicy: .nextTime
-        ) { date, _, stop in
-            if let date = date {
-                if date < interval.end {
-                    dates.append(date)
-                } else {
-                    stop = true
-                }
-            }
-        }
-        
-        return dates
     }
 }

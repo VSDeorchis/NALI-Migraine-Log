@@ -16,15 +16,14 @@ class LocationManager: NSObject, ObservableObject {
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published var lastError: Error?
     
+    /// Kept for authorization requests and the delegate's status callbacks;
+    /// fixes themselves come from `CLLocationUpdate.liveUpdates()`.
     let locationManager = CLLocationManager()
-    /// Callers currently awaiting `getCurrentLocation()`, keyed so that
-    /// overlapping requests, timeouts and cancellation each resolve only
-    /// their own continuation. Main-actor confined.
-    @MainActor private var locationWaiters: [UUID: CheckedContinuation<CLLocation, Error>] = [:]
 
     /// A cached fix younger than this is returned without touching CoreLocation.
     private let cachedLocationMaxAge: TimeInterval = 3600
-    private let locationRequestTimeout: UInt64 = 10_000_000_000
+    private let locationRequestTimeout: Duration = .seconds(10)
+    @MainActor private var isRefreshingLocation = false
     
     /// Cross-platform check for location authorization
     /// macOS uses .authorized; iOS/watchOS use .authorizedWhenInUse
@@ -134,6 +133,7 @@ class LocationManager: NSObject, ObservableObject {
     }
     
     /// Refresh authorization status (useful when returning from Settings)
+    @MainActor
     func refreshAuthorizationStatus() {
         let currentStatus = locationManager.authorizationStatus
 
@@ -152,16 +152,17 @@ class LocationManager: NSObject, ObservableObject {
         return abs(location.timestamp.timeIntervalSinceNow) < cachedLocationMaxAge
     }
 
-    /// One-shot location fix (waits up to 10 s). Multiple concurrent callers
-    /// each get their own result; cancelling the calling task releases only
-    /// that caller.
+    /// One-shot location fix (waits up to 10 s) from the first usable
+    /// `CLLocationUpdate.liveUpdates()` element. Each caller consumes its
+    /// own short-lived stream, so cancelling the calling task tears down
+    /// only that stream and never affects other callers.
     @MainActor
     func getCurrentLocation() async throws -> CLLocation {
         let status = locationManager.authorizationStatus
         AppLogger.location.debug("getCurrentLocation called; status=\(self.statusDescription(status), privacy: .public)")
 
         // `.notDetermined` can also mean the iOS 18 "Ask Next Time / When I
-        // Share" mode; `requestLocation()` then surfaces the system prompt.
+        // Share" mode; `liveUpdates()` then surfaces the system prompt.
         if status != .notDetermined, !Self.isStatusAuthorized(status) {
             AppLogger.location.error("Location not authorized; throwing LocationError.unauthorized")
             throw LocationError.unauthorized
@@ -175,39 +176,54 @@ class LocationManager: NSObject, ObservableObject {
         try Task.checkCancellation()
         AppLogger.location.debug("Requesting fresh location")
 
-        let waiterID = UUID()
-        let timeout = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: self?.locationRequestTimeout ?? 10_000_000_000)
-            guard !Task.isCancelled else { return }
-            self?.resolveWaiter(waiterID, with: .failure(LocationError.timeout))
-        }
-        defer { timeout.cancel() }
-
-        return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
-                locationWaiters[waiterID] = continuation
-                locationManager.requestLocation()
+        do {
+            let fix = try await Self.firstFix(timeout: locationRequestTimeout)
+            self.location = fix
+            lastError = nil
+            return fix
+        } catch {
+            if !(error is CancellationError) {
+                lastError = error
             }
-        } onCancel: {
-            Task { @MainActor [weak self] in
-                self?.resolveWaiter(waiterID, with: .failure(CancellationError()))
-            }
+            throw error
         }
     }
 
-    @MainActor
-    private func resolveWaiter(_ id: UUID, with result: Result<CLLocation, Error>) {
-        guard let continuation = locationWaiters.removeValue(forKey: id) else { return }
-        continuation.resume(with: result)
+    /// Races the first usable live update against the request timeout.
+    private static func firstFix(timeout: Duration) async throws -> CLLocation {
+        try await withThrowingTaskGroup(of: CLLocation.self) { group in
+            group.addTask { try await firstLiveUpdate() }
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                throw LocationError.timeout
+            }
+            defer { group.cancelAll() }
+            guard let fix = try await group.next() else { throw LocationError.unavailable }
+            return fix
+        }
     }
 
-    @MainActor
-    private func resolveAllWaiters(with result: Result<CLLocation, Error>) {
-        let waiters = locationWaiters
-        locationWaiters.removeAll()
-        for continuation in waiters.values {
-            continuation.resume(with: result)
+    /// Consumes `liveUpdates()` until a location or a terminal condition
+    /// (denied, restricted, unavailable) arrives. Reduced-accuracy fixes
+    /// are accepted as-is; weather lookups only need a coarse position.
+    private static func firstLiveUpdate() async throws -> CLLocation {
+        for try await update in CLLocationUpdate.liveUpdates() {
+            if let fix = update.location {
+                AppLogger.location.debug("Location updated (accuracy \(Int(fix.horizontalAccuracy), privacy: .public) m)")
+                return fix
+            }
+            if update.authorizationDenied || update.authorizationDeniedGlobally || update.authorizationRestricted {
+                AppLogger.location.error("Live updates reported denied/restricted authorization")
+                throw LocationError.unauthorized
+            }
+            if update.locationUnavailable {
+                AppLogger.location.error("Live updates reported location unavailable")
+                throw LocationError.unavailable
+            }
+            // Remaining diagnostic states (authorization prompt in progress,
+            // insufficiently in use, stationary) resolve on a later element.
         }
+        throw CancellationError()
     }
     
     /// Get stored location or default
@@ -219,9 +235,14 @@ class LocationManager: NSObject, ObservableObject {
     /// Requests a single fix when the cached one is missing or older than an
     /// hour. Weather lookups only need a coarse, occasional position, so the
     /// app never runs continuous location updates.
+    @MainActor
     func refreshLocationIfStale() {
-        guard isLocationAuthorized, !hasFreshLocation else { return }
-        locationManager.requestLocation()
+        guard isLocationAuthorized, !hasFreshLocation, !isRefreshingLocation else { return }
+        isRefreshingLocation = true
+        Task { @MainActor [weak self] in
+            defer { self?.isRefreshingLocation = false }
+            _ = try? await self?.getCurrentLocation()
+        }
     }
 }
 
@@ -236,38 +257,12 @@ extension LocationManager: CLLocationManagerDelegate {
             self.authorizationStatus = status
 
             if Self.isStatusAuthorized(status) {
+                self.lastError = nil
                 self.refreshLocationIfStale()
             } else if status == .denied || status == .restricted {
                 AppLogger.location.error("Location denied or restricted")
                 self.lastError = LocationError.unauthorized
-                self.resolveAllWaiters(with: .failure(LocationError.unauthorized))
             }
-        }
-    }
-    
-    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let newLocation = locations.last else { return }
-
-        AppLogger.location.debug("Location updated (accuracy \(Int(newLocation.horizontalAccuracy), privacy: .public) m)")
-
-        Task { @MainActor in
-            self.location = newLocation
-            self.resolveAllWaiters(with: .success(newLocation))
-        }
-    }
-    
-    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        let clError = error as? CLError
-        let errorCode = clError?.code.rawValue ?? -1
-
-        AppLogger.location.error("Location error code=\(errorCode, privacy: .public): \(error.localizedDescription, privacy: .public)")
-        if errorCode == 1 {
-            AppLogger.location.notice("CLError.denied — user denied permission, dialog didn't appear, or services disabled system-wide")
-        }
-
-        Task { @MainActor in
-            self.lastError = error
-            self.resolveAllWaiters(with: .failure(error))
         }
     }
 }

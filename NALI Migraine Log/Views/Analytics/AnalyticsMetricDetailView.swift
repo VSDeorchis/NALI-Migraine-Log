@@ -353,21 +353,12 @@ struct AnalyticsMetricDetailView: View {
     // MARK: - Metric: Top trigger
     
     private var triggerContent: some View {
-        let triggerData = migraines
-            .reduce(into: [MigraineTrigger: Int]()) { counts, migraine in
-                for trigger in migraine.triggers {
-                    counts[trigger, default: 0] += 1
-                }
-            }
-            .map { TriggerPoint(trigger: $0.key.displayName, count: $0.value) }
-            .sorted { $0.count > $1.count }
-            .filter { $0.count > 0 }
+        let triggerData = migraines.triggerDistribution
         
         return Card(title: "Trigger frequency") {
             if triggerData.isEmpty {
-                Text("No triggers logged this period.")
-                    .scaledFont(size: 13)
-                    .foregroundStyle(.secondary)
+                ChartEmptyState(title: "No Triggers Logged", systemImage: "bolt.slash",
+                                message: "Add triggers when logging an entry to see patterns here.", height: 160)
             } else {
                 Chart(triggerData) { point in
                     BarMark(
@@ -385,21 +376,12 @@ struct AnalyticsMetricDetailView: View {
     // MARK: - Metric: Top medication
     
     private var medicationContent: some View {
-        let medData = migraines
-            .reduce(into: [MigraineMedication: Int]()) { counts, migraine in
-                for medication in migraine.medications {
-                    counts[medication, default: 0] += 1
-                }
-            }
-            .map { MedicationPoint(medication: $0.key.displayName, count: $0.value) }
-            .sorted { $0.count > $1.count }
-            .filter { $0.count > 0 }
+        let medData = migraines.medicationDistribution
         
         return Card(title: "Medication usage") {
             if medData.isEmpty {
-                Text("No medications logged this period.")
-                    .scaledFont(size: 13)
-                    .foregroundStyle(.secondary)
+                ChartEmptyState(title: "No Medications Logged", systemImage: "pills",
+                                message: "Add medications when logging an entry to see usage here.", height: 160)
             } else {
                 Chart(medData) { point in
                     BarMark(
@@ -457,9 +439,8 @@ struct AnalyticsMetricDetailView: View {
             }
             if work.isEmpty && school.isEmpty && events.isEmpty {
                 Card(title: "") {
-                    Text("No life-impact days this period.")
-                        .scaledFont(size: 13)
-                        .foregroundStyle(.secondary)
+                    ChartEmptyState(title: "No Life Impact Recorded", systemImage: "calendar.badge.checkmark",
+                                    message: "No missed work, school or events were logged in this period.", height: 160)
                 }
             }
         }
@@ -1149,9 +1130,7 @@ struct AnalyticsMetricDetailView: View {
     }
     
     private var emptyState: some View {
-        Text("No data for this period.")
-            .scaledFont(size: 13)
-            .foregroundStyle(.secondary)
+        ChartEmptyState(title: "No Data for This Period", height: 160)
     }
     
     private func listLink(text: String) -> some View {

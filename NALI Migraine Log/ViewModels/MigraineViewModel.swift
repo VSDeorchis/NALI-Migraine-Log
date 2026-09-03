@@ -130,7 +130,7 @@ final class MigraineViewModel: MigraineStore {
                     } catch {
                         lastError = .saveFailed(error)
                         viewContext.rollback()
-                        AppLogger.coreData.error("Failed to persist auto-assigned UUIDs: \(error.localizedDescription, privacy: .public)")
+                        AppLogger.coreData.error("Failed to persist auto-assigned UUIDs: \(error.localizedDescription, privacy: .private)")
                     }
                 }
                 migraines = newMigraines
@@ -138,7 +138,7 @@ final class MigraineViewModel: MigraineStore {
             }
         } catch {
             lastError = .fetchFailed(error)
-            AppLogger.coreData.error("Error fetching migraines: \(error.localizedDescription, privacy: .public)")
+            AppLogger.coreData.error("Error fetching migraines: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -164,7 +164,7 @@ final class MigraineViewModel: MigraineStore {
             migraines = try viewContext.fetch(request)
         } catch {
             lastError = .fetchFailed(error)
-            AppLogger.coreData.error("Error fetching recent migraines: \(error.localizedDescription, privacy: .public)")
+            AppLogger.coreData.error("Error fetching recent migraines: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -361,7 +361,7 @@ final class MigraineViewModel: MigraineStore {
             do {
                 try fm.removeItem(at: url)
             } catch {
-                AppLogger.coreData.debug("Could not remove stale export: \(error.localizedDescription, privacy: .public)")
+                AppLogger.coreData.debug("Could not remove stale export: \(error.localizedDescription, privacy: .private)")
             }
         }
     }

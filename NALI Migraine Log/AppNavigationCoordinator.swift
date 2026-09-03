@@ -19,18 +19,20 @@
 #if os(iOS)
 
 import Foundation
-import Combine
+import Observation
 
 /// Observable bridge between out-of-process App Intents and the SwiftUI
-/// app root. Mutate on the main thread only — intent `perform()` bodies
-/// that touch it are annotated `@MainActor`, which satisfies that.
-final class AppNavigationCoordinator: ObservableObject {
+/// app root. Main-actor isolated; intent `perform()` bodies that touch it
+/// are annotated `@MainActor`, which satisfies that.
+@Observable
+@MainActor
+final class AppNavigationCoordinator {
     static let shared = AppNavigationCoordinator()
 
     /// Drives a New Entry sheet at the app root. Set to `true` to request
     /// it; the root view binds a sheet to this and flips it back to
     /// `false` on dismiss.
-    @Published var showNewEntry = false
+    var showNewEntry = false
 
     private init() {}
 

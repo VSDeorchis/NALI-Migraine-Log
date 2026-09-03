@@ -4,7 +4,7 @@ import CoreData
 struct MigraineDetailView: View {
     let migraine: MigraineEvent
     @ObservedObject var viewModel: MigraineViewModel
-    @ObservedObject private var settings = SettingsManager.shared
+    private let settings = SettingsManager.shared
     let dismiss: () -> Void
     
     /// Drives the iPad-friendly notes-editor height. Apple Pencil
@@ -403,16 +403,6 @@ struct MedicationSelectionView: View {
     @Binding var selection: Set<MigraineMedication>
 
     var body: some View {
-        ForEach(MigraineMedication.allCases) { medication in
-            Toggle(medication.fullDisplayName, isOn: Binding(
-                get: { selection.contains(medication) },
-                set: { isOn in
-                    withAnimation {
-                        if isOn { selection.insert(medication) }
-                        else    { selection.remove(medication) }
-                    }
-                }
-            ))
-        }
+        MedicationPickerRows(selection: $selection)
     }
 } 

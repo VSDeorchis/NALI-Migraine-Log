@@ -33,6 +33,9 @@ struct NewMigraineView: View {
     @State private var notes = ""
     @State private var showingSaveError = false
     @State private var isSaving = false
+    @State private var saveFeedback: SaveFeedback?
+    @State private var showingDiscardDialog = false
+    @State private var restoredDraft = false
     @ObservedObject private var healthKit = HealthKitManager.shared
     @State private var healthSnapshot: HealthKitSnapshot?
     @State private var isLoadingHealth = false
@@ -46,6 +49,92 @@ struct NewMigraineView: View {
     /// gating logic lives in `loadHealthData()`.
     @State private var showingHealthKitPrimer = false
     
+    private enum SaveFeedback: Equatable {
+        case success, failure
+    }
+
+    private static let blankDraft = MigraineDraft(
+        startTime: .distantPast,
+        endTime: nil,
+        painLevel: 5,
+        location: "Frontal",
+        notes: nil
+    )
+
+    private var currentDraft: MigraineDraft {
+        var draft = MigraineDraft(
+            startTime: startTime,
+            endTime: endTime,
+            painLevel: painLevel,
+            location: location,
+            notes: notes.isEmpty ? nil : notes
+        )
+        draft.triggers = selectedTriggers
+        draft.medications = selectedMedications
+        draft.hasAura = hasAura
+        draft.hasPhotophobia = hasPhotophobia
+        draft.hasPhonophobia = hasPhonophobia
+        draft.hasNausea = hasNausea
+        draft.hasVomiting = hasVomiting
+        draft.hasWakeUpHeadache = hasWakeUpHeadache
+        draft.hasTinnitus = hasTinnitus
+        draft.hasVertigo = hasVertigo
+        draft.missedWork = missedWork
+        draft.missedSchool = missedSchool
+        draft.missedEvents = missedEvents
+        return draft
+    }
+
+    /// True once the user has changed anything besides the start time,
+    /// which is pre-filled and not worth a discard prompt on its own.
+    private var hasUnsavedChanges: Bool {
+        var draft = currentDraft
+        draft.startTime = Self.blankDraft.startTime
+        return draft != Self.blankDraft
+    }
+
+    private func apply(_ draft: MigraineDraft) {
+        startTime = draft.startTime
+        endTime = draft.endTime
+        painLevel = draft.painLevel
+        location = draft.location
+        notes = draft.notes ?? ""
+        selectedTriggers = draft.triggers
+        selectedMedications = draft.medications
+        hasAura = draft.hasAura
+        hasPhotophobia = draft.hasPhotophobia
+        hasPhonophobia = draft.hasPhonophobia
+        hasNausea = draft.hasNausea
+        hasVomiting = draft.hasVomiting
+        hasWakeUpHeadache = draft.hasWakeUpHeadache
+        hasTinnitus = draft.hasTinnitus
+        hasVertigo = draft.hasVertigo
+        missedWork = draft.missedWork
+        missedSchool = draft.missedSchool
+        missedEvents = draft.missedEvents
+    }
+
+    private var restoredDraftBanner: some View {
+        HStack {
+            Label("Restored your unsaved entry", systemImage: "arrow.uturn.backward.circle")
+                .font(.footnote)
+            Spacer()
+            Button("Start Fresh") {
+                withAnimation {
+                    var fresh = Self.blankDraft
+                    fresh.startTime = Date()
+                    apply(fresh)
+                    MigraineDraftStore.clear()
+                    restoredDraft = false
+                }
+            }
+            .font(.footnote.weight(.semibold))
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color(.systemGray6))
+    }
+
     private var locationPicker: some View {
         Picker("Location", selection: $location) {
             ForEach(viewModel.locations, id: \.self) { location in
@@ -79,23 +168,15 @@ struct NewMigraineView: View {
 
     private var medicationsSection: some View {
         Section {
-            ForEach(MigraineMedication.allCases) { medication in
-                Toggle(medication.fullDisplayName, isOn: Binding(
-                    get: { selectedMedications.contains(medication) },
-                    set: { isOn in
-                        withAnimation {
-                            if isOn { selectedMedications.insert(medication) }
-                            else    { selectedMedications.remove(medication) }
-                        }
-                    }
-                ))
-            }
+            MedicationPickerRows(selection: $selectedMedications)
         } header: {
             SectionHeader(
                 title: "MEDICATIONS",
                 systemImage: "pill.fill",
                 color: .purple
             )
+        } footer: {
+            Text("Touch and hold a medication to pin it to the top.")
         }
         .listRowBackground(Color(.systemGray6).opacity(0.5))
     }
@@ -106,6 +187,9 @@ struct NewMigraineView: View {
                 // Weather fetch status banner
                 if viewModel.weatherFetchStatus != .idle {
                     weatherStatusBanner
+                }
+                if restoredDraft {
+                    restoredDraftBanner
                 }
                 
                 Form {
@@ -222,9 +306,33 @@ struct NewMigraineView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .onAppear {
                     AppLogger.ui.debug("NewMigraineView appeared")
+                    if let draft = MigraineDraftStore.load() {
+                        apply(draft)
+                        restoredDraft = true
+                    }
                 }
                 .task {
                     await loadHealthData()
+                }
+                .interactiveDismissDisabled(isSaving || hasUnsavedChanges)
+                .sensoryFeedback(.success, trigger: saveFeedback) { _, new in new == .success }
+                .sensoryFeedback(.error, trigger: saveFeedback) { _, new in new == .failure }
+                .confirmationDialog(
+                    "You have unsaved changes",
+                    isPresented: $showingDiscardDialog,
+                    titleVisibility: .visible
+                ) {
+                    Button("Keep as Draft") {
+                        MigraineDraftStore.save(currentDraft)
+                        dismiss()
+                    }
+                    Button("Discard Entry", role: .destructive) {
+                        MigraineDraftStore.clear()
+                        dismiss()
+                    }
+                    Button("Keep Editing", role: .cancel) { }
+                } message: {
+                    Text("A draft is kept on this device and restored the next time you start a new entry.")
                 }
                 .sheet(isPresented: $showingHealthKitPrimer) {
                     HealthKitPermissionPrimerView(
@@ -253,7 +361,12 @@ struct NewMigraineView: View {
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {
-                            dismiss()
+                            if hasUnsavedChanges {
+                                showingDiscardDialog = true
+                            } else {
+                                MigraineDraftStore.clear()
+                                dismiss()
+                            }
                         }
                         .disabled(isSaving)
                     }
@@ -290,14 +403,12 @@ struct NewMigraineView: View {
                                     isSaving = false
                                     
                                     if result != nil {
-                                        // Success haptic
-                                        let notificationFeedback = UINotificationFeedbackGenerator()
-                                        notificationFeedback.notificationOccurred(.success)
+                                        saveFeedback = .success
+                                        MigraineDraftStore.clear()
                                         dismiss()
                                     } else {
-                                        // Error haptic
-                                        let notificationFeedback = UINotificationFeedbackGenerator()
-                                        notificationFeedback.notificationOccurred(.error)
+                                        saveFeedback = .failure
+                                        MigraineDraftStore.save(currentDraft)
                                         showingSaveError = true
                                     }
                                 }
@@ -308,7 +419,7 @@ struct NewMigraineView: View {
                 .alert("Unable to Save", isPresented: $showingSaveError) {
                     Button("Try Again", role: .cancel) { }
                 } message: {
-                    Text("There was a problem saving your migraine entry. Please check your connection and try again.")
+                    Text("There was a problem saving your migraine entry. Your details have been kept as a draft so you can try again.")
                 }
             }
         }

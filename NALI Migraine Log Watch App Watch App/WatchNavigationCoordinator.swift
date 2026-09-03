@@ -12,16 +12,17 @@
 #if os(watchOS)
 
 import Foundation
-import Combine
+import Observation
 
-final class WatchNavigationCoordinator: ObservableObject {
+@Observable
+@MainActor
+final class WatchNavigationCoordinator {
     static let shared = WatchNavigationCoordinator()
 
-    @Published var showNewEntry = false
+    var showNewEntry = false
 
     private init() {}
 
-    @MainActor
     func requestNewEntry() {
         showNewEntry = true
     }

@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SyncStatusView: View {
     @ObservedObject private var persistence = PersistenceController.shared
-    @StateObject private var settings = SettingsManager.shared
+    private let settings = SettingsManager.shared
 
     var body: some View {
         HStack {

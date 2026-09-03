@@ -35,7 +35,7 @@ extension MigraineViewModel {
                 verifyMigraineData(migraine)
             }
         } catch {
-            AppLogger.coreData.error("Error verifying test data: \(error.localizedDescription, privacy: .public)")
+            AppLogger.coreData.error("Error verifying test data: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -57,7 +57,7 @@ extension MigraineViewModel {
             fetchMigraines()
             verifyAllMigraines()
         } catch {
-            AppLogger.coreData.error("Error saving test data: \(error.localizedDescription, privacy: .public)")
+            AppLogger.coreData.error("Error saving test data: \(error.localizedDescription, privacy: .private)")
             viewContext.rollback()
         }
     }

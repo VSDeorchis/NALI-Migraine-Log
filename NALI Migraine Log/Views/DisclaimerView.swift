@@ -5,7 +5,7 @@ struct DisclaimerView: View {
     /// Invoked when the user declines. The caller decides what to show;
     /// the process is never terminated.
     let declineAction: () -> Void
-    @StateObject private var settings = SettingsManager.shared
+    @Bindable private var settings = SettingsManager.shared
     @StateObject private var locationManager = LocationManager.shared
     @State private var showingICloudAlert = false
     @State private var enableLocationServices = false

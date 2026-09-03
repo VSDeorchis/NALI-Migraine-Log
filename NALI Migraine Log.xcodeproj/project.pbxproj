@@ -7,6 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AAFE000200000000000A10 /* MedicationPickerRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A10 /* MedicationPickerRows.swift */; };
+		AAFE000400000000000A10 /* MedicationPickerRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A10 /* MedicationPickerRows.swift */; };
+		AAFE000200000000000A0F /* LaunchProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0F /* LaunchProgressView.swift */; };
+		AAFE000300000000000A0F /* LaunchProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0F /* LaunchProgressView.swift */; };
+		AAFE000400000000000A0F /* LaunchProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0F /* LaunchProgressView.swift */; };
+		AAFE000200000000000A0E /* AppLaunchCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0E /* AppLaunchCoordinator.swift */; };
+		AAFE000300000000000A0E /* AppLaunchCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0E /* AppLaunchCoordinator.swift */; };
+		AAFE000400000000000A0E /* AppLaunchCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0E /* AppLaunchCoordinator.swift */; };
 		694336962D4DD63B009A6177 /* WatchConnectivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 694336952D4DD63B009A6177 /* WatchConnectivityManager.swift */; };
 		694336972D4DD63B009A6177 /* WatchConnectivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 694336952D4DD63B009A6177 /* WatchConnectivityManager.swift */; };
 		69782CC12D4727B40078C9C0 /* NALI Migraine Log Watch App Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 69782C9E2D4727B30078C9C0 /* NALI Migraine Log Watch App Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -128,6 +136,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		AAFE000100000000000A10 /* MedicationPickerRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPickerRows.swift; sourceTree = "<group>"; };
+		AAFE000100000000000A0F /* LaunchProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchProgressView.swift; sourceTree = "<group>"; };
+		AAFE000100000000000A0E /* AppLaunchCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchCoordinator.swift; sourceTree = "<group>"; };
+		69C0F1002EDC000000000001 /* Shared.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Shared.xcconfig; path = Config/Shared.xcconfig; sourceTree = "<group>"; };
 		692AFEBD2D581D0600F792E1 /* NALI Migraine Log macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "NALI Migraine Log macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		692AFED22D581D0700F792E1 /* NALI Migraine Log macOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "NALI Migraine Log macOSTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		692AFEDC2D581D0700F792E1 /* NALI Migraine Log macOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "NALI Migraine Log macOSUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -324,6 +336,7 @@
 		693E7CDF2D46DA6A00E30E9C = {
 			isa = PBXGroup;
 			children = (
+				69C0F1002EDC000000000001 /* Shared.xcconfig */,
 				69782CDC2D472F380078C9C0 /* Shared */,
 				693E7CEA2D46DA6B00E30E9C /* NALI Migraine Log */,
 				693E7CFB2D46DA6E00E30E9C /* NALI Migraine LogTests */,
@@ -357,6 +370,8 @@
 		69782CDC2D472F380078C9C0 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				AAFE000100000000000A10 /* MedicationPickerRows.swift */,
+				AAFE000100000000000A0F /* LaunchProgressView.swift */,
 				698A29202EDB54F300090EFA /* Services */,
 				69A6B47E2D59BAA200AD2CFA /* ViewModels */,
 				694336952D4DD63B009A6177 /* WatchConnectivityManager.swift */,
@@ -371,6 +386,7 @@
 		698A29202EDB54F300090EFA /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				AAFE000100000000000A0E /* AppLaunchCoordinator.swift */,
 				698A291E2EDB54F300090EFA /* LocationManager.swift */,
 				698A291F2EDB54F300090EFA /* WeatherService.swift */,
 				AAFE000100000000000A0001 /* FeatureExtractor.swift */,
@@ -750,6 +766,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AAFE000400000000000A10 /* MedicationPickerRows.swift in Sources */,
+				AAFE000400000000000A0F /* LaunchProgressView.swift in Sources */,
+				AAFE000400000000000A0E /* AppLaunchCoordinator.swift in Sources */,
 				698A29212EDB54F300090EFA /* LocationManager.swift in Sources */,
 				698A29222EDB54F300090EFA /* WeatherService.swift in Sources */,
 				AAFE000200000000000A0001 /* FeatureExtractor.swift in Sources */,
@@ -788,6 +807,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AAFE000200000000000A10 /* MedicationPickerRows.swift in Sources */,
+				AAFE000200000000000A0F /* LaunchProgressView.swift in Sources */,
+				AAFE000200000000000A0E /* AppLaunchCoordinator.swift in Sources */,
 				69C15B292D59B4AD002BAA7E /* NALI_Migraine_Log.xcdatamodeld in Sources */,
 				694336972D4DD63B009A6177 /* WatchConnectivityManager.swift in Sources */,
 				698A29232EDB54F300090EFA /* LocationManager.swift in Sources */,
@@ -826,6 +848,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AAFE000300000000000A0F /* LaunchProgressView.swift in Sources */,
+				AAFE000300000000000A0E /* AppLaunchCoordinator.swift in Sources */,
 				69C15B2A2D59B4AD002BAA7E /* NALI_Migraine_Log.xcdatamodeld in Sources */,
 				694336962D4DD63B009A6177 /* WatchConnectivityManager.swift in Sources */,
 				698A29252EDB54F300090EFA /* LocationManager.swift in Sources */,
@@ -909,7 +933,6 @@
 				CODE_SIGN_ENTITLEMENTS = "NALI Migraine Log macOS/NALI_Migraine_Log_macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 13;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log macOS/Preview Content\"";
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -923,13 +946,10 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 15.2;
-				MARKETING_VERSION = 2.82;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.nali.NALI-Migraine-Log-macOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
@@ -941,7 +961,6 @@
 				CODE_SIGN_ENTITLEMENTS = "NALI Migraine Log macOS/NALI_Migraine_Log_macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 13;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log macOS/Preview Content\"";
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -955,13 +974,10 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 15.2;
-				MARKETING_VERSION = 2.82;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.nali.NALI-Migraine-Log-macOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};
@@ -970,16 +986,12 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 15.2;
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.nali.NALI-Migraine-Log-macOSTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NALI Migraine Log macOS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NALI Migraine Log macOS";
 			};
 			name = Debug;
@@ -989,16 +1001,12 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 15.2;
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.nali.NALI-Migraine-Log-macOSTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NALI Migraine Log macOS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NALI Migraine Log macOS";
 			};
 			name = Release;
@@ -1007,16 +1015,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 15.2;
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.nali.NALI-Migraine-Log-macOSUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
 				TEST_TARGET_NAME = "NALI Migraine Log macOS";
 			};
 			name = Debug;
@@ -1025,22 +1029,19 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 15.2;
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.nali.NALI-Migraine-Log-macOSUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
 				TEST_TARGET_NAME = "NALI Migraine Log macOS";
 			};
 			name = Release;
 		};
 		693E7D0A2D46DA6E00E30E9C /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 69C0F1002EDC000000000001 /* Shared.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -1092,7 +1093,6 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -1106,6 +1106,7 @@
 		};
 		693E7D0B2D46DA6E00E30E9C /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 69C0F1002EDC000000000001 /* Shared.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -1151,7 +1152,6 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -1169,7 +1169,6 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "NALI Migraine Log/NALI Migraine Log.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log/Preview Content\"";
 				ENABLE_DEBUG_DYLIB = NO;
 				ENABLE_PREVIEWS = YES;
@@ -1182,16 +1181,13 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.82;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neuroli.Headway;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -1203,7 +1199,6 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "NALI Migraine Log/NALI Migraine Log.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log/Preview Content\"";
 				ENABLE_DEBUG_DYLIB = NO;
 				ENABLE_PREVIEWS = YES;
@@ -1216,16 +1211,13 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.82;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neuroli.Headway;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -1235,14 +1227,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.neuroli.NALI-Migraine-LogTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NALI Migraine Log.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NALI Migraine Log";
 			};
@@ -1253,14 +1241,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.neuroli.NALI-Migraine-LogTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NALI Migraine Log.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NALI Migraine Log";
 			};
@@ -1270,13 +1254,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.neuroli.NALI-Migraine-LogUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = "NALI Migraine Log";
 			};
@@ -1286,13 +1267,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.neuroli.NALI-Migraine-LogUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = "NALI Migraine Log";
 			};
@@ -1305,7 +1283,6 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "NALI Migraine Log Watch App Watch App/NALI Migraine Log Watch App Watch App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log Watch App Watch App/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1317,15 +1294,12 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.82;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neuroli.Headway.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 11.6;
 			};
 			name = Debug;
 		};
@@ -1336,7 +1310,6 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "NALI Migraine Log Watch App Watch App/NALI Migraine Log Watch App Watch App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_ASSET_PATHS = "\"NALI Migraine Log Watch App Watch App/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1348,15 +1321,12 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.82;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neuroli.Headway.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 11.6;
 			};
 			name = Release;
 		};
@@ -1365,17 +1335,13 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.nali.NALI-Migraine-Log-Watch-App-Watch-AppTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NALI Migraine Log Watch App Watch App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NALI Migraine Log Watch App Watch App";
-				WATCHOS_DEPLOYMENT_TARGET = 11.2;
 			};
 			name = Debug;
 		};
@@ -1384,17 +1350,13 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.nali.NALI-Migraine-Log-Watch-App-Watch-AppTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NALI Migraine Log Watch App Watch App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NALI Migraine Log Watch App Watch App";
-				WATCHOS_DEPLOYMENT_TARGET = 11.2;
 			};
 			name = Release;
 		};
@@ -1402,17 +1364,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.nali.NALI-Migraine-Log-Watch-App-Watch-AppUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				TEST_TARGET_NAME = "NALI Migraine Log Watch App Watch App";
-				WATCHOS_DEPLOYMENT_TARGET = 11.2;
 			};
 			name = Debug;
 		};
@@ -1420,17 +1378,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.nali.NALI-Migraine-Log-Watch-App-Watch-AppUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				TEST_TARGET_NAME = "NALI Migraine Log Watch App Watch App";
-				WATCHOS_DEPLOYMENT_TARGET = 11.2;
 			};
 			name = Release;
 		};

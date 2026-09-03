@@ -1,4 +1,5 @@
 import SwiftUI
+import os
 
 // MARK: - Smart Filter
 
@@ -49,16 +50,6 @@ enum SmartFilter: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Sort Option
-
-enum SortOption: String, CaseIterable {
-    case dateNewest = "Date (Newest)"
-    case dateOldest = "Date (Oldest)"
-    case painHighest = "Pain (Highest)"
-    case painLowest = "Pain (Lowest)"
-    case durationLongest = "Duration (Longest)"
-}
-
 // MARK: - Migraine List View (Table + Inspector)
 
 struct MigraineListView: View {
@@ -66,8 +57,11 @@ struct MigraineListView: View {
     @State private var searchText = ""
     @State private var selectedMigraineID: MigraineEvent.ID?
     @State private var isEditing = false
-    @State private var sortOption: SortOption = .dateNewest
+    @State private var sortOrder = [KeyPathComparator(\MigraineEvent.sortableStartTime, order: .reverse)]
     @State private var showInspector = true
+    @State private var pendingDeletion: MigraineEvent?
+    @State private var exportDocument: MigraineCSVDocument?
+    @State private var exportErrorMessage: String?
     var activeFilter: SmartFilter = .all
     
     private var selectedMigraine: MigraineEvent? {
@@ -92,20 +86,21 @@ struct MigraineListView: View {
             }
         }
         
-        switch sortOption {
-        case .dateNewest:
-            result.sort { ($0.startTime ?? .distantPast) > ($1.startTime ?? .distantPast) }
-        case .dateOldest:
-            result.sort { ($0.startTime ?? .distantPast) < ($1.startTime ?? .distantPast) }
-        case .painHighest:
-            result.sort { $0.painLevel > $1.painLevel }
-        case .painLowest:
-            result.sort { $0.painLevel < $1.painLevel }
-        case .durationLongest:
-            result.sort { ($0.duration ?? 0) > ($1.duration ?? 0) }
-        }
-        
+        result.sort(using: sortOrder)
         return result
+    }
+
+    private var listActions: MigraineListActions {
+        MigraineListActions(
+            hasSelection: selectedMigraine != nil,
+            editSelected: {
+                guard selectedMigraine != nil else { return }
+                showInspector = true
+                isEditing = true
+            },
+            deleteSelected: { pendingDeletion = selectedMigraine },
+            exportCSV: { exportDocument = MigraineCSVDocument(migraines: filteredMigraines) }
+        )
     }
     
     var body: some View {
@@ -132,18 +127,52 @@ struct MigraineListView: View {
         }
         .navigationTitle(activeFilter == .all ? "Migraine Log" : activeFilter.rawValue)
         .searchable(text: $searchText, prompt: "Search medications, triggers, or notes")
+        .focusedSceneValue(\.migraineListActions, listActions)
+        .fileExporter(
+            isPresented: Binding(
+                get: { exportDocument != nil },
+                set: { if !$0 { exportDocument = nil } }
+            ),
+            document: exportDocument,
+            contentType: .commaSeparatedText,
+            defaultFilename: MigraineCSVDocument.defaultFilename(prefix: "Migraine_Log")
+        ) { result in
+            if case .failure(let error) = result {
+                AppLogger.ui.error("CSV export failed: \(error.localizedDescription, privacy: .private)")
+                exportErrorMessage = "The file could not be saved. Choose another location and try again."
+            }
+        }
+        .alert(
+            "Export Failed",
+            isPresented: Binding(
+                get: { exportErrorMessage != nil },
+                set: { if !$0 { exportErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(exportErrorMessage ?? "")
+        }
+        .confirmationDialog(
+            "Delete this migraine entry?",
+            isPresented: Binding(
+                get: { pendingDeletion != nil },
+                set: { if !$0 { pendingDeletion = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: pendingDeletion
+        ) { migraine in
+            Button("Delete", role: .destructive) { delete(migraine) }
+            Button("Cancel", role: .cancel) {}
+        } message: { migraine in
+            if let start = migraine.startTime {
+                Text("The entry from \(start.formatted(date: .abbreviated, time: .shortened)) will be removed from all your devices.")
+            } else {
+                Text("This entry will be removed from all your devices.")
+            }
+        }
         .toolbar {
             ToolbarItemGroup(placement: .automatic) {
-                // Sort picker
-                Picker("Sort", selection: $sortOption) {
-                    ForEach(SortOption.allCases, id: \.self) { option in
-                        Text(option.rawValue).tag(option)
-                    }
-                }
-                .frame(width: 180)
-                
-                Divider()
-                
                 // Entry count
                 Text("\(filteredMigraines.count) entries")
                     .font(.caption)
@@ -164,12 +193,12 @@ struct MigraineListView: View {
                 
                 // Export button
                 Button {
-                    exportMigrainesToCSV()
+                    exportDocument = MigraineCSVDocument(migraines: filteredMigraines)
                 } label: {
                     Label("Export", systemImage: "square.and.arrow.up")
                 }
                 .help("Export to CSV (⇧⌘E)")
-                .keyboardShortcut("e", modifiers: [.command, .shift])
+                .disabled(filteredMigraines.isEmpty)
             }
         }
         .task {
@@ -185,8 +214,8 @@ struct MigraineListView: View {
     // MARK: - Table View
     
     private var migraineTable: some View {
-        Table(of: MigraineEvent.self, selection: $selectedMigraineID) {
-            TableColumn("Date") { (migraine: MigraineEvent) in
+        Table(of: MigraineEvent.self, selection: $selectedMigraineID, sortOrder: $sortOrder) {
+            TableColumn("Date", value: \.sortableStartTime) { (migraine: MigraineEvent) in
                 VStack(alignment: .leading, spacing: 2) {
                     if let startTime = migraine.startTime {
                         Text(startTime, style: .date)
@@ -200,7 +229,7 @@ struct MigraineListView: View {
             }
             .width(min: 120, ideal: 150)
             
-            TableColumn("Pain") { (migraine: MigraineEvent) in
+            TableColumn("Pain", value: \.painLevel) { (migraine: MigraineEvent) in
                 HStack(spacing: 6) {
                     Circle()
                         .fill(painLevelColor(migraine.painLevel))
@@ -212,14 +241,14 @@ struct MigraineListView: View {
             }
             .width(min: 50, ideal: 60)
             
-            TableColumn("Location") { (migraine: MigraineEvent) in
+            TableColumn("Location", value: \.sortableLocation) { (migraine: MigraineEvent) in
                 Text(migraine.location ?? "—")
                     .font(.body)
             }
             .width(min: 80, ideal: 100)
             
-            TableColumn("Duration") { (migraine: MigraineEvent) in
-                if let text = formattedDuration(for: migraine) {
+            TableColumn("Duration", value: \.sortableDuration) { (migraine: MigraineEvent) in
+                if let text = migraine.completedDurationText {
                     Label(text, systemImage: "clock")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -247,8 +276,8 @@ struct MigraineListView: View {
             }
             .width(min: 100, ideal: 160)
             
-            TableColumn("Symptoms") { (migraine: MigraineEvent) in
-                let count = symptomCount(for: migraine)
+            TableColumn("Symptoms", value: \.symptomCount) { (migraine: MigraineEvent) in
+                let count = migraine.symptomCount
                 if count > 0 {
                     Text("\(count) symptom\(count == 1 ? "" : "s")")
                         .font(.caption)
@@ -289,15 +318,22 @@ struct MigraineListView: View {
                         Divider()
                         
                         Button(role: .destructive) {
-                            viewModel.deleteMigraine(migraine)
-                            if selectedMigraineID == migraine.id {
-                                selectedMigraineID = nil
-                            }
+                            pendingDeletion = migraine
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
                     }
             }
+        }
+        .onDeleteCommand {
+            pendingDeletion = selectedMigraine
+        }
+    }
+
+    private func delete(_ migraine: MigraineEvent) {
+        viewModel.deleteMigraine(migraine)
+        if selectedMigraineID == migraine.id {
+            selectedMigraineID = nil
         }
     }
     
@@ -343,30 +379,6 @@ struct MigraineListView: View {
     
     // MARK: - Helpers
     
-    private func formattedDuration(for migraine: MigraineEvent) -> String? {
-        guard let start = migraine.startTime,
-              let end = migraine.endTime else { return nil }
-        let interval = end.timeIntervalSince(start)
-        guard interval > 0 else { return nil }
-        let hours = Int(interval / 3600)
-        let minutes = Int((interval.truncatingRemainder(dividingBy: 3600)) / 60)
-        if hours > 0 { return "\(hours)h \(minutes)m" }
-        return "\(minutes)m"
-    }
-    
-    private func symptomCount(for migraine: MigraineEvent) -> Int {
-        var count = 0
-        if migraine.hasAura { count += 1 }
-        if migraine.hasPhotophobia { count += 1 }
-        if migraine.hasPhonophobia { count += 1 }
-        if migraine.hasNausea { count += 1 }
-        if migraine.hasVomiting { count += 1 }
-        if migraine.hasWakeUpHeadache { count += 1 }
-        if migraine.hasTinnitus { count += 1 }
-        if migraine.hasVertigo { count += 1 }
-        return count
-    }
-    
     private func painLevelColor(_ level: Int16) -> Color {
         switch level {
         case 1...3: return .green
@@ -378,43 +390,6 @@ struct MigraineListView: View {
     }
     
     // MARK: - Export
-    
-    private func exportMigrainesToCSV() {
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.commaSeparatedText]
-        panel.nameFieldStringValue = "Migraine_Log_\(dateStamp()).csv"
-        panel.title = "Export Migraine Log"
-        
-        panel.begin { response in
-            guard response == .OK, let url = panel.url else { return }
-            
-            var csv = "Date,Time,Pain Level,Location,Duration,Triggers,Medications,Symptoms,Notes\n"
-            
-            for m in filteredMigraines {
-                let date = m.startTime.map { DateFormatter.localizedString(from: $0, dateStyle: .short, timeStyle: .none) } ?? ""
-                let time = m.startTime.map { DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short) } ?? ""
-                let pain = "\(m.painLevel)"
-                let location = m.location ?? ""
-                let duration = formattedDuration(for: m) ?? ""
-                let triggers = m.orderedTriggers.map(\.displayName).joined(separator: "; ")
-                let medications = m.orderedMedications.map(\.fullDisplayName).joined(separator: "; ")
-                var symptoms: [String] = []
-                if m.hasAura { symptoms.append("Aura") }
-                if m.hasPhotophobia { symptoms.append("Photophobia") }
-                if m.hasPhonophobia { symptoms.append("Phonophobia") }
-                if m.hasNausea { symptoms.append("Nausea") }
-                if m.hasVomiting { symptoms.append("Vomiting") }
-                if m.hasWakeUpHeadache { symptoms.append("Wake-up Headache") }
-                if m.hasTinnitus { symptoms.append("Tinnitus") }
-                if m.hasVertigo { symptoms.append("Vertigo") }
-                let notes = (m.notes ?? "").replacingOccurrences(of: "\"", with: "\"\"")
-                
-                csv += "\"\(date)\",\"\(time)\",\(pain),\"\(location)\",\"\(duration)\",\"\(triggers)\",\"\(medications)\",\"\(symptoms.joined(separator: "; "))\",\"\(notes)\"\n"
-            }
-            
-            try? csv.write(to: url, atomically: true, encoding: .utf8)
-        }
-    }
     
     private func exportSingleMigraine(_ migraine: MigraineEvent) {
         let panel = NSSavePanel()
@@ -465,7 +440,7 @@ struct MigraineListView: View {
         drawText("Location: \(migraine.location ?? "Not specified")", font: nsFont, at: CGPoint(x: leftMargin, y: y))
         y -= 20
         
-        if let dur = formattedDuration(for: migraine) {
+        if let dur = migraine.completedDurationText {
             drawText("Duration: \(dur)", font: nsFont, at: CGPoint(x: leftMargin, y: y))
             y -= 20
         }

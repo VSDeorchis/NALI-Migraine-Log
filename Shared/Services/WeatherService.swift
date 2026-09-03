@@ -70,10 +70,7 @@ class WeatherService: ObservableObject {
     private let session: URLSession
     
     private init() {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 60
-        self.session = URLSession(configuration: config)
+        self.session = OpenMeteo.makeSession(requestTimeout: 30, resourceTimeout: 60)
     }
     
     // MARK: - Public Methods
@@ -116,8 +113,7 @@ class WeatherService: ObservableObject {
 
         AppLogger.weather.debug("Fetching archive weather for \(dayFormatter.string(from: startDate), privacy: .public)..\(dayFormatter.string(from: endDate), privacy: .public)")
 
-        let (data, response) = try await session.data(from: url)
-        try OpenMeteo.validateHTTP(response)
+        let data = try await OpenMeteo.fetch(url, using: session)
 
         // Decoding + nearest-hour search are pure functions of the payload;
         // run them off the main actor.
@@ -295,6 +291,7 @@ enum WeatherError: LocalizedError, Equatable {
     case invalidCoordinates
     case invalidResponse
     case httpError(statusCode: Int)
+    case responseTooLarge
     case malformedResponse(field: String)
     case noData
     case invalidDate
@@ -310,6 +307,8 @@ enum WeatherError: LocalizedError, Equatable {
             return "Invalid response from weather service"
         case .httpError(let code):
             return "Weather service error (HTTP \(code))"
+        case .responseTooLarge:
+            return "Weather service returned an unexpectedly large response"
         case .malformedResponse(let field):
             return "Weather service returned incomplete data (\(field))"
         case .noData:

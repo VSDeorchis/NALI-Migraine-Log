@@ -10,7 +10,7 @@ import CoreData
 /// completely unaffected.
 ///
 /// Case order matches the order shown in the new-migraine and edit forms.
-public enum MigraineMedication: String, CaseIterable, Identifiable, Hashable, Sendable {
+public enum MigraineMedication: String, CaseIterable, Identifiable, Hashable, Codable, Sendable {
     case tylenol
     case ibuprofin          // historical spelling preserved to match Core Data attribute
     case naproxen
@@ -52,29 +52,82 @@ public enum MigraineMedication: String, CaseIterable, Identifiable, Hashable, Se
         }
     }
 
-    /// Long form including the generic name — used in entry forms.
-    public var fullDisplayName: String {
+    /// Generic (non-proprietary) name, capitalised for display.
+    public var genericName: String {
         switch self {
-        case .tylenol:      return "Tylenol (acetaminophen)"
-        case .ubrelvy:      return "Ubrelvy (ubrogepant)"
-        case .nurtec:       return "Nurtec (rimegepant)"
-        case .reyvow:       return "Reyvow (lasmiditan)"
-        case .trudhesa:     return "Trudhesa (dihydroergotamine)"
-        default:            return displayName
+        case .tylenol:      return "Acetaminophen"
+        case .ibuprofin:    return "Ibuprofen"
+        case .naproxen:     return "Naproxen"
+        case .excedrin:     return "Acetaminophen, aspirin & caffeine"
+        case .ubrelvy:      return "Ubrogepant"
+        case .nurtec:       return "Rimegepant"
+        case .symbravo:     return "Meloxicam & rizatriptan"
+        case .sumatriptan:  return "Sumatriptan"
+        case .rizatriptan:  return "Rizatriptan"
+        case .eletriptan:   return "Eletriptan"
+        case .naratriptan:  return "Naratriptan"
+        case .frovatriptan: return "Frovatriptan"
+        case .reyvow:       return "Lasmiditan"
+        case .trudhesa:     return "Dihydroergotamine"
+        case .elyxyb:       return "Celecoxib"
+        case .other:        return "Other"
         }
+    }
+
+    /// Common brand names, most recognisable first. Empty for `.other`.
+    public var brandNames: [String] {
+        switch self {
+        case .tylenol:      return ["Tylenol"]
+        case .ibuprofin:    return ["Advil", "Motrin"]
+        case .naproxen:     return ["Aleve"]
+        case .excedrin:     return ["Excedrin"]
+        case .ubrelvy:      return ["Ubrelvy"]
+        case .nurtec:       return ["Nurtec ODT"]
+        case .symbravo:     return ["Symbravo"]
+        case .sumatriptan:  return ["Imitrex"]
+        case .rizatriptan:  return ["Maxalt"]
+        case .eletriptan:   return ["Relpax"]
+        case .naratriptan:  return ["Amerge"]
+        case .frovatriptan: return ["Frova"]
+        case .reyvow:       return ["Reyvow"]
+        case .trudhesa:     return ["Trudhesa"]
+        case .elyxyb:       return ["Elyxyb"]
+        case .other:        return []
+        }
+    }
+
+    /// Drug class shown as secondary text in pickers.
+    public var category: String {
+        switch self {
+        case .tylenol, .ibuprofin, .naproxen, .excedrin, .elyxyb:
+            return "Over-the-counter / NSAID"
+        case .sumatriptan, .rizatriptan, .eletriptan, .naratriptan, .frovatriptan, .symbravo:
+            return "Triptan"
+        case .ubrelvy, .nurtec:
+            return "CGRP antagonist (gepant)"
+        case .reyvow:
+            return "Ditan"
+        case .trudhesa:
+            return "Ergot"
+        case .other:
+            return "Other"
+        }
+    }
+
+    /// Consistent "Generic (Brand)" form used in entry forms and exports.
+    public var fullDisplayName: String {
+        let brands = brandNames.joined(separator: ", ")
+        return brands.isEmpty ? genericName : "\(genericName) (\(brands))"
     }
 
     /// Lowercase keywords used by the search bar.
     public var searchKeywords: [String] {
-        let base = displayName.lowercased()
-        switch self {
-        case .tylenol:      return [base, "acetaminophen"]
-        case .ubrelvy:      return [base, "ubrogepant"]
-        case .nurtec:       return [base, "rimegepant"]
-        case .reyvow:       return [base, "lasmiditan"]
-        case .trudhesa:     return [base, "dihydroergotamine"]
-        default:            return [base]
+        var keywords = [displayName.lowercased()]
+        for token in [genericName] + brandNames {
+            let lowered = token.lowercased()
+            if !keywords.contains(lowered) { keywords.append(lowered) }
         }
+        return keywords
     }
 
     /// Best-effort match from a legacy display string. Tolerates case,
@@ -88,7 +141,12 @@ public enum MigraineMedication: String, CaseIterable, Identifiable, Hashable, Se
         for med in MigraineMedication.allCases {
             let short = med.displayName.lowercased()
             let full  = med.fullDisplayName.lowercased()
-            if normalized == short || normalized == full || normalized.hasPrefix("\(short) (") {
+            let generic = med.genericName.lowercased()
+            if normalized == short
+                || normalized == full
+                || normalized == generic
+                || normalized.hasPrefix("\(short) (")
+                || normalized.hasPrefix("\(generic) (") {
                 self = med
                 return
             }

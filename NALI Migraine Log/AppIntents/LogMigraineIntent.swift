@@ -197,7 +197,7 @@ struct LogMigraineIntent: AppIntent {
             }
         } catch {
             context.rollback()
-            AppLogger.coreData.error("Siri intent save failed: \(error.localizedDescription, privacy: .public)")
+            AppLogger.coreData.error("Siri intent save failed: \(error.localizedDescription, privacy: .private)")
             // Surface the error so Siri/Shortcuts shows it to the user
             // rather than silently swallowing it.
             throw error
