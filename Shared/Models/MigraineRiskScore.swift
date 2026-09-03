@@ -82,6 +82,9 @@ struct RiskFactor: Identifiable {
     let icon: String
     let color: Color
     let detail: String
+    /// Factors derived from reproductive-health data stay on the phone:
+    /// they are dropped from the Watch payload and any other export.
+    var isSensitive: Bool = false
     
     var contributionPercentage: Int {
         Int(contribution * 100)
@@ -150,6 +153,10 @@ struct MigraineFeatureVector {
     var restingHeartRate: Double? = nil
     var stepsYesterday: Int? = nil
     var daysSinceMenstruation: Int? = nil
+    /// Whole-day offset from the nearest cycle start when the reference
+    /// date is perimenstrual (see `PerimenstrualWindow`); `nil` otherwise
+    /// or when cycle insights are off.
+    var perimenstrualDayOffset: Int? = nil
     
     // Daily check-in (optional)
     var selfReportedStress: Int? = nil       // 1-5
@@ -189,7 +196,8 @@ struct MigraineFeatureVector {
             "triggerExerciseFreq": triggerExerciseFreq,
             "triggerScreenTimeFreq": triggerScreenTimeFreq,
             "triptanUsesLast7Days": triptanUsesLast7Days,
-            "nsaidUsesLast7Days": nsaidUsesLast7Days
+            "nsaidUsesLast7Days": nsaidUsesLast7Days,
+            "isPerimenstrual": perimenstrualDayOffset == nil ? 0 : 1
         ]
         
         // Optional HealthKit features

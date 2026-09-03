@@ -104,6 +104,8 @@ class MigrainePredictionService: ObservableObject {
             dailyCheckIn: dailyCheckIn
         )
         
+        cycleStartsForTraining = healthData?.cycleStarts ?? []
+
         // Always compute rule-based score
         let ruleScore = computeRuleBasedScore(features: features, migraines: migraines)
         
@@ -335,16 +337,28 @@ class MigrainePredictionService: ObservableObject {
         
         // ── Hormonal ─────────────────────────────────────────────
         
-        if let days = features.daysSinceMenstruation, days <= 3 {
+        if let offset = features.perimenstrualDayOffset {
+            totalRisk += RiskWeights.menstrualWindow
+            factors.append(RiskFactor(
+                name: "Perimenstrual Window",
+                contribution: RiskWeights.menstrualWindow,
+                icon: "drop.fill",
+                color: .pink,
+                detail: PerimenstrualWindow.riskDetail(forOffset: offset),
+                isSensitive: true
+            ))
+            recommendations.append(PerimenstrualWindow.recommendation)
+        } else if let days = features.daysSinceMenstruation, days <= 3 {
             totalRisk += RiskWeights.menstrualWindow
             factors.append(RiskFactor(
                 name: "Menstrual Window",
                 contribution: RiskWeights.menstrualWindow,
                 icon: "drop.fill",
                 color: .pink,
-                detail: "Day \(days) of menstrual cycle — a known trigger window"
+                detail: "Day \(days) of menstrual cycle — a known trigger window",
+                isSensitive: true
             ))
-            recommendations.append("Hormonal changes around menstruation are a common migraine trigger. Consider preventive strategies.")
+            recommendations.append(PerimenstrualWindow.legacyRecommendation)
         }
         
         // ── Medication Rebound ───────────────────────────────────
@@ -536,7 +550,12 @@ class MigrainePredictionService: ObservableObject {
             let compiledURL = try MLModel.compileModel(at: modelURL)
             let model = try MLModel(contentsOf: compiledURL)
 
-            let input = try MLDictionaryFeatureProvider(dictionary: features.toDictionary())
+            // Only hand the model features it was trained on, so a model
+            // written before a feature (e.g. `isPerimenstrual`) existed
+            // keeps working until the next weekly retrain.
+            let expectedInputs = Set(model.modelDescription.inputDescriptionsByName.keys)
+            let inputDictionary = features.toDictionary().filter { expectedInputs.contains($0.key) }
+            let input = try MLDictionaryFeatureProvider(dictionary: inputDictionary)
             let prediction = try model.prediction(from: input)
 
             // The trained model is an `MLBoostedTreeClassifier` whose
@@ -690,7 +709,16 @@ class MigrainePredictionService: ObservableObject {
     
     // MARK: - Training Data Preparation
     
+    /// Cycle starts captured from the most recent `calculateRiskScore`
+    /// health snapshot so weekly retraining can label historical days
+    /// as perimenstrual. Empty when cycle insights are off.
+    private var cycleStartsForTraining: [Date] = []
+
     private func buildTrainingData(from migraines: [MigraineEvent]) -> [[String: Any]] {
+        buildTrainingData(from: migraines, cycleStarts: cycleStartsForTraining)
+    }
+
+    func buildTrainingData(from migraines: [MigraineEvent], cycleStarts: [Date]) -> [[String: Any]] {
         var rows: [[String: Any]] = []
         let calendar = Calendar.current
         
@@ -710,10 +738,18 @@ class MigrainePredictionService: ObservableObject {
             
             // Extract features for this date
             let priorMigraines = sorted.filter { ($0.startTime ?? .distantPast) < currentDate }
-            let features = featureExtractor.extractFeatures(
+            var features = featureExtractor.extractFeatures(
                 migraines: priorMigraines,
-                currentWeather: nil
+                currentWeather: nil,
+                referenceDate: currentDate
             )
+            if !cycleStarts.isEmpty {
+                features.perimenstrualDayOffset = PerimenstrualWindow.dayOffset(
+                    for: currentDate,
+                    cycleStarts: cycleStarts,
+                    calendar: calendar
+                )
+            }
             
             var row = features.toDictionary()
             row["hadMigraine"] = hadMigraine ? 1 : 0

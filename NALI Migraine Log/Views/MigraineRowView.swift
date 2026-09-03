@@ -4,7 +4,15 @@ import UIKit
 struct MigraineRowView: View {
     let viewModel: MigraineViewModel
     private let settings = SettingsManager.shared
+    @ObservedObject private var healthKit = HealthKitManager.shared
     let migraine: MigraineEvent
+    
+    /// Computed on the fly from Health cycle starts; never stored on the
+    /// entry so it disappears the moment cycle insights are switched off.
+    private var perimenstrualOffset: Int? {
+        guard let start = migraine.startTime else { return nil }
+        return healthKit.perimenstrualDayOffset(for: start)
+    }
     
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -118,8 +126,11 @@ struct MigraineRowView: View {
             .padding(.bottom, 8)
             
             // Symptoms row (horizontally scrollable)
-            if !primarySymptoms.isEmpty || migraine.hasWeatherData {
+            if !primarySymptoms.isEmpty || migraine.hasWeatherData || perimenstrualOffset != nil {
                 HStack(spacing: 6) {
+                    if let offset = perimenstrualOffset {
+                        PerimenstrualBadge(offset: offset)
+                    }
                     if !primarySymptoms.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 6) {
@@ -478,3 +489,27 @@ struct PressureChangeBadge: View {
         )
     }
 } 
+
+/// Compact pink capsule marking an entry that fell in the perimenstrual
+/// window (see `PerimenstrualWindow`). Purely informational — the copy
+/// deliberately avoids implying the period *caused* the attack.
+struct PerimenstrualBadge: View {
+    let offset: Int
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "drop.fill")
+                .scaledFont(size: 10)
+            Text(PerimenstrualWindow.shortLabel(forOffset: offset))
+                .scaledFont(size: 11, weight: .semibold, design: .rounded)
+        }
+        .foregroundStyle(.pink)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.pink.opacity(0.12))
+        .clipShape(Capsule())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Menstrual cycle")
+        .accessibilityValue(PerimenstrualWindow.shortLabel(forOffset: offset))
+    }
+}

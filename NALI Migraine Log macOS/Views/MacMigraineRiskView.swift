@@ -578,7 +578,7 @@ struct MacMigraineRiskView: View {
                 .font(.title2)
                 .fontWeight(.bold)
             
-            Text("Improve prediction accuracy by sharing health data. We'll read sleep, heart rate variability, resting heart rate, step count, and menstrual cycle data.\n\nAll data stays on your device.")
+            Text("Improve prediction accuracy by sharing health data. We'll read sleep, heart rate variability, resting heart rate, step count, and — only if you track it — menstrual cycle data.\n\nAll data stays on your device.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -589,7 +589,7 @@ struct MacMigraineRiskView: View {
                 healthBenefit(icon: "heart.text.square", text: "Heart rate variability (HRV)")
                 healthBenefit(icon: "heart.fill", text: "Resting heart rate")
                 healthBenefit(icon: "figure.walk", text: "Daily step count")
-                healthBenefit(icon: "drop.fill", text: "Menstrual cycle data")
+                healthBenefit(icon: "drop.fill", text: "Menstrual cycle data (optional, if tracked)")
             }
             .padding()
             

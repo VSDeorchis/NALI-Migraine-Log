@@ -147,7 +147,7 @@ struct HealthKitPermissionPrimerView: View {
                             icon: "drop.fill",
                             tint: .pink,
                             title: "Menstrual Cycle",
-                            detail: "Optional — lets Analytics correlate migraines with cycle phase."
+                            detail: "Optional and only used if you track cycles in Health — tags entries near a period start and informs risk. Skip it if it doesn't apply to you."
                         )
                     }
                     .padding(.horizontal, 4)

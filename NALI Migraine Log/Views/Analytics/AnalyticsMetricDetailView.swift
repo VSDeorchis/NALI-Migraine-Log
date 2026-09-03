@@ -697,10 +697,10 @@ struct AnalyticsMetricDetailView: View {
         return VStack(spacing: 16) {
             Card(title: "Migraines by cycle phase") {
                 if store.cycleAvailability != .available {
-                    // We can't distinguish "user has never logged
-                    // menstrual flow" from "user denied the menstrual
-                    // read in Apple's permission sheet" — both surface
-                    // as zero samples. Hedge the copy.
+                    // Also reached when Cycle-Aware Insights is off in
+                    // Settings or the sex gate excludes the user; the
+                    // dashboard hides the card in those cases, so this
+                    // copy only matters for the "no data" path.
                     missingDataHint(
                         category: "menstrual cycle",
                         capturedBy: "Apple Health's Cycle Tracking, your iPhone Health app, or a third-party app like Flo"
@@ -716,10 +716,14 @@ struct AnalyticsMetricDetailView: View {
             }
             
             if !anchored.isEmpty {
+                Card(title: "Perimenstrual vs. other days") {
+                    perimenstrualSplit(anchored: anchored)
+                }
+
                 Card(title: "Distribution by cycle day") {
                     cycleDayHistogram(anchored: anchored)
                     HStack(spacing: 14) {
-                        legendDot(perimenstrualBand, "Perimenstrual (days 26-3)")
+                        legendDot(perimenstrualBand, "Perimenstrual (2 days before to 2 after a start)")
                         legendDot(metric.accent, "Other days")
                     }
                     .scaledFont(size: 11, weight: .medium, design: .rounded)
@@ -741,7 +745,7 @@ struct AnalyticsMetricDetailView: View {
             }
             
             Card(title: "Why this matters") {
-                Text("Estrogen withdrawal in the days surrounding menstruation is one of the most studied migraine triggers. Many people see their attacks cluster around days 26 of one cycle through day 3 of the next — the perimenstrual window. A pattern here is often actionable with your physician (e.g. mini-prophylaxis, hormonal strategies).")
+                Text("Estrogen withdrawal in the days surrounding menstruation is one of the most studied migraine triggers. Many people see their attacks cluster in the two days before a period starts through the two days after — the perimenstrual window. This view is context, not a diagnosis; a pattern here is often worth discussing with your physician (e.g. mini-prophylaxis, hormonal strategies).")
                     .scaledFont(size: 13)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -768,7 +772,7 @@ struct AnalyticsMetricDetailView: View {
             }
             if let perimenPct = distribution.perimenstrualPercentage {
                 let pct = Int((perimenPct * 100).rounded())
-                Text("\(pct)% in the perimenstrual window (days 26-3)")
+                Text("\(pct)% in the perimenstrual window (−2 to +2 days from a period start)")
                     .scaledFont(size: 13, weight: .medium, design: .rounded)
                     .foregroundStyle(.pink)
             }
@@ -778,6 +782,52 @@ struct AnalyticsMetricDetailView: View {
         }
     }
     
+    /// Two-column count comparison: migraines that fell within two days
+    /// of a period start vs. everything else that could be anchored.
+    private func perimenstrualSplit(anchored: [CycleAnchoredMigraine]) -> some View {
+        let peri = anchored.filter(\.isPerimenstrual).count
+        let other = anchored.count - peri
+        let total = max(1, anchored.count)
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                splitColumn(
+                    title: "Perimenstrual",
+                    count: peri,
+                    percent: Double(peri) / Double(total),
+                    tint: perimenstrualBand
+                )
+                splitColumn(
+                    title: "Other days",
+                    count: other,
+                    percent: Double(other) / Double(total),
+                    tint: metric.accent
+                )
+            }
+            Text("The perimenstrual window (2 days before to 2 days after a period start) covers roughly 5 of every 28 days, so a share well above ~18% suggests your migraines cluster around menses.")
+                .scaledFont(size: 11)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func splitColumn(title: String, count: Int, percent: Double, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .scaledFont(size: 12, weight: .medium, design: .rounded)
+                .foregroundStyle(.secondary)
+            Text("\(count)")
+                .scaledFont(size: 26, weight: .bold, design: .rounded)
+                .foregroundStyle(tint)
+            Text("\(Int((percent * 100).rounded()))% of anchored")
+                .scaledFont(size: 11)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
     /// Datapoint for the per-cycle-day histogram. Owning a real type
     /// (rather than a tuple) keeps `Chart(_:)` and `id:` stable across
     /// Swift versions.
@@ -788,18 +838,26 @@ struct AnalyticsMetricDetailView: View {
         let isPerimenstrual: Bool
     }
     
-    /// Bar chart of migraine counts per cycle day (1-35). Bars in the
-    /// perimenstrual band (days 26+ and 1-3) are tinted pink to match
-    /// the "estrogen withdrawal" framing in clinical literature.
+    /// Bar chart of migraine counts per cycle day (1-35). A bar is
+    /// tinted pink when the migraines on that day were perimenstrual
+    /// (days 1-3, or the last two days before the *next* logged start —
+    /// which varies with cycle length, so it is derived per migraine
+    /// rather than from a fixed day number).
     private func cycleDayHistogram(anchored: [CycleAnchoredMigraine]) -> some View {
         let maxDay = max(28, anchored.map(\.cycleDay).max() ?? 28)
         var counts: [Int: Int] = [:]
-        for m in anchored { counts[m.cycleDay, default: 0] += 1 }
+        var perimenstrualCounts: [Int: Int] = [:]
+        for m in anchored {
+            counts[m.cycleDay, default: 0] += 1
+            if m.isPerimenstrual { perimenstrualCounts[m.cycleDay, default: 0] += 1 }
+        }
         let series: [CycleDayBucket] = (1...maxDay).map { day in
-            CycleDayBucket(
+            let total = counts[day] ?? 0
+            let peri = perimenstrualCounts[day] ?? 0
+            return CycleDayBucket(
                 id: day,
-                count: counts[day] ?? 0,
-                isPerimenstrual: day >= 26 || day <= 3
+                count: total,
+                isPerimenstrual: day <= PerimenstrualWindow.daysAfter + 1 || (total > 0 && peri * 2 >= total)
             )
         }
         

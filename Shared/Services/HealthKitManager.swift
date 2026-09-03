@@ -61,6 +61,12 @@ class HealthKitManager: ObservableObject {
     /// re-prompting won't work).
     private static let hasRequestedAuthorizationKey = "healthkit.hasRequestedAuthorization"
 
+    /// UserDefaults key for the cycle-aware insights toggle (log badge,
+    /// risk factor, Statistics split). Default `true` — but the toggle
+    /// is only *offered* when `cycleEligibility` allows it, so it never
+    /// activates for users recorded as male or with no cycle history.
+    private static let cycleInsightsEnabledKey = "healthkit.cycleInsightsEnabled"
+
     @Published var isAuthorized = false
     @Published var lastError: Error?
     @Published var latestSnapshot: HealthKitSnapshot?
@@ -95,6 +101,46 @@ class HealthKitManager: ObservableObject {
         }
     }
 
+    /// User preference for the cycle-aware features. Only meaningful
+    /// when `isCycleInsightsAvailable` is true.
+    @Published var isCycleInsightsEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(isCycleInsightsEnabled, forKey: Self.cycleInsightsEnabledKey)
+            cycleStarts = []
+            cycleStartsRefreshedAt = nil
+        }
+    }
+
+    /// Identity gate derived from the HealthKit biological-sex
+    /// characteristic. Kept in memory only; the raw value is never
+    /// persisted or logged.
+    @Published private(set) var cycleEligibility: CycleEligibility = .undetermined
+
+    /// Whether any menstrual-flow samples exist in the past year.
+    /// `nil` until probed.
+    @Published private(set) var hasMenstrualHistory: Bool?
+
+    /// Cycle-start dates (start of day) for roughly the past two years,
+    /// refreshed by `refreshCycleStarts()`. Empty when cycle insights
+    /// are unavailable or switched off.
+    @Published private(set) var cycleStarts: [Date] = []
+    private var cycleStartsRefreshedAt: Date?
+    private var cycleEligibilityRefreshedAt: Date?
+    private static let cycleRefreshInterval: TimeInterval = 3_600
+
+    /// The feature may be *offered* (Settings toggle shown): Health is
+    /// authorized, sex is not male, and — when sex is unknown — the
+    /// user actually tracks menstrual flow.
+    var isCycleInsightsAvailable: Bool {
+        guard isAvailable, isAuthorized else { return false }
+        return cycleEligibility.allowsCycleInsights(hasMenstrualHistory: hasMenstrualHistory ?? false)
+    }
+
+    /// The feature is offered *and* the user has left it on.
+    var isCycleInsightsActive: Bool {
+        isCycleInsightsAvailable && isCycleInsightsEnabled
+    }
+
     #if canImport(HealthKit)
     private let healthStore: HKHealthStore?
     #endif
@@ -112,6 +158,7 @@ class HealthKitManager: ObservableObject {
     private init() {
         self.isHealthSyncEnabled = UserDefaults.standard.bool(forKey: Self.healthSyncEnabledKey)
         self.hasRequestedAuthorization = UserDefaults.standard.bool(forKey: Self.hasRequestedAuthorizationKey)
+        self.isCycleInsightsEnabled = (UserDefaults.standard.object(forKey: Self.cycleInsightsEnabledKey) as? Bool) ?? true
 
         #if canImport(HealthKit)
         if HKHealthStore.isHealthDataAvailable() {
@@ -159,6 +206,7 @@ class HealthKitManager: ObservableObject {
             try await healthStore.requestAuthorization(toShare: toShare, read: readTypes)
             isAuthorized = true
             refreshAuthorizationStatus()
+            await refreshCycleEligibility()
             AppLogger.health.debug("HealthKit authorization rehydrated on launch")
         } catch {
             // Don't surface this error — rehydration is best-effort
@@ -201,6 +249,7 @@ class HealthKitManager: ObservableObject {
             try await healthStore.requestAuthorization(toShare: toShare, read: readTypes)
             isAuthorized = true
             refreshAuthorizationStatus()
+            await refreshCycleEligibility()
             AppLogger.health.notice("HealthKit authorization granted (write types: \(toShare.count, privacy: .public))")
         } catch {
             lastError = error
@@ -311,13 +360,27 @@ class HealthKitManager: ObservableObject {
         async let hrv = getLatestHRV()
         async let rhr = getRestingHeartRate()
         async let steps = getStepsYesterday()
-        async let menstrual = getDaysSinceMenstruation()
         
         snapshot.sleepHours = await sleep
         snapshot.hrv = await hrv
         snapshot.restingHeartRate = await rhr
         snapshot.steps = await steps
-        snapshot.daysSinceMenstruation = await menstrual
+
+        // Cycle context is iPhone-only: the eligibility gate and the
+        // user's toggle live on the phone and are not synced to Watch.
+        #if os(iOS)
+        await refreshCycleEligibility()
+        if isCycleInsightsActive {
+            snapshot.daysSinceMenstruation = await getDaysSinceMenstruation()
+            await refreshCycleStarts()
+            snapshot.cycleStarts = cycleStarts
+            snapshot.perimenstrualDayOffset = PerimenstrualWindow.dayOffset(
+                for: Date(),
+                cycleStarts: cycleStarts,
+                calendar: calendar
+            )
+        }
+        #endif
         
         latestSnapshot = snapshot
         #endif
@@ -344,6 +407,12 @@ class HealthKitManager: ObservableObject {
         }
         if let menstrual = HKObjectType.categoryType(forIdentifier: .menstrualFlow) {
             types.insert(menstrual)
+        }
+        // Biological sex gates the cycle-aware features: users recorded
+        // as male never see them. Characteristics are read-only, so this
+        // is a single one-time lookup per launch.
+        if let sex = HKObjectType.characteristicType(forIdentifier: .biologicalSex) {
+            types.insert(sex)
         }
 
         // We also read back our own headache samples to dedupe writes during
@@ -603,10 +672,8 @@ class HealthKitManager: ObservableObject {
     /// includes a precomputed `isCycleStart` flag so callers don't have
     /// to re-derive the gap analysis.
     ///
-    /// We deliberately do NOT gate this on `HKBiologicalSex` —
-    /// menstrual tracking in Apple Health is exposed to all users, and
-    /// the migraine correlation card on the dashboard appears only when
-    /// real samples exist (data-driven gating, not identity-driven).
+    /// Callers are expected to check `isCycleInsightsActive` first —
+    /// this query does not apply the biological-sex gate itself.
     func fetchMenstrualEvents(in interval: DateInterval) async -> [MenstrualEvent] {
         #if canImport(HealthKit)
         guard let healthStore = healthStore, isAuthorized else { return [] }
@@ -656,11 +723,84 @@ class HealthKitManager: ObservableObject {
         #endif
     }
     
+    /// Re-reads the biological-sex characteristic and probes for
+    /// menstrual history, updating `cycleEligibility` and
+    /// `hasMenstrualHistory`. Throttled to once per hour unless `force`
+    /// is set. The sex value itself is never logged.
+    func refreshCycleEligibility(force: Bool = false) async {
+        #if canImport(HealthKit)
+        guard let healthStore = healthStore, isAuthorized else {
+            cycleEligibility = .undetermined
+            hasMenstrualHistory = nil
+            cycleEligibilityRefreshedAt = nil
+            return
+        }
+        if !force,
+           let last = cycleEligibilityRefreshedAt,
+           Date().timeIntervalSince(last) < Self.cycleRefreshInterval {
+            return
+        }
+
+        let eligibility: CycleEligibility
+        if let sex = try? healthStore.biologicalSex().biologicalSex {
+            switch sex {
+            case .male:   eligibility = .excluded
+            case .female: eligibility = .eligible
+            case .other, .notSet: eligibility = .undetermined
+            @unknown default: eligibility = .undetermined
+            }
+        } else {
+            eligibility = .undetermined
+        }
+        cycleEligibility = eligibility
+
+        switch eligibility {
+        case .excluded:
+            hasMenstrualHistory = false
+            cycleStarts = []
+        case .eligible, .undetermined:
+            hasMenstrualHistory = await hasAnyMenstrualHistory()
+        }
+        cycleEligibilityRefreshedAt = Date()
+        #else
+        cycleEligibility = .undetermined
+        hasMenstrualHistory = nil
+        #endif
+    }
+
+    /// Reloads `cycleStarts` from the past two years of menstrual-flow
+    /// samples when cycle insights are active (so older log entries can
+    /// still be badged). Throttled to once per hour unless `force` is set.
+    func refreshCycleStarts(force: Bool = false) async {
+        guard isCycleInsightsActive else {
+            cycleStarts = []
+            cycleStartsRefreshedAt = nil
+            return
+        }
+        if !force,
+           let last = cycleStartsRefreshedAt,
+           Date().timeIntervalSince(last) < Self.cycleRefreshInterval {
+            return
+        }
+        let now = Date()
+        let start = calendar.date(byAdding: .year, value: -2, to: now) ?? now
+        let events = await fetchMenstrualEvents(in: DateInterval(start: start, end: now))
+        cycleStarts = events.filter(\.isCycleStart).map(\.date).sorted()
+        cycleStartsRefreshedAt = now
+    }
+
+    /// Perimenstrual day offset for `date` (see `PerimenstrualWindow`),
+    /// or `nil` when cycle insights are off or the date is outside the
+    /// window. Uses the cached `cycleStarts`.
+    func perimenstrualDayOffset(for date: Date) -> Int? {
+        guard isCycleInsightsActive, !cycleStarts.isEmpty else { return nil }
+        return PerimenstrualWindow.dayOffset(for: date, cycleStarts: cycleStarts, calendar: calendar)
+    }
+
     /// True when the user has logged at least one menstrual-flow sample
-    /// in the past 365 days. Used to gate the cycle-phase correlation
-    /// card on the Analytics dashboard (data-driven, not gender-driven).
-    /// Cheap because we cap the limit at 1 — the query short-circuits
-    /// after the first match.
+    /// in the past 365 days. Feeds `cycleEligibility` for users whose
+    /// biological sex is not recorded in Health. Cheap because we cap
+    /// the limit at 1 — the query short-circuits after the first match.
     func hasAnyMenstrualHistory() async -> Bool {
         #if canImport(HealthKit)
         guard let healthStore = healthStore, isAuthorized else { return false }

@@ -116,6 +116,16 @@ class FeatureExtractor {
             features.restingHeartRate        = health.restingHeartRate
             features.stepsYesterday          = health.steps
             features.daysSinceMenstruation   = health.daysSinceMenstruation
+            if let offset = health.perimenstrualDayOffset,
+               calendar.isDate(referenceDate, inSameDayAs: Date()) {
+                features.perimenstrualDayOffset = offset
+            } else if !health.cycleStarts.isEmpty {
+                features.perimenstrualDayOffset = PerimenstrualWindow.dayOffset(
+                    for: referenceDate,
+                    cycleStarts: health.cycleStarts,
+                    calendar: calendar
+                )
+            }
         }
         
         // ── Daily check-in (optional) ─────────────────────────────
@@ -195,6 +205,11 @@ struct HealthKitSnapshot {
     var restingHeartRate: Double?
     var steps: Int?
     var daysSinceMenstruation: Int?
+    /// Perimenstrual offset for *today* (see `PerimenstrualWindow`).
+    var perimenstrualDayOffset: Int?
+    /// Cycle-start dates used to evaluate other reference dates
+    /// (hourly forecast, training rows). Empty when cycle insights are off.
+    var cycleStarts: [Date] = []
 }
 
 /// Snapshot of the user's daily check-in.
