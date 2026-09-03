@@ -10,7 +10,6 @@ import SwiftUI
 @main
 struct NALI_Migraine_Log_macOSApp: App {
     @StateObject private var viewModel: MigraineViewModel
-    @State private var showingNewMigraine = false
     @State private var launch = AppLaunchCoordinator(
         steps: [
             LaunchStep(title: "Updating your data") { context in
@@ -19,7 +18,6 @@ struct NALI_Migraine_Log_macOSApp: App {
         ],
         minimumSplashDuration: .seconds(1.6)
     )
-    @State private var selectedTab = 0
     @State private var hasAcceptedDisclaimer = UserDefaults.standard.bool(forKey: Constants.hasAcceptedDisclaimer)
     @State private var declinedDisclaimer = false
     let persistenceController = PersistenceController.shared
@@ -60,7 +58,7 @@ struct NALI_Migraine_Log_macOSApp: App {
                         }
                         .transition(.opacity)
                 } else {
-                    MacContentView(context: persistenceController.container.viewContext)
+                    MacContentView(viewModel: viewModel)
                         .environment(\.managedObjectContext, persistenceController.container.viewContext)
                 }
             }
@@ -69,8 +67,9 @@ struct NALI_Migraine_Log_macOSApp: App {
                 await launch.run(context: persistenceController.container.viewContext)
             }
         }
+        .defaultSize(width: 1100, height: 720)
         .commands {
-            AppCommands(viewModel: viewModel, showingNewMigraine: $showingNewMigraine, selectedTab: $selectedTab)
+            AppCommands()
             SidebarCommands()
         }
         

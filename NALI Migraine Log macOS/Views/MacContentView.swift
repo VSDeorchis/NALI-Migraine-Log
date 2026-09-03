@@ -1,46 +1,24 @@
 import SwiftUI
 
 struct MacContentView: View {
-    @Environment(\.managedObjectContext) private var viewContext
-    @StateObject private var viewModel: MigraineViewModel
-    @State private var selectedTab = 0
+    @ObservedObject var viewModel: MigraineViewModel
+    /// Per-window so each restored window comes back on the view it was showing.
+    @SceneStorage("mac.selectedTab") private var selectedTab = 0
     @State private var showingNewMigraine = false
     @State private var columnVisibility = NavigationSplitViewVisibility.automatic
     @State private var selectedFilter: SmartFilter = .all
-    
-    init(context: NSManagedObjectContext) {
-        _viewModel = StateObject(wrappedValue: MigraineViewModel(context: context))
-    }
     
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $selectedTab) {
                 // Main navigation
                 Section("Navigation") {
-                    NavigationLink(value: 0) {
-                        Label("Migraine Log", systemImage: "list.bullet")
+                    ForEach(MacDestination.allCases) { destination in
+                        NavigationLink(value: destination.rawValue) {
+                            Label(destination.title, systemImage: destination.systemImage)
+                        }
+                        .tag(destination.rawValue)
                     }
-                    .tag(0)
-                    
-                    NavigationLink(value: 1) {
-                        Label("Calendar", systemImage: "calendar")
-                    }
-                    .tag(1)
-                    
-                    NavigationLink(value: 2) {
-                        Label("Predict", systemImage: "brain.head.profile")
-                    }
-                    .tag(2)
-                    
-                    NavigationLink(value: 3) {
-                        Label("Analytics", systemImage: "chart.bar")
-                    }
-                    .tag(3)
-                    
-                    NavigationLink(value: 4) {
-                        Label("About", systemImage: "info.circle")
-                    }
-                    .tag(4)
                 }
                 
                 // Smart Filters (only visible when on Migraine Log tab)
@@ -99,11 +77,17 @@ struct MacContentView: View {
                         .font(.title3)
                 }
                 .help("New Migraine (⌘N)")
-                .keyboardShortcut("n", modifiers: .command)
             }
         }
+        .focusedSceneValue(\.newMigraine, { showingNewMigraine = true })
+        .focusedSceneValue(\.refreshMigraines, { viewModel.fetchMigraines() })
+        .focusedSceneValue(\.selectedTab, $selectedTab)
         .onAppear {
             viewModel.fetchMigraines()
+            if selectedTab >= 10 {
+                let filters = SmartFilter.allCases
+                selectedFilter = filters.indices.contains(selectedTab - 10) ? filters[selectedTab - 10] : .all
+            }
         }
         .sheet(isPresented: $showingNewMigraine) {
             NewMigraineView(viewModel: viewModel)
@@ -118,6 +102,6 @@ struct MacContentView: View {
 }
 
 #Preview {
-    MacContentView(context: PersistenceController.preview.container.viewContext)
+    MacContentView(viewModel: MigraineViewModel(context: PersistenceController.preview.container.viewContext))
         .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
 }
