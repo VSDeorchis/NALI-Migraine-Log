@@ -565,11 +565,7 @@ extension WatchConnectivityManager: WCSessionDelegate {
             if payload["requestSync"] as? Bool == true {
                 self.handleSyncRequest()
             }
-            #if os(watchOS)
-            if let riskPayload = payload["riskUpdate"] as? [String: Any] {
-                self.processRiskData(riskPayload)
-            }
-            #endif
+            self.handleIncoming(payload)
         }
     }
 

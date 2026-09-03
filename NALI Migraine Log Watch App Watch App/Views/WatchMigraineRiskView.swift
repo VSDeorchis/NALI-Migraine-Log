@@ -20,6 +20,8 @@ struct WatchMigraineRiskView: View {
               Date().timeIntervalSince(synced.timestamp) < 1800 else { return nil }
         return synced
     }
+
+    private var hasFreshSyncedRisk: Bool { freshSyncedRisk != nil }
     
     /// Effective risk percentage to display (prefer iPhone-synced value)
     private var displayRiskPercentage: Int {
