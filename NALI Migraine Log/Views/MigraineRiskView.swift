@@ -469,6 +469,17 @@ struct MigraineRiskView: View {
                     .map { "\($0.label), \(Int(($0.risk * 100).rounded())) percent" }
                     .joined(separator: "; ")
             )
+            .accessibilityChartDescriptor(
+                BarChartAudioGraph(
+                    title: "24-hour migraine risk forecast",
+                    xAxisTitle: "Time period",
+                    yAxisTitle: "Risk",
+                    bars: timePeriodRisks.map {
+                        BarChartAudioGraph.Bar(label: $0.label, value: ($0.risk * 100).rounded())
+                    },
+                    valueUnit: "percent"
+                )
+            )
         }
         .padding()
         .background(

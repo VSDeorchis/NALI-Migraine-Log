@@ -176,7 +176,7 @@ struct MigraineLogView: View {
             Button(action: { showingSettings = true }) {
                 Image(systemName: "gear")
                     .scaledFont(size: 20, weight: .medium)
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(Color.accentColor)
                     .frame(width: 32, height: 32)
                     .contentShape(Rectangle())
             }
@@ -806,7 +806,7 @@ struct FilterButton: View {
                         }
                     }
                 )
-                .foregroundColor(isSelected ? .white : .primary)
+                .foregroundStyle(isSelected ? Color.white : Color.primary)
                 .overlay(
                     Capsule()
                         .strokeBorder(isSelected ? Color.clear : Color(.systemGray4), lineWidth: 1)

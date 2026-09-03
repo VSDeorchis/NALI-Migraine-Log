@@ -22,6 +22,7 @@ extension MigraineEvent {
     }
 
     @NSManaged public var id: UUID?
+    @NSManaged public var modifiedAt: Date?
     @NSManaged public var startTime: Date?
     @NSManaged public var endTime: Date?
     @NSManaged public var painLevel: Int16

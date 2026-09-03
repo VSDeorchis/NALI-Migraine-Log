@@ -65,6 +65,18 @@ class HealthKitManager: ObservableObject {
     @Published var lastError: Error?
     @Published var latestSnapshot: HealthKitSnapshot?
 
+    /// Live read of the `.headache` share permission, re-evaluated by
+    /// `refreshAuthorizationStatus()` on foreground/settings appearance so
+    /// a revocation in the Health app is reflected without a relaunch.
+    @Published private(set) var writeStatus: WriteAuthorizationStatus = .notDetermined
+
+    /// True when mirroring is switched on but Health no longer lets this
+    /// app write headache samples. Settings uses it to explain why new
+    /// entries stop appearing in Health and to point at the fix.
+    var isWriteAccessRevoked: Bool {
+        isHealthSyncEnabled && writeStatus == .denied
+    }
+
     /// True iff we have called `requestAuthorization` at least once since
     /// install. Persists across launches. Used by call sites to decide
     /// between "show our primer + system sheet" (false) and "show our
@@ -119,6 +131,7 @@ class HealthKitManager: ObservableObject {
         // leave `isAuthorized = false` for previously-authorized
         // users until they manually navigated through the primer
         // again, which is exactly the bug we're trying to fix.
+        refreshAuthorizationStatus()
         if hasRequestedAuthorization {
             Task { [weak self] in
                 await self?.rehydrateAuthorizationStatus()
@@ -145,6 +158,7 @@ class HealthKitManager: ObservableObject {
         do {
             try await healthStore.requestAuthorization(toShare: toShare, read: readTypes)
             isAuthorized = true
+            refreshAuthorizationStatus()
             AppLogger.health.debug("HealthKit authorization rehydrated on launch")
         } catch {
             // Don't surface this error — rehydration is best-effort
@@ -186,10 +200,12 @@ class HealthKitManager: ObservableObject {
         do {
             try await healthStore.requestAuthorization(toShare: toShare, read: readTypes)
             isAuthorized = true
+            refreshAuthorizationStatus()
             AppLogger.health.notice("HealthKit authorization granted (write types: \(toShare.count, privacy: .public))")
         } catch {
             lastError = error
             isAuthorized = false
+            refreshAuthorizationStatus()
             AppLogger.health.error("HealthKit authorization failed: \(error.localizedDescription, privacy: .public)")
         }
         #else
@@ -250,6 +266,18 @@ class HealthKitManager: ObservableObject {
         /// User approved the write toggle in the system sheet. (Reads
         /// may still have been denied — we can't tell from this alone.)
         case authorized
+    }
+
+    /// Re-read the share permission from the health store. Cheap and
+    /// synchronous; safe to call on every foreground or Settings appearance.
+    func refreshAuthorizationStatus() {
+        let status = writeAuthorizationStatus
+        if status != writeStatus {
+            writeStatus = status
+            if status == .denied {
+                AppLogger.health.notice("Health headache write access is denied; mirroring paused")
+            }
+        }
     }
 
     /// Best-effort answer to "has the user finished setting up
@@ -370,16 +398,7 @@ class HealthKitManager: ObservableObject {
         
         do {
             let samples = try await descriptor.result(for: healthStore)
-            
-            // Sum up asleep intervals (exclude "inBed" which is HKCategoryValueSleepAnalysis.inBed = 0)
-            var totalSleep: TimeInterval = 0
-            for sample in samples {
-                // Values > 0 represent actual sleep stages (asleep, deep, REM, core)
-                if sample.value > 0 {
-                    totalSleep += sample.endDate.timeIntervalSince(sample.startDate)
-                }
-            }
-            
+            let totalSleep = Self.mergedDuration(of: Self.asleepIntervals(from: samples))
             let hours = totalSleep / 3600.0
             return hours > 0 ? hours : nil
         } catch {
@@ -559,10 +578,9 @@ class HealthKitManager: ObservableObject {
             let samples = try await descriptor.result(for: healthStore)
             
             var totals: [Date: TimeInterval] = [:]
-            for sample in samples {
-                guard sample.value > 0 else { continue }
-                let nightKey = nightKey(forSampleEndingAt: sample.endDate)
-                totals[nightKey, default: 0] += sample.endDate.timeIntervalSince(sample.startDate)
+            for interval in Self.mergedIntervals(Self.asleepIntervals(from: samples)) {
+                let nightKey = nightKey(forSampleEndingAt: interval.end)
+                totals[nightKey, default: 0] += interval.duration
             }
             
             return totals
@@ -708,6 +726,17 @@ class HealthKitManager: ObservableObject {
         #endif
     }
     
+    /// Intervals of the samples that represent actual sleep. `inBed` and
+    /// `awake` are excluded; every other value (unspecified/core/deep/REM)
+    /// counts.
+    private static func asleepIntervals(from samples: [HKCategorySample]) -> [DateInterval] {
+        let asleep = HKCategoryValueSleepAnalysis.allAsleepValues.map(\.rawValue)
+        return samples.compactMap { sample in
+            guard asleep.contains(sample.value), sample.endDate > sample.startDate else { return nil }
+            return DateInterval(start: sample.startDate, end: sample.endDate)
+        }
+    }
+
     /// Map a sleep sample's `endDate` onto the calendar morning we
     /// attribute the night to. End times after noon spill over to the
     /// next day — fine for matching against migraines the same morning,
@@ -752,6 +781,8 @@ class HealthKitManager: ObservableObject {
             AppLogger.health.error("Headache category type not available on this OS")
             return false
         }
+        refreshAuthorizationStatus()
+        guard writeStatus == .authorized else { return false }
         guard let migraineID = migraine.id?.uuidString,
               let startTime = migraine.startTime else {
             AppLogger.health.error("Migraine missing id or startTime; skipping Health write")
@@ -833,13 +864,14 @@ class HealthKitManager: ObservableObject {
     }
 
     /// Convenience entry point used when the user *deletes* a migraine in
-    /// Headway. Mirrors the deletion into Health if mirroring is enabled
-    /// and the user has authorized writes. Errors are swallowed and logged
-    /// — a Health-side failure should never block the Core Data delete.
+    /// Headway. Removes the mirrored sample whenever Health still lets us
+    /// write — even if mirroring has since been switched off, so a sample
+    /// written earlier never outlives its entry. Errors are swallowed and
+    /// logged; a Health-side failure never blocks the Core Data delete.
     @available(iOS 17.0, watchOS 10.0, *)
     func mirrorDeletion(ofMigraineUUID uuid: String) async {
         #if canImport(HealthKit)
-        guard isHealthSyncEnabled, isAuthorized else { return }
+        guard hasRequestedAuthorization, writeAuthorizationStatus == .authorized else { return }
         do {
             try await deleteHealthSamples(forMigraineUUID: uuid)
             AppLogger.health.notice("Mirrored migraine deletion to Health: \(uuid, privacy: .public)")
@@ -921,6 +953,26 @@ class HealthKitManager: ObservableObject {
     /// Pure and `nonisolated` so it's unit-testable without HealthKit/iCloud.
     nonisolated static func clampedHealthSampleEnd(start: Date, end: Date?) -> Date {
         max(end ?? start, start)
+    }
+
+    /// Coalesces overlapping or touching intervals. Sleep is commonly
+    /// recorded by several sources at once (Apple Watch stages plus a
+    /// third-party tracker's single "asleep" block); summing raw samples
+    /// would count those hours twice.
+    nonisolated static func mergedIntervals(_ intervals: [DateInterval]) -> [DateInterval] {
+        var merged: [DateInterval] = []
+        for interval in intervals.sorted(by: { $0.start < $1.start }) {
+            if let last = merged.last, interval.start <= last.end {
+                merged[merged.count - 1] = DateInterval(start: last.start, end: max(last.end, interval.end))
+            } else {
+                merged.append(interval)
+            }
+        }
+        return merged
+    }
+
+    nonisolated static func mergedDuration(of intervals: [DateInterval]) -> TimeInterval {
+        mergedIntervals(intervals).reduce(0) { $0 + $1.duration }
     }
 }
 

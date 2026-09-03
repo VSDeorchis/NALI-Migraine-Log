@@ -50,3 +50,42 @@ struct HealthKitSampleClampTests {
         #expect(clamped == start)
     }
 }
+
+@Suite("HealthKit sleep interval merge")
+struct HealthKitSleepMergeTests {
+
+    private let base = Date(timeIntervalSince1970: 1_700_000_000)
+
+    private func interval(_ startHours: Double, _ endHours: Double) -> DateInterval {
+        DateInterval(start: base.addingTimeInterval(startHours * 3600),
+                     end: base.addingTimeInterval(endHours * 3600))
+    }
+
+    @Test("Overlapping samples from two sources are counted once")
+    func overlappingSamplesCountOnce() {
+        // Watch stages 23:00–06:30 split into blocks, plus a third-party
+        // tracker's single 23:15–06:00 "asleep" block.
+        let intervals = [
+            interval(0, 2), interval(2, 4.5), interval(5, 7.5),
+            interval(0.25, 7)
+        ]
+        let merged = HealthKitManager.mergedIntervals(intervals)
+        #expect(merged.count == 1)
+        #expect(HealthKitManager.mergedDuration(of: intervals) == 7.5 * 3600)
+    }
+
+    @Test("Disjoint samples keep their gaps")
+    func disjointSamplesKeepGaps() {
+        let intervals = [interval(3, 4), interval(0, 1)]
+        let merged = HealthKitManager.mergedIntervals(intervals)
+        #expect(merged.count == 2)
+        #expect(merged.first?.start == base)
+        #expect(HealthKitManager.mergedDuration(of: intervals) == 2 * 3600)
+    }
+
+    @Test("Touching samples coalesce and an empty list yields zero")
+    func touchingAndEmpty() {
+        #expect(HealthKitManager.mergedIntervals([interval(0, 1), interval(1, 2)]).count == 1)
+        #expect(HealthKitManager.mergedDuration(of: []) == 0)
+    }
+}

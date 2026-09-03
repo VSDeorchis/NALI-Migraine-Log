@@ -174,7 +174,9 @@ struct DailyCheckInView: View {
                 
                 VStack(spacing: 2) {
                     Text("\(caffeineIntake)")
-                        .font(.system(size: 36, weight: .bold, design: .rounded))
+                        .scaledFont(size: 36, weight: .bold, design: .rounded)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
                     Text(caffeineIntake == 1 ? "cup" : "cups")
                         .font(.caption)
                         .foregroundStyle(.secondary)

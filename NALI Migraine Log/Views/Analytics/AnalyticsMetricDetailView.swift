@@ -336,7 +336,7 @@ struct AnalyticsMetricDetailView: View {
                         .scaledFont(size: 28, weight: .semibold)
                         .foregroundStyle(metric.accent)
                     Text(streak.map(String.init) ?? "—")
-                        .font(.system(size: 36, weight: .bold, design: .rounded))
+                        .scaledFont(size: 36, weight: .bold, design: .rounded)
                         .foregroundStyle(.primary)
                     Text(streak.map { $0 == 1 ? "day" : "days" } ?? "no entries")
                         .scaledFont(size: 15, weight: .medium, design: .rounded)
@@ -555,7 +555,7 @@ struct AnalyticsMetricDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(formatHours(summary.migraineMean))
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .scaledFont(size: 32, weight: .bold, design: .rounded)
                     .foregroundStyle(.primary)
                 Text("on migraine eves")
                     .scaledFont(size: 13, weight: .medium, design: .rounded)
@@ -668,7 +668,7 @@ struct AnalyticsMetricDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(formatMs(summary.migraineMean))
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .scaledFont(size: 32, weight: .bold, design: .rounded)
                     .foregroundStyle(.primary)
                 Text("pre-migraine avg")
                     .scaledFont(size: 13, weight: .medium, design: .rounded)
@@ -773,7 +773,7 @@ struct AnalyticsMetricDetailView: View {
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("\(distribution.totalAnchored)")
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .scaledFont(size: 32, weight: .bold, design: .rounded)
                     .foregroundStyle(.primary)
                 Text("migraines anchored to a cycle")
                     .scaledFont(size: 13, weight: .medium, design: .rounded)

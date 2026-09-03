@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="24512" systemVersion="24G419" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithCloudKit="YES" userDefinedModelVersionIdentifier="">
+    <entity name="MigraineEvent" representedClassName="MigraineEvent" syncable="YES">
+        <attribute name="endTime" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="hasAura" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="hasNausea" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="hasPhonophobia" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="hasPhotophobia" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="hasTinnitus" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="hasVertigo" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="hasVomiting" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="hasWakeUpHeadache" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="hasWeatherData" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="isTriggerAlcohol" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="isTriggerCaffeine" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="isTriggerDehydration" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="isTriggerExercise" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="isTriggerFood" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="isTriggerHormones" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="isTriggerLackOfSleep" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="isTriggerOther" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="isTriggerScreenTime" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="isTriggerStress" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="isTriggerWeather" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="location" optional="YES" attributeType="String"/>
+        <attribute name="medicationStrings" optional="YES" attributeType="String"/>
+        <attribute name="missedEvents" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="missedSchool" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="missedWork" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="modifiedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="notes" optional="YES" attributeType="String"/>
+        <attribute name="painLevel" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="startTime" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="tookEletriptan" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="tookElyxyb" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="tookExcedrin" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="tookFrovatriptan" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="tookIbuprofin" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="tookNaproxen" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="tookNaratriptan" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="tookNurtec" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="tookOther" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="tookReyvow" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="tookRizatriptan" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="tookSumatriptan" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="tookSymbravo" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="tookTrudhesa" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="tookTylenol" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="tookUbrelvy" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="triggerStrings" optional="YES" attributeType="String"/>
+        <attribute name="weatherCloudCover" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="weatherCode" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="weatherCondition" optional="YES" attributeType="String"/>
+        <attribute name="weatherIcon" optional="YES" attributeType="String"/>
+        <attribute name="weatherLatitude" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="weatherLongitude" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="weatherPrecipitation" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="weatherPressure" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="weatherPressureChange24h" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="weatherTemperature" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+    </entity>
+</model>

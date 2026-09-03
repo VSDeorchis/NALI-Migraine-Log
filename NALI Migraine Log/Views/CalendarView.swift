@@ -498,7 +498,7 @@ struct DayCell: View {
             VStack(spacing: 2) {
                 Text("\(Calendar.current.component(.day, from: date))")
                     .font(.system(.body, design: .rounded))
-                    .foregroundColor(isToday ? .blue : .primary)
+                    .foregroundStyle(isToday ? Color.blue : Color.primary)
                 
                 if migraines.count > 1 {
                     Text("\(migraines.count)")
