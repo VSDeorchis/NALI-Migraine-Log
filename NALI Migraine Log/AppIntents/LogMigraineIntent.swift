@@ -208,6 +208,12 @@ struct LogMigraineIntent: AppIntent {
         // a Siri-heavy user would never see the prompt.
         ReviewPromptCoordinator.recordEntryLogged()
 
+        // Donating lets Siri Suggestions / Spotlight surface "Log a
+        // Migraine" at the times the user habitually logs. The donation
+        // carries only the intent parameters the user spoke, never the
+        // saved record.
+        _ = try? await IntentDonationManager.shared.donate(intent: self)
+
         // Fan out to Apple Health if the user has opted in. Doesn't block
         // the dialog return — but we do `await` here because we want the
         // sample written before the user opens Health to verify, and
@@ -264,7 +270,19 @@ struct HeadwayAppShortcuts: AppShortcutsProvider {
             shortTitle: "New Migraine Entry",
             systemImageName: "square.and.pencil"
         )
+        AppShortcut(
+            intent: GetRecentMigrainesIntent(),
+            phrases: [
+                "How many migraines did I log in \(.applicationName)",
+                "Show my recent migraines in \(.applicationName)",
+                "Get my recent migraines from \(.applicationName)",
+            ],
+            shortTitle: "Recent Migraines",
+            systemImageName: "calendar.badge.clock"
+        )
     }
+
+    static let shortcutTileColor: ShortcutTileColor = .purple
 }
 
 // MARK: - App Intents value types
