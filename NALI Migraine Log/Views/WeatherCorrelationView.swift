@@ -10,7 +10,7 @@ import Charts
 
 struct WeatherCorrelationView: View {
     @ObservedObject var viewModel: MigraineViewModel
-    private var settings = SettingsManager.shared
+    private let settings = SettingsManager.shared
     let timeFilter: StatisticsView.TimeFilter
     let selectedYear: Int
     let customStartDate: Date

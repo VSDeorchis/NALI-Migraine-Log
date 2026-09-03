@@ -4,7 +4,7 @@ import CoreData
 struct MigraineDetailView: View {
     let migraine: MigraineEvent
     @ObservedObject var viewModel: MigraineViewModel
-    private var settings = SettingsManager.shared
+    private let settings = SettingsManager.shared
     let dismiss: () -> Void
     
     /// Drives the iPad-friendly notes-editor height. Apple Pencil

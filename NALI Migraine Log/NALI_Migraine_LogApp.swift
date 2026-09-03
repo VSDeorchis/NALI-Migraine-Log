@@ -13,7 +13,7 @@ import CoreData
 struct NALI_Migraine_LogApp: App {
     @StateObject private var viewModel: MigraineViewModel
     @StateObject private var connectivityManager = WatchConnectivityManager.shared
-    private var settings = SettingsManager.shared
+    private let settings = SettingsManager.shared
     @StateObject private var locationManager = LocationManager.shared
     /// Receives "open a screen" requests from App Intents (Siri /
     /// Shortcuts). Currently drives the New Entry sheet below via
