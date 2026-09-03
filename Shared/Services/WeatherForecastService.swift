@@ -79,10 +79,7 @@ class WeatherForecastService: ObservableObject {
     private var inFlight: Task<[ForecastHour], Error>?
     
     private init() {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 15
-        config.timeoutIntervalForResource = 30
-        self.session = URLSession(configuration: config)
+        self.session = OpenMeteo.makeSession(requestTimeout: 15, resourceTimeout: 30)
     }
     
     // MARK: - Public Methods
@@ -117,8 +114,7 @@ class WeatherForecastService: ObservableObject {
                 URLQueryItem(name: "timezone", value: "auto")
             ])
 
-            let (data, response) = try await session.data(from: url)
-            try OpenMeteo.validateHTTP(response)
+            let data = try await OpenMeteo.fetch(url, using: session)
 
             return try await Task.detached(priority: .userInitiated) {
                 let forecast = try JSONDecoder().decode(ForecastData.self, from: data)

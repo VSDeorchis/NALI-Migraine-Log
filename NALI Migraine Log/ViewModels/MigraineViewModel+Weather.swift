@@ -40,7 +40,7 @@ extension MigraineViewModel {
         } catch {
             viewContext.rollback()
             lastError = .saveFailed(error)
-            migraineLog.error("Failed to save weather data: \(error.localizedDescription, privacy: .public)")
+            migraineLog.error("Failed to save weather data: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -103,7 +103,7 @@ extension MigraineViewModel {
             try? await Task.sleep(nanoseconds: 3_000_000_000)
             weatherFetchStatus = .idle
         } catch {
-            migraineLog.error("Weather fetch failed: \(error.localizedDescription, privacy: .public)")
+            migraineLog.error("Weather fetch failed: \(error.localizedDescription, privacy: .private)")
             weatherFetchStatus = .failed(error.localizedDescription)
             try? await Task.sleep(nanoseconds: 3_000_000_000)
             weatherFetchStatus = .idle
@@ -194,7 +194,7 @@ extension MigraineViewModel {
 
         } catch {
             if viewContext.hasChanges { viewContext.rollback() }
-            AppLogger.weather.error("Failed to fetch weather for custom location: \(error.localizedDescription, privacy: .public)")
+            AppLogger.weather.error("Failed to fetch weather for custom location: \(error.localizedDescription, privacy: .private)")
             weatherFetchStatus = .failed(error.localizedDescription)
 
             try? await Task.sleep(nanoseconds: 3_000_000_000)

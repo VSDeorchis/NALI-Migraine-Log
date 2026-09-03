@@ -163,7 +163,7 @@ class HealthKitManager: ObservableObject {
         } catch {
             // Don't surface this error — rehydration is best-effort
             // and the user hasn't taken any action to debug.
-            AppLogger.health.debug("HealthKit rehydrate failed: \(error.localizedDescription, privacy: .public)")
+            AppLogger.health.debug("HealthKit rehydrate failed: \(error.localizedDescription, privacy: .private)")
         }
         #endif
     }
@@ -206,7 +206,7 @@ class HealthKitManager: ObservableObject {
             lastError = error
             isAuthorized = false
             refreshAuthorizationStatus()
-            AppLogger.health.error("HealthKit authorization failed: \(error.localizedDescription, privacy: .public)")
+            AppLogger.health.error("HealthKit authorization failed: \(error.localizedDescription, privacy: .private)")
         }
         #else
         lastError = HealthKitError.notAvailable
@@ -402,7 +402,7 @@ class HealthKitManager: ObservableObject {
             let hours = totalSleep / 3600.0
             return hours > 0 ? hours : nil
         } catch {
-            AppLogger.health.error("HealthKit sleep fetch error: \(error.localizedDescription, privacy: .public)")
+            AppLogger.health.error("HealthKit sleep fetch error: \(error.localizedDescription, privacy: .private)")
             return nil
         }
     }
@@ -431,7 +431,7 @@ class HealthKitManager: ObservableObject {
             let samples = try await descriptor.result(for: healthStore)
             return samples.first?.quantity.doubleValue(for: .secondUnit(with: .milli))
         } catch {
-            AppLogger.health.error("HealthKit HRV fetch error: \(error.localizedDescription, privacy: .public)")
+            AppLogger.health.error("HealthKit HRV fetch error: \(error.localizedDescription, privacy: .private)")
             return nil
         }
     }
@@ -461,7 +461,7 @@ class HealthKitManager: ObservableObject {
             let bpmUnit = HKUnit.count().unitDivided(by: .minute())
             return samples.first?.quantity.doubleValue(for: bpmUnit)
         } catch {
-            AppLogger.health.error("HealthKit RHR fetch error: \(error.localizedDescription, privacy: .public)")
+            AppLogger.health.error("HealthKit RHR fetch error: \(error.localizedDescription, privacy: .private)")
             return nil
         }
     }
@@ -501,7 +501,7 @@ class HealthKitManager: ObservableObject {
             }
             return result > 0 ? Int(result) : nil
         } catch {
-            AppLogger.health.error("HealthKit steps fetch error: \(error.localizedDescription, privacy: .public)")
+            AppLogger.health.error("HealthKit steps fetch error: \(error.localizedDescription, privacy: .private)")
             return nil
         }
     }
@@ -531,7 +531,7 @@ class HealthKitManager: ObservableObject {
             guard let lastFlow = samples.first else { return nil }
             return calendar.dateComponents([.day], from: lastFlow.startDate, to: Date()).day
         } catch {
-            AppLogger.health.error("HealthKit menstrual fetch error: \(error.localizedDescription, privacy: .public)")
+            AppLogger.health.error("HealthKit menstrual fetch error: \(error.localizedDescription, privacy: .private)")
             return nil
         }
     }
@@ -588,7 +588,7 @@ class HealthKitManager: ObservableObject {
                 .map { SleepNightSample(night: $0.key, hours: $0.value / 3600.0) }
                 .sorted { $0.night < $1.night }
         } catch {
-            AppLogger.health.error("HealthKit historical sleep fetch error: \(error.localizedDescription, privacy: .public)")
+            AppLogger.health.error("HealthKit historical sleep fetch error: \(error.localizedDescription, privacy: .private)")
             return []
         }
         #else
@@ -648,7 +648,7 @@ class HealthKitManager: ObservableObject {
             }
             return events
         } catch {
-            AppLogger.health.error("HealthKit menstrual history fetch error: \(error.localizedDescription, privacy: .public)")
+            AppLogger.health.error("HealthKit menstrual history fetch error: \(error.localizedDescription, privacy: .private)")
             return []
         }
         #else
@@ -684,7 +684,7 @@ class HealthKitManager: ObservableObject {
             let samples = try await descriptor.result(for: healthStore)
             return !samples.isEmpty
         } catch {
-            AppLogger.health.error("HealthKit menstrual probe error: \(error.localizedDescription, privacy: .public)")
+            AppLogger.health.error("HealthKit menstrual probe error: \(error.localizedDescription, privacy: .private)")
             return false
         }
         #else
@@ -718,7 +718,7 @@ class HealthKitManager: ObservableObject {
             let unit = HKUnit.secondUnit(with: .milli)
             return samples.map { HRVPoint(date: $0.startDate, valueMs: $0.quantity.doubleValue(for: unit)) }
         } catch {
-            AppLogger.health.error("HealthKit historical HRV fetch error: \(error.localizedDescription, privacy: .public)")
+            AppLogger.health.error("HealthKit historical HRV fetch error: \(error.localizedDescription, privacy: .private)")
             return []
         }
         #else
@@ -814,7 +814,7 @@ class HealthKitManager: ObservableObject {
             AppLogger.health.notice("Wrote migraine to Health: \(migraineID, privacy: .public) severity=\(severity, privacy: .public)")
             return true
         } catch {
-            AppLogger.health.error("Failed to write migraine to Health: \(error.localizedDescription, privacy: .public)")
+            AppLogger.health.error("Failed to write migraine to Health: \(error.localizedDescription, privacy: .private)")
             return false
         }
         #else
@@ -876,7 +876,7 @@ class HealthKitManager: ObservableObject {
             try await deleteHealthSamples(forMigraineUUID: uuid)
             AppLogger.health.notice("Mirrored migraine deletion to Health: \(uuid, privacy: .public)")
         } catch {
-            AppLogger.health.error("Failed to mirror migraine deletion to Health: \(error.localizedDescription, privacy: .public)")
+            AppLogger.health.error("Failed to mirror migraine deletion to Health: \(error.localizedDescription, privacy: .private)")
         }
         #endif
     }

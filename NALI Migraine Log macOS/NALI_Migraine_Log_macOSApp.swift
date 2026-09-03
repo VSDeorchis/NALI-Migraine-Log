@@ -11,7 +11,14 @@ import SwiftUI
 struct NALI_Migraine_Log_macOSApp: App {
     @StateObject private var viewModel: MigraineViewModel
     @State private var showingNewMigraine = false
-    @State private var showingSplash = true
+    @State private var launch = AppLaunchCoordinator(
+        steps: [
+            LaunchStep(title: "Updating your data") { context in
+                MigrationCoordinator.runLaunchSequence(context: context)
+            }
+        ],
+        minimumSplashDuration: .seconds(1.6)
+    )
     @State private var selectedTab = 0
     @State private var hasAcceptedDisclaimer = UserDefaults.standard.bool(forKey: Constants.hasAcceptedDisclaimer)
     @State private var declinedDisclaimer = false
@@ -28,11 +35,6 @@ struct NALI_Migraine_Log_macOSApp: App {
 
         let context = PersistenceController.shared.container.viewContext
         _viewModel = StateObject(wrappedValue: MigraineViewModel(context: context))
-
-        // Per-launch version-change check. Empty step registry today, but
-        // the hook is wired so any future data backfill can land as a
-        // single edit to `MigrationCoordinator.upgradeSteps`.
-        MigrationCoordinator.runLaunchSequence(context: context)
     }
     
     var body: some Scene {
@@ -48,19 +50,23 @@ struct NALI_Migraine_Log_macOSApp: App {
                             declinedDisclaimer = true
                         }
                     }
-                } else if showingSplash {
+                } else if !launch.isReady {
                     SplashScreen()
-                        .onAppear {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                withAnimation {
-                                    showingSplash = false
-                                }
-                            }
+                        .overlay(alignment: .bottom) {
+                            LaunchProgressView(
+                                coordinator: launch,
+                                context: persistenceController.container.viewContext
+                            )
                         }
+                        .transition(.opacity)
                 } else {
                     MacContentView(context: persistenceController.container.viewContext)
                         .environment(\.managedObjectContext, persistenceController.container.viewContext)
                 }
+            }
+            .animation(.default, value: launch.isReady)
+            .task {
+                await launch.run(context: persistenceController.container.viewContext)
             }
         }
         .commands {

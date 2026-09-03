@@ -19,7 +19,20 @@ struct NALI_Migraine_LogApp: App {
     /// Shortcuts). Currently drives the New Entry sheet below via
     /// `OpenNewEntryIntent`.
     @StateObject private var navigator = AppNavigationCoordinator.shared
-    @State private var showingSplash = true
+    /// One-time launch work (legacy import, version upgrade steps) runs
+    /// from `.task` below; the splash stays up only until it finishes
+    /// (floor matches the splash intro animation length).
+    @State private var launch = AppLaunchCoordinator(
+        steps: [
+            LaunchStep(title: "Importing earlier entries") { context in
+                try DataMigrationHelper.migrateLegacyDataIfNeeded(context: context)
+            },
+            LaunchStep(title: "Updating your data") { context in
+                MigrationCoordinator.runLaunchSequence(context: context)
+            }
+        ],
+        minimumSplashDuration: .seconds(1.6)
+    )
     @State private var hasAcceptedDisclaimer = UserDefaults.standard.bool(forKey: Constants.hasAcceptedDisclaimer)
     /// Set when the user taps Decline. The app stays open on a blocking
     /// explanation until they return to the disclaimer and accept.
@@ -37,22 +50,9 @@ struct NALI_Migraine_LogApp: App {
         let context = PersistenceController.shared.container.viewContext
         _viewModel = StateObject(wrappedValue: MigraineViewModel(context: context))
 
-        // One-time migration of legacy UserDefaults-backed migraines into
-        // Core Data (no-op once it has run successfully).
-        DataMigrationHelper.checkAndMigrateData(context: context)
-
-        // Per-launch version-change check. Empty step registry today, but
-        // the hook is wired so the first release that needs a one-time
-        // data backfill can land it as a single edit to
-        // `MigrationCoordinator.upgradeSteps`.
-        MigrationCoordinator.runLaunchSequence(context: context)
-
         // Stamp first-launch date + bump launch counter for the review
-        // prompt gate. Deliberately runs *after* the migration hook so
-        // that a first-launch users coming from an upgrade still get the
-        // legacy data migration before we start counting their tenure.
-        // The coordinator is `@MainActor` and `init()` already runs on
-        // the main actor, so no dispatch is needed.
+        // prompt gate. The coordinator is `@MainActor` and `init()`
+        // already runs on the main actor, so no dispatch is needed.
         MainActor.assumeIsolated {
             ReviewPromptCoordinator.recordLaunch()
         }
@@ -87,15 +87,15 @@ struct NALI_Migraine_LogApp: App {
                             }
                         )
                     }
-                } else if showingSplash {
+                } else if !launch.isReady {
                     SplashScreen()
-                        .onAppear {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                withAnimation {
-                                    showingSplash = false
-                                }
-                            }
+                        .overlay(alignment: .bottom) {
+                            LaunchProgressView(
+                                coordinator: launch,
+                                context: persistenceController.container.viewContext
+                            )
                         }
+                        .transition(.opacity)
                 } else {
                     TabView {
                         MigraineLogView(viewModel: viewModel)
@@ -160,6 +160,10 @@ struct NALI_Migraine_LogApp: App {
                         }
                     }
                 }
+            }
+            .animation(.default, value: launch.isReady)
+            .task {
+                await launch.run(context: persistenceController.container.viewContext)
             }
             .preferredColorScheme(settings.colorScheme.colorScheme)
             .environment(\.managedObjectContext, persistenceController.container.viewContext)

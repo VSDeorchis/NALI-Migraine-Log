@@ -165,7 +165,7 @@ public final class PersistenceController: ObservableObject {
         
         container.loadPersistentStores { description, error in
             if let error = error {
-                AppLogger.coreData.error("Core Data failed to load: \(error.localizedDescription, privacy: .public)")
+                AppLogger.coreData.error("Core Data failed to load: \(error.localizedDescription, privacy: .private)")
                 // If the failing store had CloudKit attached, the error may be
                 // CloudKit-specific (account state, container/entitlement, etc.)
                 // rather than genuine store corruption. Try loading the SAME
@@ -260,7 +260,7 @@ public final class PersistenceController: ObservableObject {
     /// (e.g. the originating `CKError`).
     private static func logSchemaInitError(_ error: Error) {
         let ns = error as NSError
-        AppLogger.coreData.error("CloudKit schema init failed: domain=\(ns.domain, privacy: .public) code=\(ns.code) — \(ns.localizedDescription, privacy: .public). This often just means initializeCloudKitSchema timed out on the Simulator; try a physical device, or populate the schema by creating an entry with the entitlement set to Development.")
+        AppLogger.coreData.error("CloudKit schema init failed: domain=\(ns.domain, privacy: .public) code=\(ns.code) — \(ns.localizedDescription, privacy: .private). This often just means initializeCloudKitSchema timed out on the Simulator; try a physical device, or populate the schema by creating an entry with the entitlement set to Development.")
         if let reason = ns.localizedFailureReason {
             AppLogger.coreData.error("  failureReason: \(reason, privacy: .public)")
         }
@@ -268,7 +268,7 @@ public final class PersistenceController: ObservableObject {
         var current = ns.userInfo[NSUnderlyingErrorKey] as? NSError
         var depth = 0
         while let underlying = current, depth < 6 {
-            AppLogger.coreData.error("  underlying[\(depth)]: domain=\(underlying.domain, privacy: .public) code=\(underlying.code) — \(underlying.localizedDescription, privacy: .public); userInfo=\(underlying.userInfo.description, privacy: .public)")
+            AppLogger.coreData.error("  underlying[\(depth)]: domain=\(underlying.domain, privacy: .public) code=\(underlying.code) — \(underlying.localizedDescription, privacy: .private); userInfo=\(underlying.userInfo.description, privacy: .public)")
             current = underlying.userInfo[NSUnderlyingErrorKey] as? NSError
             depth += 1
         }
@@ -284,7 +284,7 @@ public final class PersistenceController: ObservableObject {
                 as? NSPersistentCloudKitContainer.Event else { return }
 
         if let error = event.error {
-            AppLogger.coreData.error("CloudKit sync event failed: \(error.localizedDescription, privacy: .public)")
+            AppLogger.coreData.error("CloudKit sync event failed: \(error.localizedDescription, privacy: .private)")
             if Self.isNoAccountError(error) {
                 // Not signed into iCloud isn't a failure to ride out — it's a
                 // stable state with a clear fix. Surface it calmly right away
@@ -434,11 +434,11 @@ public final class PersistenceController: ObservableObject {
 
             isCloudKitEnabled = false
             syncStatus = .error("iCloud sync unavailable — your data is safe and stored on this device.")
-            AppLogger.coreData.notice("CloudKit store load failed; loaded the same store locally with data intact. Sync disabled for this launch. Underlying error: \(originalError.localizedDescription, privacy: .public)")
+            AppLogger.coreData.notice("CloudKit store load failed; loaded the same store locally with data intact. Sync disabled for this launch. Underlying error: \(originalError.localizedDescription, privacy: .private)")
         } catch {
             // Even a plain local load failed — treat as a real store problem and
             // preserve the bytes via the move-aside recovery path.
-            AppLogger.coreData.error("Local fallback load also failed: \(error.localizedDescription, privacy: .public)")
+            AppLogger.coreData.error("Local fallback load also failed: \(error.localizedDescription, privacy: .private)")
             handlePersistentStoreError(originalError)
         }
     }
@@ -493,7 +493,7 @@ public final class PersistenceController: ObservableObject {
             // Even on recovery failure we have NOT deleted user data — the
             // moved-aside bytes are intact on disk. Surface an error instead of
             // crashing the app with `fatalError`.
-            AppLogger.coreData.fault("Failed to recover from persistent store error: \(error.localizedDescription, privacy: .public)")
+            AppLogger.coreData.fault("Failed to recover from persistent store error: \(error.localizedDescription, privacy: .private)")
             DispatchQueue.main.async { [weak self] in
                 self?.syncStatus = .error("Couldn't open your data store. Your data is preserved on this device \u{2014} please contact support.")
             }
@@ -551,7 +551,7 @@ public final class PersistenceController: ObservableObject {
             do {
                 try fm.moveItem(at: sibling, to: destination)
             } catch {
-                AppLogger.coreData.error("Could not move \(sibling.lastPathComponent, privacy: .public) aside: \(error.localizedDescription, privacy: .public)")
+                AppLogger.coreData.error("Could not move \(sibling.lastPathComponent, privacy: .public) aside: \(error.localizedDescription, privacy: .private)")
             }
         }
 
@@ -602,7 +602,7 @@ public final class PersistenceController: ObservableObject {
                 try coordinator.remove(store)
             }
         } catch {
-            AppLogger.coreData.error("Failed to detach store before reconfiguring iCloud sync: \(error.localizedDescription, privacy: .public)")
+            AppLogger.coreData.error("Failed to detach store before reconfiguring iCloud sync: \(error.localizedDescription, privacy: .private)")
             completion?(.failure(error))
             return
         }
@@ -621,7 +621,7 @@ public final class PersistenceController: ObservableObject {
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 if let error = error {
-                    AppLogger.coreData.error("Failed to reload store after toggling iCloud sync: \(error.localizedDescription, privacy: .public)")
+                    AppLogger.coreData.error("Failed to reload store after toggling iCloud sync: \(error.localizedDescription, privacy: .private)")
                     self.syncStatus = .error(error.localizedDescription)
                     completion?(.failure(error))
                     return

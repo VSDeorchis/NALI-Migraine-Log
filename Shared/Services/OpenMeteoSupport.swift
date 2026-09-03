@@ -79,12 +79,58 @@ enum OpenMeteo {
         }
     }
 
-    static func validateHTTP(_ response: URLResponse) throws {
+    /// Largest JSON body either endpoint legitimately returns is well under
+    /// 1 MB (48 h × 6 hourly series); anything bigger is not a forecast.
+    static let maxResponseBytes = 2 * 1_024 * 1_024
+
+    /// Session with bounded timeouts and no persistent cookie/cache state;
+    /// the app never needs the weather API to remember it.
+    static func makeSession(requestTimeout: TimeInterval, resourceTimeout: TimeInterval) -> URLSession {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = requestTimeout
+        config.timeoutIntervalForResource = resourceTimeout
+        config.waitsForConnectivity = false
+        config.httpCookieAcceptPolicy = .never
+        config.httpShouldSetCookies = false
+        config.tlsMinimumSupportedProtocolVersion = .TLSv12
+        return URLSession(configuration: config)
+    }
+
+    static func makeRequest(url: URL, timeout: TimeInterval) -> URLRequest {
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeout)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        return request
+    }
+
+    /// Performs a GET and applies status, content-type and size checks before
+    /// any byte of the body reaches a decoder.
+    static func fetch(_ url: URL, using session: URLSession) async throws -> Data {
+        let timeout = session.configuration.timeoutIntervalForRequest
+        let (data, response) = try await session.data(for: makeRequest(url: url, timeout: timeout))
+        try validateHTTP(response, bodyLength: data.count)
+        return data
+    }
+
+    static func validateHTTP(_ response: URLResponse, bodyLength: Int) throws {
         guard let http = response as? HTTPURLResponse else {
             throw WeatherError.invalidResponse
         }
         guard (200..<300).contains(http.statusCode) else {
             throw WeatherError.httpError(statusCode: http.statusCode)
+        }
+        if let contentType = http.value(forHTTPHeaderField: "Content-Type") {
+            let mediaType = contentType
+                .split(separator: ";", maxSplits: 1)
+                .first.map { $0.trimmingCharacters(in: .whitespaces).lowercased() } ?? ""
+            guard mediaType == "application/json" || mediaType.hasSuffix("+json") else {
+                AppLogger.weather.error("Open-Meteo returned unexpected content type \(mediaType, privacy: .public)")
+                throw WeatherError.invalidResponse
+            }
+        }
+        if http.expectedContentLength > Int64(maxResponseBytes) || bodyLength > maxResponseBytes {
+            AppLogger.weather.error("Open-Meteo response too large: \(bodyLength, privacy: .public) bytes")
+            throw WeatherError.responseTooLarge
         }
     }
 }

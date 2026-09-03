@@ -271,7 +271,7 @@ struct FeedbackFormView: View {
                 AppLogger.review.error("Mail composer returned an unrecognized result.")
             }
         case .failure(let error):
-            AppLogger.review.error("Mail composer error: \(error.localizedDescription, privacy: .public).")
+            AppLogger.review.error("Mail composer error: \(error.localizedDescription, privacy: .private).")
         case .none:
             // Composer was dismissed without producing a result — most
             // likely a swipe-down on the sheet. Treat as cancel; no log

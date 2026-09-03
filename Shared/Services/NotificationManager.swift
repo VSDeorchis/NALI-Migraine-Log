@@ -152,7 +152,7 @@ final class NotificationManager: ObservableObject {
             AppLogger.notifications.notice("Notification authorization \(granted ? "granted" : "denied", privacy: .public)")
             return granted
         } catch {
-            AppLogger.notifications.error("Notification authorization error: \(error.localizedDescription, privacy: .public)")
+            AppLogger.notifications.error("Notification authorization error: \(error.localizedDescription, privacy: .private)")
             return false
         }
     }
@@ -231,7 +231,7 @@ final class NotificationManager: ObservableObject {
             try await center.add(request)
             AppLogger.notifications.notice("Scheduled forecast push id=\(id, privacy: .public) for \(triggerDate.description, privacy: .public) (peak risk=\(peak.risk, privacy: .public))")
         } catch {
-            AppLogger.notifications.error("Failed to schedule forecast push: \(error.localizedDescription, privacy: .public)")
+            AppLogger.notifications.error("Failed to schedule forecast push: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -314,7 +314,7 @@ final class NotificationManager: ObservableObject {
             try await center.add(request)
             AppLogger.notifications.notice("Scheduled re-engagement push (last activity \(daysSince, privacy: .public) days ago)")
         } catch {
-            AppLogger.notifications.error("Failed to schedule re-engagement push: \(error.localizedDescription, privacy: .public)")
+            AppLogger.notifications.error("Failed to schedule re-engagement push: \(error.localizedDescription, privacy: .private)")
         }
     }
 

@@ -260,7 +260,7 @@ extension LocationManager: CLLocationManagerDelegate {
         let clError = error as? CLError
         let errorCode = clError?.code.rawValue ?? -1
 
-        AppLogger.location.error("Location error code=\(errorCode, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        AppLogger.location.error("Location error code=\(errorCode, privacy: .public): \(error.localizedDescription, privacy: .private)")
         if errorCode == 1 {
             AppLogger.location.notice("CLError.denied — user denied permission, dialog didn't appear, or services disabled system-wide")
         }

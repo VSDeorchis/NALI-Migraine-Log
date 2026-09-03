@@ -36,12 +36,8 @@ class WatchConnectivityManager: NSObject, ObservableObject {
     @Published var isReachable = false
     @Published var lastSyncTime: Date?
 
-    // Synced risk score from iPhone (used by watchOS)
-    @Published var syncedRiskPercentage: Int?
-    @Published var syncedRiskLevel: String?
-    @Published var syncedRiskFactors: [[String: Any]]?
-    @Published var syncedRiskRecommendations: [String]?
-    @Published var syncedRiskTimestamp: Date?
+    /// Risk summary most recently received from the iPhone (used by watchOS).
+    @Published var syncedRisk: WatchRiskPayload?
 
     /// Entries this device changed and has not yet delivered to the counterpart.
     private var pendingChangeIDs: Set<UUID> = []
@@ -207,7 +203,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
                 let events = try context.fetch(request)
                 records = events.compactMap { MigraineSyncRecord(event: $0, includeNotes: true) }
             } catch {
-                AppLogger.watch.error("Failed to fetch pending entries: \(error.localizedDescription, privacy: .public)")
+                AppLogger.watch.error("Failed to fetch pending entries: \(error.localizedDescription, privacy: .private)")
                 return
             }
             // Ids that no longer resolve to an object were deleted locally;
@@ -236,14 +232,14 @@ class WatchConnectivityManager: NSObject, ObservableObject {
             session.transferUserInfo(payload)
             AppLogger.watch.info("Queued delta: \(records.count, privacy: .public) entries, \(envelope.deletedIDs.count, privacy: .public) tombstones")
         } catch {
-            AppLogger.watch.error("Failed to encode delta: \(error.localizedDescription, privacy: .public)")
+            AppLogger.watch.error("Failed to encode delta: \(error.localizedDescription, privacy: .private)")
         }
     }
 
     private func completeBatch(_ batchID: UUID, error: Error?) {
         guard let ids = inFlightBatches.removeValue(forKey: batchID) else { return }
         if let error {
-            AppLogger.watch.error("Delta transfer failed; will retry: \(error.localizedDescription, privacy: .public)")
+            AppLogger.watch.error("Delta transfer failed; will retry: \(error.localizedDescription, privacy: .private)")
             // Ids stay in `pendingChangeIDs`; next flush retries them.
             return
         }
@@ -285,7 +281,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         do {
             records = try context.fetch(request).compactMap { MigraineSyncRecord(event: $0, includeNotes: false) }
         } catch {
-            AppLogger.watch.error("Snapshot fetch failed: \(error.localizedDescription, privacy: .public)")
+            AppLogger.watch.error("Snapshot fetch failed: \(error.localizedDescription, privacy: .private)")
             return
         }
 
@@ -310,8 +306,8 @@ class WatchConnectivityManager: NSObject, ObservableObject {
             limit /= 2
         } while true
 
-        if let pendingRisk = UserDefaults.standard.dictionary(forKey: pendingRiskKey) {
-            applicationContext["riskUpdate"] = pendingRisk
+        if let pendingRisk = UserDefaults.standard.data(forKey: pendingRiskKey) {
+            applicationContext[WatchRiskPayload.payloadKey] = pendingRisk
         }
 
         do {
@@ -319,7 +315,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
             lastSyncTime = Date()
             AppLogger.watch.info("Published snapshot with \(limit, privacy: .public) entries")
         } catch {
-            AppLogger.watch.error("updateApplicationContext failed: \(error.localizedDescription, privacy: .public)")
+            AppLogger.watch.error("updateApplicationContext failed: \(error.localizedDescription, privacy: .private)")
         }
         #endif
     }
@@ -331,32 +327,20 @@ class WatchConnectivityManager: NSObject, ObservableObject {
     func sendRiskScore(_ riskScore: MigraineRiskScore) {
         guard session.activationState == .activated else { return }
 
-        let factorsData: [[String: Any]] = riskScore.topFactors.prefix(3).map { factor in
-            [
-                "name": factor.name,
-                "contribution": factor.contribution,
-                "icon": factor.icon,
-                "detail": factor.detail
-            ]
+        let payload = WatchRiskPayload(riskScore: riskScore)
+        guard let data = try? payload.encoded() else {
+            AppLogger.watch.error("Failed to encode risk payload")
+            return
         }
 
-        let riskPayload: [String: Any] = [
-            "riskPercentage": riskScore.riskPercentage,
-            "riskLevel": riskScore.riskLevel.rawValue,
-            "factors": factorsData,
-            "recommendations": Array(riskScore.recommendations.prefix(3)),
-            "confidence": riskScore.confidence,
-            "timestamp": Date().timeIntervalSince1970
-        ]
-
         if session.isReachable {
-            session.sendMessage(["riskUpdate": riskPayload], replyHandler: nil) { error in
-                AppLogger.watch.error("Error sending risk to Watch: \(error.localizedDescription, privacy: .public)")
+            session.sendMessage([WatchRiskPayload.payloadKey: data], replyHandler: nil) { error in
+                AppLogger.watch.error("Error sending risk to Watch: \(error.localizedDescription, privacy: .private)")
             }
         }
 
         // Also include in the next application context update so the Watch gets it eventually.
-        UserDefaults.standard.set(riskPayload, forKey: pendingRiskKey)
+        UserDefaults.standard.set(data, forKey: pendingRiskKey)
         scheduleSnapshot()
     }
     #endif
@@ -366,19 +350,10 @@ class WatchConnectivityManager: NSObject, ObservableObject {
     func requestFullSync() {
         guard session.activationState == .activated, session.isReachable else { return }
         session.sendMessage(["requestSync": true], replyHandler: nil) { error in
-            AppLogger.watch.error("Error requesting sync: \(error.localizedDescription, privacy: .public)")
+            AppLogger.watch.error("Error requesting sync: \(error.localizedDescription, privacy: .private)")
         }
     }
 
-    private func processRiskData(_ riskPayload: [String: Any]) {
-        syncedRiskPercentage = riskPayload["riskPercentage"] as? Int
-        syncedRiskLevel = riskPayload["riskLevel"] as? String
-        syncedRiskFactors = riskPayload["factors"] as? [[String: Any]]
-        syncedRiskRecommendations = riskPayload["recommendations"] as? [String]
-        if let timestamp = riskPayload["timestamp"] as? TimeInterval {
-            syncedRiskTimestamp = Date(timeIntervalSince1970: timestamp)
-        }
-    }
     #endif
 
     // MARK: - Inbound
@@ -391,8 +366,11 @@ class WatchConnectivityManager: NSObject, ObservableObject {
             applyLegacy(records: legacyRecords, deletedIds: legacyDeleted)
         }
         #if os(watchOS)
-        if let riskPayload = payload["riskUpdate"] as? [String: Any] {
-            processRiskData(riskPayload)
+        if let risk = WatchRiskPayload.decode(from: payload) {
+            if let current = syncedRisk, current.timestamp > risk.timestamp {
+                return
+            }
+            syncedRisk = risk
         }
         #endif
     }
@@ -413,7 +391,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
                     if let id = event.id { existing[id] = event }
                 }
             } catch {
-                AppLogger.watch.error("Inbound lookup failed: \(error.localizedDescription, privacy: .public)")
+                AppLogger.watch.error("Inbound lookup failed: \(error.localizedDescription, privacy: .private)")
                 return
             }
         }
@@ -494,7 +472,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
                 context.delete(event)
             }
         } catch {
-            AppLogger.watch.error("Error applying tombstones: \(error.localizedDescription, privacy: .public)")
+            AppLogger.watch.error("Error applying tombstones: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -504,7 +482,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
             try context.save()
             AppLogger.watch.info("Applied \(kind, privacy: .public): \(applied, privacy: .public) upserts, \(skipped, privacy: .public) skipped")
         } catch {
-            AppLogger.watch.error("Error saving inbound sync: \(error.localizedDescription, privacy: .public)")
+            AppLogger.watch.error("Error saving inbound sync: \(error.localizedDescription, privacy: .private)")
             context.rollback()
         }
     }
@@ -542,7 +520,7 @@ extension WatchConnectivityManager: WCSessionDelegate {
         Task { @MainActor [weak self] in
             guard let self else { return }
             if let activationError {
-                AppLogger.watch.error("Session activation failed: \(activationError.localizedDescription, privacy: .public)")
+                AppLogger.watch.error("Session activation failed: \(activationError.localizedDescription, privacy: .private)")
                 return
             }
             AppLogger.watch.info("Session activated successfully")

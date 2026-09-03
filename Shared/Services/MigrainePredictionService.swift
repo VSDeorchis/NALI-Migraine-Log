@@ -594,7 +594,7 @@ class MigrainePredictionService: ObservableObject {
                 timestamp: Date()
             )
         } catch {
-            AppLogger.prediction.error("CoreML prediction failed: \(error.localizedDescription, privacy: .public)")
+            AppLogger.prediction.error("CoreML prediction failed: \(error.localizedDescription, privacy: .private)")
             modelStatus = .mlFailed
             return nil
         }
@@ -679,7 +679,7 @@ class MigrainePredictionService: ObservableObject {
             
             AppLogger.prediction.info("ML model trained successfully with \(trainingData.count, privacy: .public) samples")
         } catch {
-            AppLogger.prediction.error("ML training failed: \(error.localizedDescription, privacy: .public)")
+            AppLogger.prediction.error("ML training failed: \(error.localizedDescription, privacy: .private)")
             modelStatus = .mlFailed
         }
         #else
@@ -765,7 +765,7 @@ class MigrainePredictionService: ObservableObject {
             do {
                 try fm.removeItem(at: url)
             } catch {
-                AppLogger.prediction.error("Failed to remove \(url.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                AppLogger.prediction.error("Failed to remove \(url.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .private)")
             }
         }
         UserDefaults.standard.removeObject(forKey: Self.lastTrainKey)
@@ -783,7 +783,7 @@ class MigrainePredictionService: ObservableObject {
         do {
             try url.setResourceValues(values)
         } catch {
-            AppLogger.prediction.debug("Could not mark \(url.lastPathComponent, privacy: .public) as excluded from backup: \(error.localizedDescription, privacy: .public)")
+            AppLogger.prediction.debug("Could not mark \(url.lastPathComponent, privacy: .public) as excluded from backup: \(error.localizedDescription, privacy: .private)")
         }
     }
     

@@ -92,7 +92,7 @@ enum BackgroundTaskScheduler {
         } catch BGTaskScheduler.Error.unavailable {
             AppLogger.background.notice("BG scheduling unavailable (likely Background App Refresh disabled or simulator)")
         } catch {
-            AppLogger.background.error("BG schedule failed: \(error.localizedDescription, privacy: .public)")
+            AppLogger.background.error("BG schedule failed: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -153,7 +153,7 @@ enum BackgroundTaskScheduler {
                 )
                 AppLogger.background.notice("BG forecast refresh ok: \(forecastHours.count, privacy: .public) hours")
             } catch {
-                AppLogger.background.error("BG forecast refresh failed: \(error.localizedDescription, privacy: .public)")
+                AppLogger.background.error("BG forecast refresh failed: \(error.localizedDescription, privacy: .private)")
             }
         }
 
@@ -167,7 +167,7 @@ enum BackgroundTaskScheduler {
             let request = MigraineEvent.fetchRequest()
             migraines = try context.fetch(request)
         } catch {
-            AppLogger.background.error("BG migraine fetch failed: \(error.localizedDescription, privacy: .public)")
+            AppLogger.background.error("BG migraine fetch failed: \(error.localizedDescription, privacy: .private)")
             migraines = []
         }
 

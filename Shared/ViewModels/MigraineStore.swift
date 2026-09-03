@@ -100,7 +100,7 @@ class MigraineStore: NSObject, ObservableObject {
             migraines = try viewContext.fetch(request)
         } catch {
             lastError = .fetchFailed(error)
-            AppLogger.coreData.error("Error fetching migraines: \(error.localizedDescription, privacy: .public)")
+            AppLogger.coreData.error("Error fetching migraines: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -126,7 +126,7 @@ class MigraineStore: NSObject, ObservableObject {
         } catch {
             viewContext.rollback()
             lastError = .saveFailed(error)
-            AppLogger.coreData.error("Failed to save migraine: \(error.localizedDescription, privacy: .public)")
+            AppLogger.coreData.error("Failed to save migraine: \(error.localizedDescription, privacy: .private)")
             return nil
         }
 
@@ -155,7 +155,7 @@ class MigraineStore: NSObject, ObservableObject {
             try viewContext.save()
         } catch {
             lastError = .saveFailed(error)
-            AppLogger.coreData.error("Error deleting migraine: \(error.localizedDescription, privacy: .public)")
+            AppLogger.coreData.error("Error deleting migraine: \(error.localizedDescription, privacy: .private)")
             viewContext.rollback()
             return false
         }
@@ -192,7 +192,7 @@ class MigraineStore: NSObject, ObservableObject {
         } catch {
             viewContext.rollback()
             lastError = .saveFailed(error)
-            AppLogger.coreData.error("Error clearing data: \(error.localizedDescription, privacy: .public)")
+            AppLogger.coreData.error("Error clearing data: \(error.localizedDescription, privacy: .private)")
             throw MigraineError.saveFailed(error)
         }
 
@@ -205,7 +205,7 @@ class MigraineStore: NSObject, ObservableObject {
                 try await HealthKitManager.shared.deleteAllMirroredSamples()
             } catch {
                 outcome.healthCleanupError = error
-                AppLogger.health.error("Delete-all could not remove Health samples: \(error.localizedDescription, privacy: .public)")
+                AppLogger.health.error("Delete-all could not remove Health samples: \(error.localizedDescription, privacy: .private)")
             }
         }
 
@@ -234,7 +234,7 @@ class MigraineStore: NSObject, ObservableObject {
             return true
         } catch {
             lastError = .saveFailed(error)
-            AppLogger.coreData.error("Error saving context: \(error.localizedDescription, privacy: .public)")
+            AppLogger.coreData.error("Error saving context: \(error.localizedDescription, privacy: .private)")
             viewContext.rollback()
             return false
         }
