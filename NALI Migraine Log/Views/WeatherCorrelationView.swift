@@ -183,9 +183,8 @@ struct WeatherCorrelationView: View {
                 .sorted { $0.date < $1.date }
                 
                 if pressureData.isEmpty {
-                    Text("No pressure data available")
-                        .foregroundStyle(.secondary)
-                        .frame(height: 200)
+                    ChartEmptyState(title: "No Pressure Data", systemImage: "barometer",
+                                    message: "Pressure readings appear once entries in this period have weather attached.")
                 } else {
                     Chart(pressureData) { point in
                         BarMark(
@@ -252,6 +251,9 @@ struct WeatherCorrelationView: View {
                     .scaledFont(size: 11, weight: .medium, design: .rounded)
                     .padding(.horizontal)
                     .padding(.top, 8)
+                    
+                    SampleSizeLabel(count: pressureData.count, suffix: "with weather data")
+                        .padding(.horizontal)
                 }
             }
         }
@@ -285,9 +287,8 @@ struct WeatherCorrelationView: View {
                     .sorted { $0.count > $1.count }
                 
                 if conditionData.isEmpty {
-                    Text("No weather condition data available")
-                        .foregroundStyle(.secondary)
-                        .frame(height: 200)
+                    ChartEmptyState(title: "No Condition Data", systemImage: "cloud.sun",
+                                    message: "Weather conditions appear once entries in this period have weather attached.")
                 } else {
                     Chart(conditionData) { point in
                         SectorMark(
@@ -362,9 +363,8 @@ struct WeatherCorrelationView: View {
                 .sorted { $0.range < $1.range }
                 
                 if tempRanges.isEmpty {
-                    Text("No temperature data available")
-                        .foregroundStyle(.secondary)
-                        .frame(height: 200)
+                    ChartEmptyState(title: "No Temperature Data", systemImage: "thermometer.medium",
+                                    message: "Temperatures appear once entries in this period have weather attached.")
                 } else {
                     Chart(tempRanges) { point in
                         BarMark(
@@ -583,30 +583,17 @@ struct WeatherCorrelationView: View {
     // MARK: - No Data View
     
     private var noWeatherDataView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "cloud.slash.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(.gray)
-            
-            Text("No Weather Data Available")
-                .font(.title3)
-                .fontWeight(.semibold)
-            
+        ContentUnavailableView {
+            Label("No Weather Data Available", systemImage: "cloud.slash.fill")
+        } description: {
             Text("Weather data will be automatically collected for new migraine entries. Make sure location services are enabled.")
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-            
-            Button(action: {
+        } actions: {
+            Button {
                 LocationManager.shared.requestPermission()
-            }) {
+            } label: {
                 Label("Enable Location Services", systemImage: "location.fill")
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundStyle(.white)
-                    .cornerRadius(10)
             }
+            .buttonStyle(.borderedProminent)
         }
         .padding()
     }

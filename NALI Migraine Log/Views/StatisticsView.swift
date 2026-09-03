@@ -568,48 +568,7 @@ struct StatisticsView: View {
     /// tab; applying it to this rolling window would silently drop
     /// half the chart every January.
     private var monthlyData: [MonthlyPoint] {
-        let calendar = Calendar.current
-        let now = Date()
-        // Start of *this* month: floors today to the 1st so the
-        // six-months-back anchor lands on a month boundary regardless
-        // of what day we render on.
-        let currentMonthStart = calendar.date(
-            from: calendar.dateComponents([.year, .month], from: now)
-        ) ?? now
-        // Lower bound = start of the month six months back. We widen
-        // from the previous implementation, which used
-        // `now - 6 months` — that produced a boundary like "Oct 26",
-        // which excluded migraines logged on e.g. Oct 15 even though
-        // October's bar was on the chart's X-axis.
-        let windowStart = calendar.date(
-            byAdding: .month, value: -6, to: currentMonthStart
-        ) ?? currentMonthStart
-        // End bound = start of next month so a migraine logged today
-        // still qualifies for the current month's bar.
-        let windowEnd = calendar.date(
-            byAdding: .month, value: 1, to: currentMonthStart
-        ) ?? now
-        
-        var counts: [Date: Int] = [:]
-        let months = calendar.generateDates(
-            inside: DateInterval(start: windowStart, end: windowEnd),
-            matching: DateComponents(day: 1)
-        )
-        for month in months {
-            counts[month] = 0
-        }
-        
-        for migraine in viewModel.migraines {
-            guard let date = migraine.startTime else { continue }
-            guard date >= windowStart, date < windowEnd else { continue }
-            let monthStart = calendar.date(
-                from: calendar.dateComponents([.year, .month], from: date)
-            )!
-            counts[monthStart, default: 0] += 1
-        }
-        
-        return counts.map { MonthlyPoint(month: $0.key, count: $0.value) }
-            .sorted { $0.month < $1.month }
+        viewModel.migraines.monthlyDistribution(monthsBack: 6)
     }
     
     // Add helper function for monthly bar color
@@ -694,37 +653,22 @@ struct StatisticsView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         if filteredMigraines.isEmpty {
-                            VStack(spacing: 20) {
-                                Spacer()
-                                    .frame(height: 40)
-                                
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.blue.opacity(0.1))
-                                        .frame(width: 100, height: 100)
-                                    Image(systemName: "chart.bar.xaxis")
-                                        .font(.system(size: 40))
-                                        .foregroundStyle(
-                                            LinearGradient(
-                                                colors: [.blue, .purple],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            )
-                                        )
+                            ContentUnavailableView {
+                                Label("No Data for This Period", systemImage: "chart.bar.xaxis")
+                                    .scaledFont(size: 20, weight: .semibold, design: .rounded)
+                            } description: {
+                                Text("Try selecting a different time range, or log a migraine to start seeing statistics.")
+                                    .scaledFont(size: 14)
+                            } actions: {
+                                if viewModel.migraines.isEmpty == false, timeFilter != .year {
+                                    Button("Show This Year") {
+                                        timeFilter = .year
+                                        selectedYear = Calendar.current.component(.year, from: Date())
+                                    }
+                                    .buttonStyle(.bordered)
                                 }
-                                
-                                VStack(spacing: 8) {
-                                    Text("No Data for This Period")
-                                        .scaledFont(size: 20, weight: .semibold, design: .rounded)
-                                    Text("Try selecting a different time range, or log a migraine to start seeing statistics.")
-                                        .scaledFont(size: 14)
-                                        .foregroundStyle(.secondary)
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal, 40)
-                                }
-                                
-                                Spacer()
                             }
+                            .padding(.top, 40)
                         } else {
                             summaryStatsView
                                 .padding(.top)
@@ -871,15 +815,7 @@ struct StatisticsView: View {
     }
     
     private var averageDuration: TimeInterval? {
-        // Only include completed migraine events (those with an explicit endTime)
-        let completedDurations = filteredMigraines.compactMap { migraine -> TimeInterval? in
-            // Ensure the migraine has both a start and end time
-            guard let start = migraine.startTime,
-                  let end = migraine.endTime else { return nil }
-            return end.timeIntervalSince(start)
-        }
-        guard !completedDurations.isEmpty else { return nil }
-        return completedDurations.reduce(0, +) / Double(completedDurations.count)
+        filteredMigraines.averageDuration
     }
     
     private var averageFrequency: Double {
@@ -897,21 +833,15 @@ struct StatisticsView: View {
     }
     
     private var averagePain: Double {
-        guard !filteredMigraines.isEmpty else { return 0 }
-        let sum = filteredMigraines.reduce(0.0) { $0 + Double($1.painLevel) }
-        return sum / Double(filteredMigraines.count)
+        filteredMigraines.averagePain
     }
     
     private var abortivesUsed: Int {
-        filteredMigraines.reduce(0) { $0 + $1.medications.count }
+        filteredMigraines.totalMedicationUses
     }
     
     private var painLevelData: [PainLevelPoint] {
-        var counts: [Int: Int] = [:]
-        for migraine in filteredMigraines {
-            counts[Int(migraine.painLevel), default: 0] += 1
-        }
-        return (1...10).map { PainLevelPoint(level: $0, count: counts[$0] ?? 0) }
+        filteredMigraines.painLevelDistribution
     }
     
     // MARK: - Severity / streak metrics
@@ -1023,37 +953,19 @@ struct StatisticsView: View {
     }
     
     private var timeOfDayData: [TimeOfDayPoint] {
-        let timeSlots = ["Morning", "Afternoon", "Evening", "Night"]
-        var counts: [String: Int] = [:]
-        
-        for migraine in filteredMigraines {
-            guard let date = migraine.startTime else { continue }
-            let hour = Calendar.current.component(.hour, from: date)
-            let timeSlot: String
-            
-            switch hour {
-            case 5..<12: timeSlot = "Morning"
-            case 12..<17: timeSlot = "Afternoon"
-            case 17..<22: timeSlot = "Evening"
-            default: timeSlot = "Night"
-            }
-            
-            counts[timeSlot, default: 0] += 1
-        }
-        
-        return timeSlots.map { TimeOfDayPoint(timeOfDay: $0, count: counts[$0] ?? 0) }
+        filteredMigraines.timeOfDayDistribution()
     }
     
     private var qualityOfLifeData: [QualityOfLifePoint] {
-        let missedWork = filteredMigraines.filter { $0.missedWork }.count
-        let missedSchool = filteredMigraines.filter { $0.missedSchool }.count
-        let missedEvents = filteredMigraines.filter { $0.missedEvents }.count
-        
-        return [
-            QualityOfLifePoint(type: "Missed Work", count: missedWork),
-            QualityOfLifePoint(type: "Missed School", count: missedSchool),
-            QualityOfLifePoint(type: "Missed Events", count: missedEvents)
-        ]
+        filteredMigraines.qualityOfLifeDistribution
+    }
+    
+    private var triggerData: [TriggerPoint] {
+        filteredMigraines.triggerDistribution
+    }
+    
+    private var medicationData: [MedicationPoint] {
+        filteredMigraines.medicationDistribution
     }
     
     private var commonTriggersChart: some View {
@@ -1066,20 +978,8 @@ struct StatisticsView: View {
                     .foregroundStyle(.blue)
                     .padding(.horizontal)
                 
-                let triggerData = filteredMigraines
-                    .reduce(into: [MigraineTrigger: Int]()) { counts, migraine in
-                        for trigger in migraine.triggers {
-                            counts[trigger, default: 0] += 1
-                        }
-                    }
-                    .map { TriggerPoint(trigger: $0.key.displayName, count: $0.value) }
-                    .sorted { $0.count > $1.count }
-                    .filter { $0.count > 0 }
-                
                 if triggerData.isEmpty {
-                    Text("No trigger data for selected period")
-                        .foregroundStyle(.secondary)
-                        .frame(height: 200)
+                    ChartEmptyState(title: "No Triggers Logged", systemImage: "bolt.slash")
                 } else {
                     Chart(triggerData.prefix(5)) { point in
                         BarMark(
@@ -1145,6 +1045,8 @@ struct StatisticsView: View {
                             }
                         }
                     }
+                    SampleSizeLabel(count: filteredMigraines.count, suffix: "in this period")
+                        .padding(.horizontal)
                 }
             }
         }
@@ -1160,20 +1062,8 @@ struct StatisticsView: View {
                     .foregroundStyle(.purple)
                     .padding(.horizontal)
                 
-                let medicationData = filteredMigraines
-                    .reduce(into: [MigraineMedication: Int]()) { counts, migraine in
-                        for medication in migraine.medications {
-                            counts[medication, default: 0] += 1
-                        }
-                    }
-                    .map { MedicationPoint(medication: $0.key.displayName, count: $0.value) }
-                    .sorted { $0.count > $1.count }
-                    .filter { $0.count > 0 }
-                
                 if medicationData.isEmpty {
-                    Text("No medication data for selected period")
-                        .foregroundStyle(.secondary)
-                        .frame(height: 200)
+                    ChartEmptyState(title: "No Medications Logged", systemImage: "pills")
                 } else {
                     Chart(medicationData.prefix(5)) { point in
                         SectorMark(
@@ -1224,6 +1114,8 @@ struct StatisticsView: View {
                             }
                         }
                     }
+                    SampleSizeLabel(count: filteredMigraines.count, suffix: "in this period")
+                        .padding(.horizontal)
                 }
             }
         }
@@ -1313,9 +1205,7 @@ struct StatisticsView: View {
             let data = qualityOfLifeData.filter { $0.count > 0 }
             
             if data.isEmpty {
-                Text("No impact data for selected period")
-                    .foregroundStyle(.secondary)
-                    .frame(height: 200)
+                ChartEmptyState(title: "No Life Impact Recorded", systemImage: "calendar.badge.checkmark")
             } else {
                 Chart(data) { point in
                     BarMark(
@@ -1569,9 +1459,7 @@ struct StatisticsView: View {
     private var monthlyDistributionChart: some View {
         ChartSection(title: "Monthly Distribution") {
             if monthlyData.isEmpty {
-                Text("No data available")
-                    .foregroundStyle(.secondary)
-                    .frame(height: 200)
+                ChartEmptyState(title: "No Monthly Data")
             } else {
                 Chart(monthlyData) { point in
                     BarMark(
