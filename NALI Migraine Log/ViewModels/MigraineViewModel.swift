@@ -340,6 +340,7 @@ final class MigraineViewModel: MigraineStore {
         return outcome
     }
 
+    @MainActor
     override func migrainesWereErased(ids: [UUID]) {
         WatchConnectivityManager.shared.recordDeletions(of: ids)
         Self.removeExportFiles()

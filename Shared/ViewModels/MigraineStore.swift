@@ -218,6 +218,7 @@ class MigraineStore: NSObject, ObservableObject {
 
     /// Called by `deleteAllData()` right after the Core Data save commits,
     /// before any asynchronous cleanup. Default does nothing.
+    @MainActor
     func migrainesWereErased(ids: [UUID]) {}
 
     /// Saves `viewContext` synchronously (it is a main-queue context and
