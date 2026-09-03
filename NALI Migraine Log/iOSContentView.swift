@@ -203,13 +203,13 @@ struct iOSContentView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 18, weight: .semibold))
+                        .scaledFont(size: 18, weight: .semibold)
                     Text("Log Migraine")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .scaledFont(size: 15, weight: .semibold, design: .rounded)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(Color.accentColor)
@@ -234,23 +234,23 @@ struct iOSContentView: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(migrainesThisMonth)")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
+                    .scaledFont(size: 18, weight: .bold, design: .rounded)
+                    .foregroundStyle(.primary)
                 Text("this month")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 11, weight: .medium)
+                    .foregroundStyle(.secondary)
             }
             
             Spacer(minLength: 8)
             
             VStack(alignment: .trailing, spacing: 2) {
                 Text(streakDisplay)
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
+                    .scaledFont(size: 18, weight: .bold, design: .rounded)
+                    .foregroundStyle(.primary)
                     .monospacedDigit()
                 Text("day\(streakDisplay == "1" ? "" : "s") migraine-free")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 11, weight: .medium)
+                    .foregroundStyle(.secondary)
             }
         }
         .accessibilityElement(children: .combine)

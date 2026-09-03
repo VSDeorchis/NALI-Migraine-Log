@@ -44,15 +44,15 @@ struct AnalyticsMetricDetailView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
                 Image(systemName: metric.systemImage)
-                    .font(.system(size: 22, weight: .semibold))
+                    .scaledFont(size: 22, weight: .semibold)
                     .foregroundStyle(metric.accent)
                 Text(metric.title)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .scaledFont(size: 22, weight: .bold, design: .rounded)
                 Spacer()
             }
             Text(periodLabel)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundColor(.secondary)
+                .scaledFont(size: 13, weight: .medium, design: .rounded)
+                .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 20)
     }
@@ -96,8 +96,8 @@ struct AnalyticsMetricDetailView: View {
             VStack(alignment: .leading, spacing: 12) {
                 if !title.isEmpty {
                     Text(title)
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 15, weight: .semibold, design: .rounded)
+                        .foregroundStyle(.secondary)
                 }
                 content()
             }
@@ -181,8 +181,8 @@ struct AnalyticsMetricDetailView: View {
         return Card(title: "Pain over time") {
             if series.count < 2 {
                 Text("Need at least 2 days with logged migraines to plot a trend.")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 13)
+                    .foregroundStyle(.secondary)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     Chart(series) { point in
@@ -202,8 +202,8 @@ struct AnalyticsMetricDetailView: View {
                         .annotation(position: .top, alignment: .center, spacing: 2) {
                             if point.count > 1 {
                                 Text("×\(point.count)")
-                                    .font(.system(size: 9, weight: .semibold, design: .rounded))
-                                    .foregroundColor(.secondary)
+                                    .scaledFont(size: 9, weight: .semibold, design: .rounded)
+                                    .foregroundStyle(.secondary)
                             }
                         }
                     }
@@ -211,8 +211,8 @@ struct AnalyticsMetricDetailView: View {
                     .frame(height: 240)
                     
                     Text(captionText(dayCount: series.count, multiEventDays: multiEventDays))
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 11)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -249,8 +249,8 @@ struct AnalyticsMetricDetailView: View {
                     .annotation(position: .top, alignment: .center, spacing: 4) {
                         if point.count > 0 {
                             Text(String(point.count))
-                                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                .foregroundColor(.secondary)
+                                .scaledFont(size: 11, weight: .semibold, design: .rounded)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -280,8 +280,8 @@ struct AnalyticsMetricDetailView: View {
             Card(title: "Severe migraines (pain ≥ 7)") {
                 if severe.isEmpty {
                     Text("None this period.")
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 13)
+                        .foregroundStyle(.secondary)
                 } else {
                     NavigationLink {
                         FilteredMigraineListView(
@@ -309,8 +309,8 @@ struct AnalyticsMetricDetailView: View {
         return Card(title: "Duration over time") {
             if durations.count < 2 {
                 Text("Need at least 2 completed migraines (with a recorded end time) to plot.")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 13)
+                    .foregroundStyle(.secondary)
             } else {
                 Chart(durations.indices, id: \.self) { i in
                     BarMark(
@@ -333,19 +333,19 @@ struct AnalyticsMetricDetailView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 12) {
                     Image(systemName: "flame.fill")
-                        .font(.system(size: 28, weight: .semibold))
+                        .scaledFont(size: 28, weight: .semibold)
                         .foregroundStyle(metric.accent)
                     Text(streak.map(String.init) ?? "—")
                         .font(.system(size: 36, weight: .bold, design: .rounded))
-                        .foregroundColor(.primary)
+                        .foregroundStyle(.primary)
                     Text(streak.map { $0 == 1 ? "day" : "days" } ?? "no entries")
-                        .font(.system(size: 15, weight: .medium, design: .rounded))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 15, weight: .medium, design: .rounded)
+                        .foregroundStyle(.secondary)
                     Spacer()
                 }
                 Text("Counted across all of your data, not just the selected period.")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 12)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -366,8 +366,8 @@ struct AnalyticsMetricDetailView: View {
         return Card(title: "Trigger frequency") {
             if triggerData.isEmpty {
                 Text("No triggers logged this period.")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 13)
+                    .foregroundStyle(.secondary)
             } else {
                 Chart(triggerData) { point in
                     BarMark(
@@ -398,8 +398,8 @@ struct AnalyticsMetricDetailView: View {
         return Card(title: "Medication usage") {
             if medData.isEmpty {
                 Text("No medications logged this period.")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 13)
+                    .foregroundStyle(.secondary)
             } else {
                 Chart(medData) { point in
                     BarMark(
@@ -424,8 +424,8 @@ struct AnalyticsMetricDetailView: View {
         return VStack(spacing: 16) {
             Card(title: "Cumulative impact") {
                 Text("Each migraine that disrupted your day is counted once per category.")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 13)
+                    .foregroundStyle(.secondary)
             }
             
             if !work.isEmpty {
@@ -458,8 +458,8 @@ struct AnalyticsMetricDetailView: View {
             if work.isEmpty && school.isEmpty && events.isEmpty {
                 Card(title: "") {
                     Text("No life-impact days this period.")
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 13)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -495,8 +495,8 @@ struct AnalyticsMetricDetailView: View {
                     sleepHeadline(summary)
                 } else {
                     Text(notEnoughDataCopy(for: summary, label: "migraine days"))
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 13)
+                        .foregroundStyle(.secondary)
                 }
             }
             
@@ -526,8 +526,8 @@ struct AnalyticsMetricDetailView: View {
                                 .foregroundStyle(.secondary)
                                 .annotation(position: .top, alignment: .leading) {
                                     Text("Baseline avg")
-                                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                                        .foregroundColor(.secondary)
+                                        .scaledFont(size: 10, weight: .medium, design: .rounded)
+                                        .foregroundStyle(.secondary)
                                 }
                         }
                     }
@@ -537,15 +537,15 @@ struct AnalyticsMetricDetailView: View {
                         legendDot(metric.accent, "Other nights")
                         legendDot(.pink, "Migraine eves")
                     }
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 11, weight: .medium, design: .rounded)
+                    .foregroundStyle(.secondary)
                 }
             }
             
             Card(title: "Why this matters") {
                 Text("Sleep deprivation is one of the most consistent migraine triggers in clinical literature. A persistent gap between migraine-eve sleep and your baseline can suggest a modifiable risk factor — and a useful talking point with your physician.")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 13)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -556,18 +556,18 @@ struct AnalyticsMetricDetailView: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(formatHours(summary.migraineMean))
                     .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                 Text("on migraine eves")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 13, weight: .medium, design: .rounded)
+                    .foregroundStyle(.secondary)
             }
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(formatHours(summary.baselineMean))
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 17, weight: .semibold, design: .rounded)
+                    .foregroundStyle(.secondary)
                 Text("baseline")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 12, weight: .medium, design: .rounded)
+                    .foregroundStyle(.secondary)
             }
             if let delta = summary.delta {
                 deltaPill(value: delta, formatter: { String(format: "%.1f h", abs($0)) }, lowerIsAdverse: true)
@@ -607,8 +607,8 @@ struct AnalyticsMetricDetailView: View {
                     hrvHeadline(summary)
                 } else {
                     Text(notEnoughDataCopy(for: summary, label: "pre-migraine windows"))
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 13)
+                        .foregroundStyle(.secondary)
                 }
             }
             
@@ -639,8 +639,8 @@ struct AnalyticsMetricDetailView: View {
                                 .foregroundStyle(.secondary)
                                 .annotation(position: .top, alignment: .leading) {
                                     Text("Baseline avg")
-                                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                                        .foregroundColor(.secondary)
+                                        .scaledFont(size: 10, weight: .medium, design: .rounded)
+                                        .foregroundStyle(.secondary)
                                 }
                         }
                     }
@@ -650,15 +650,15 @@ struct AnalyticsMetricDetailView: View {
                         legendLine(metric.accent, "Daily HRV")
                         legendLine(.pink, "Migraine onset")
                     }
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 11, weight: .medium, design: .rounded)
+                    .foregroundStyle(.secondary)
                 }
             }
             
             Card(title: "Why this matters") {
                 Text("Heart-rate variability tends to drop in the prodromal (pre-attack) phase, often 24–72 hours before a migraine — a marker of reduced parasympathetic tone. Persistent dips below your baseline before attacks are useful signals to share with your physician.")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 13)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -669,18 +669,18 @@ struct AnalyticsMetricDetailView: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(formatMs(summary.migraineMean))
                     .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                 Text("pre-migraine avg")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 13, weight: .medium, design: .rounded)
+                    .foregroundStyle(.secondary)
             }
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(formatMs(summary.baselineMean))
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 17, weight: .semibold, design: .rounded)
+                    .foregroundStyle(.secondary)
                 Text("baseline")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 12, weight: .medium, design: .rounded)
+                    .foregroundStyle(.secondary)
             }
             if let delta = summary.delta {
                 deltaPill(value: delta, formatter: { String(format: "%.0f ms", abs($0)) }, lowerIsAdverse: true)
@@ -728,8 +728,8 @@ struct AnalyticsMetricDetailView: View {
                     cycleHeadline(distribution)
                 } else {
                     Text("No migraines in this window could be anchored to a recent flow start. Try widening the time filter or logging cycles closer to migraine days.")
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 13)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -741,8 +741,8 @@ struct AnalyticsMetricDetailView: View {
                         legendDot(perimenstrualBand, "Perimenstrual (days 26-3)")
                         legendDot(metric.accent, "Other days")
                     }
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 11, weight: .medium, design: .rounded)
+                    .foregroundStyle(.secondary)
                 }
                 
                 Card(title: "Phase breakdown") {
@@ -753,16 +753,16 @@ struct AnalyticsMetricDetailView: View {
             if let distribution, distribution.unanchoredCount > 0 {
                 Card(title: "About missing days") {
                     Text("\(distribution.unanchoredCount) migraine\(distribution.unanchoredCount == 1 ? "" : "s") in this period couldn't be matched to a recent flow start (more than 45 days since the last logged cycle). Logging cycles consistently in Apple Health improves this view's accuracy.")
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 13)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             
             Card(title: "Why this matters") {
                 Text("Estrogen withdrawal in the days surrounding menstruation is one of the most studied migraine triggers. Many people see their attacks cluster around days 26 of one cycle through day 3 of the next — the perimenstrual window. A pattern here is often actionable with your physician (e.g. mini-prophylaxis, hormonal strategies).")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 13)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -774,26 +774,26 @@ struct AnalyticsMetricDetailView: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("\(distribution.totalAnchored)")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                 Text("migraines anchored to a cycle")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 13, weight: .medium, design: .rounded)
+                    .foregroundStyle(.secondary)
             }
             if let topPhase {
                 let pct = Int((Double(topPhase.value) / Double(max(1, distribution.totalAnchored)) * 100).rounded())
                 Text("\(pct)% in your \(topPhase.key.title.lowercased()) phase (\(topPhase.key.dayRange))")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(.primary)
+                    .scaledFont(size: 14, weight: .semibold, design: .rounded)
+                    .foregroundStyle(.primary)
             }
             if let perimenPct = distribution.perimenstrualPercentage {
                 let pct = Int((perimenPct * 100).rounded())
                 Text("\(pct)% in the perimenstrual window (days 26-3)")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundColor(.pink)
+                    .scaledFont(size: 13, weight: .medium, design: .rounded)
+                    .foregroundStyle(.pink)
             }
             Text("Based on \(distribution.totalAnchored) anchored migraine\(distribution.totalAnchored == 1 ? "" : "s") in this period.")
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
+                .scaledFont(size: 11)
+                .foregroundStyle(.secondary)
         }
     }
     
@@ -836,7 +836,7 @@ struct AnalyticsMetricDetailView: View {
                 AxisTick()
                 AxisValueLabel {
                     if let day = value.as(Int.self) {
-                        Text("\(day)").font(.system(size: 10))
+                        Text("\(day)").scaledFont(size: 10)
                     }
                 }
             }
@@ -861,19 +861,19 @@ struct AnalyticsMetricDetailView: View {
                         .frame(width: 10, height: 10)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(phase.title)
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                            .foregroundColor(.primary)
+                            .scaledFont(size: 13, weight: .semibold, design: .rounded)
+                            .foregroundStyle(.primary)
                         Text(phase.dayRange)
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                            .scaledFont(size: 11)
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
                     Text("\(count)")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundColor(.primary)
+                        .scaledFont(size: 15, weight: .bold, design: .rounded)
+                        .foregroundStyle(.primary)
                     Text("(\(Int((pct * 100).rounded()))%)")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 11)
+                        .foregroundStyle(.secondary)
                         .frame(width: 50, alignment: .trailing)
                 }
             }
@@ -929,12 +929,12 @@ struct AnalyticsMetricDetailView: View {
     private func missingDataHint(category: String, capturedBy: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("No \(category) data was found inside this window. Either there's no data in Apple Health for these dates, or this category isn't shared with Headway.")
-                .font(.system(size: 13))
-                .foregroundColor(.secondary)
+                .scaledFont(size: 13)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Text("\(category.capitalized) is typically captured by \(capturedBy).")
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
+                .scaledFont(size: 12)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Button {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -944,7 +944,7 @@ struct AnalyticsMetricDetailView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "gear")
                     Text("Check Permissions")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .scaledFont(size: 13, weight: .semibold, design: .rounded)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
@@ -965,8 +965,8 @@ struct AnalyticsMetricDetailView: View {
     private var healthUnavailable: some View {
         Card(title: "Apple Health unavailable") {
             Text("Apple Health isn't available on this device, so we can't load sleep, HRV, or menstrual-cycle correlations here. Open Headway on iPhone to view this view.")
-                .font(.system(size: 13))
-                .foregroundColor(.secondary)
+                .scaledFont(size: 13)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -977,8 +977,8 @@ struct AnalyticsMetricDetailView: View {
         Card(title: "Connect Apple Health") {
             VStack(alignment: .leading, spacing: 12) {
                 Text("This view compares your migraines against samples from Apple Health. Grant access to Sleep, HRV, and (optionally) menstrual cycle data to populate it.")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 13)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Button {
                     Task {
@@ -998,7 +998,7 @@ struct AnalyticsMetricDetailView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "heart.fill")
                         Text("Connect Health")
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .scaledFont(size: 14, weight: .semibold, design: .rounded)
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
@@ -1020,8 +1020,8 @@ struct AnalyticsMetricDetailView: View {
         Card(title: "Apple Health permissions needed") {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Apple Health isn't sharing the data needed for this view. You may have dismissed Apple's permission sheet before scrolling through every category. Apple doesn't let apps re-open that sheet — you'll need to flip the toggles in iOS Settings.")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 13)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Button {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -1031,7 +1031,7 @@ struct AnalyticsMetricDetailView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "gear")
                         Text("Open Settings")
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .scaledFont(size: 14, weight: .semibold, design: .rounded)
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
@@ -1062,8 +1062,8 @@ struct AnalyticsMetricDetailView: View {
     
     private func sampleSizeNote(_ summary: HealthCorrelationSummary) -> some View {
         Text("Based on \(summary.migraineSampleCount) migraine sample\(summary.migraineSampleCount == 1 ? "" : "s") and \(summary.baselineSampleCount) baseline sample\(summary.baselineSampleCount == 1 ? "" : "s").")
-            .font(.system(size: 11))
-            .foregroundColor(.secondary)
+            .scaledFont(size: 11)
+            .foregroundStyle(.secondary)
     }
     
     private func deltaPill(
@@ -1088,9 +1088,9 @@ struct AnalyticsMetricDetailView: View {
         }()
         return HStack(spacing: 4) {
             Image(systemName: arrow)
-                .font(.system(size: 10, weight: .bold))
+                .scaledFont(size: 10, weight: .bold)
             Text(phrase)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .scaledFont(size: 12, weight: .semibold, design: .rounded)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
@@ -1150,19 +1150,19 @@ struct AnalyticsMetricDetailView: View {
     
     private var emptyState: some View {
         Text("No data for this period.")
-            .font(.system(size: 13))
-            .foregroundColor(.secondary)
+            .scaledFont(size: 13)
+            .foregroundStyle(.secondary)
     }
     
     private func listLink(text: String) -> some View {
         HStack {
             Text(text)
-                .font(.system(size: 14, weight: .medium, design: .rounded))
-                .foregroundColor(.primary)
+                .scaledFont(size: 14, weight: .medium, design: .rounded)
+                .foregroundStyle(.primary)
             Spacer()
             Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.secondary)
+                .scaledFont(size: 12, weight: .semibold)
+                .foregroundStyle(.secondary)
         }
     }
 }

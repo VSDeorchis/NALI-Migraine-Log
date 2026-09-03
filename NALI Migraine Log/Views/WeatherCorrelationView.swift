@@ -111,12 +111,12 @@ struct WeatherCorrelationView: View {
                         .frame(width: 48, height: 48)
                     
                     Image(systemName: "cloud.sun.fill")
-                        .font(.system(size: 22))
-                        .foregroundColor(.white)
+                        .scaledFont(size: 22)
+                        .foregroundStyle(.white)
                 }
                 
                 Text("Weather Data Coverage")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .scaledFont(size: 20, weight: .bold, design: .rounded)
                 Spacer()
             }
             
@@ -162,14 +162,14 @@ struct WeatherCorrelationView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Barometric Pressure Changes", systemImage: "gauge.high")
                     .font(.headline)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.blue)
                     .padding(.horizontal)
                 
                 Text("24-hour pressure change before migraine onset")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .padding(.horizontal)
                 
                 let pressureData = migrainesWithWeather.map { migraine in
@@ -184,7 +184,7 @@ struct WeatherCorrelationView: View {
                 
                 if pressureData.isEmpty {
                     Text("No pressure data available")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .frame(height: 200)
                 } else {
                     Chart(pressureData) { point in
@@ -202,7 +202,7 @@ struct WeatherCorrelationView: View {
                             AxisTick(stroke: StrokeStyle(lineWidth: 1))
                                 .foregroundStyle(Color.gray.opacity(0.5))
                             AxisValueLabel()
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .font(.system(.caption, design: .rounded, weight: .medium))
                                 .foregroundStyle(Color.secondary)
                         }
                     }
@@ -213,7 +213,7 @@ struct WeatherCorrelationView: View {
                             AxisTick(stroke: StrokeStyle(lineWidth: 1))
                                 .foregroundStyle(Color.gray.opacity(0.5))
                             AxisValueLabel(format: .dateTime.month().day())
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .font(.system(.caption, design: .rounded, weight: .medium))
                                 .foregroundStyle(Color.secondary)
                         }
                     }
@@ -223,6 +223,10 @@ struct WeatherCorrelationView: View {
                             .cornerRadius(12)
                     }
                     .frame(height: 260)
+                    .accessibilityLabel("Pressure change before each migraine")
+                    .accessibilityValue(
+                        "\(pressureData.count) migraines; \(pressureData.filter { abs($0.change) >= 5 }.count) followed a significant pressure change"
+                    )
                     
                     // Pressure change legend
                     HStack(spacing: 20) {
@@ -230,7 +234,7 @@ struct WeatherCorrelationView: View {
                         LegendItem(color: .orange, text: pressureLegendModerate)
                         LegendItem(color: .red, text: pressureLegendSignificant)
                     }
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .scaledFont(size: 11, weight: .medium, design: .rounded)
                     .padding(.horizontal)
                     .padding(.top, 8)
                 }
@@ -256,7 +260,7 @@ struct WeatherCorrelationView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Weather Conditions", systemImage: "cloud.sun.rain.fill")
                     .font(.headline)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.purple)
                     .padding(.horizontal)
@@ -267,7 +271,7 @@ struct WeatherCorrelationView: View {
                 
                 if conditionData.isEmpty {
                     Text("No weather condition data available")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .frame(height: 200)
                 } else {
                     Chart(conditionData) { point in
@@ -281,6 +285,10 @@ struct WeatherCorrelationView: View {
                     }
                     .frame(height: 260)
                     .chartLegend(position: .bottom, alignment: .center, spacing: 12)
+                    .accessibilityLabel("Migraines by weather condition")
+                    .accessibilityValue(
+                        conditionData.map { "\($0.condition), \($0.count)" }.joined(separator: "; ")
+                    )
                 }
             }
         }
@@ -293,7 +301,7 @@ struct WeatherCorrelationView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Temperature During Migraines", systemImage: "thermometer.medium")
                     .font(.headline)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.orange)
                     .padding(.horizontal)
@@ -332,7 +340,7 @@ struct WeatherCorrelationView: View {
                 
                 if tempRanges.isEmpty {
                     Text("No temperature data available")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .frame(height: 200)
                 } else {
                     Chart(tempRanges) { point in
@@ -356,7 +364,7 @@ struct WeatherCorrelationView: View {
                             AxisTick(stroke: StrokeStyle(lineWidth: 1))
                                 .foregroundStyle(Color.gray.opacity(0.5))
                             AxisValueLabel()
-                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .font(.system(.caption2, design: .rounded, weight: .medium))
                                 .foregroundStyle(Color.secondary)
                         }
                     }
@@ -367,7 +375,7 @@ struct WeatherCorrelationView: View {
                             AxisTick(stroke: StrokeStyle(lineWidth: 1))
                                 .foregroundStyle(Color.gray.opacity(0.5))
                             AxisValueLabel()
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .font(.system(.caption, design: .rounded, weight: .medium))
                                 .foregroundStyle(Color.secondary)
                         }
                     }
@@ -377,6 +385,10 @@ struct WeatherCorrelationView: View {
                             .cornerRadius(12)
                     }
                     .frame(height: 220)
+                    .accessibilityLabel("Migraines by temperature range")
+                    .accessibilityValue(
+                        tempRanges.map { "\($0.range), \($0.count)" }.joined(separator: "; ")
+                    )
                 }
             }
         }
@@ -389,7 +401,7 @@ struct WeatherCorrelationView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Precipitation Correlation", systemImage: "cloud.rain.fill")
                     .font(.headline)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.blue)
                     .padding(.horizontal)
@@ -421,7 +433,7 @@ struct WeatherCorrelationView: View {
                         AxisTick(stroke: StrokeStyle(lineWidth: 1))
                             .foregroundStyle(Color.gray.opacity(0.5))
                         AxisValueLabel()
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .font(.system(.caption, design: .rounded, weight: .medium))
                             .foregroundStyle(Color.secondary)
                     }
                 }
@@ -432,7 +444,7 @@ struct WeatherCorrelationView: View {
                         AxisTick(stroke: StrokeStyle(lineWidth: 1))
                             .foregroundStyle(Color.gray.opacity(0.5))
                         AxisValueLabel()
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .font(.system(.caption, design: .rounded, weight: .medium))
                             .foregroundStyle(Color.secondary)
                     }
                 }
@@ -442,6 +454,8 @@ struct WeatherCorrelationView: View {
                         .cornerRadius(12)
                 }
                 .frame(height: 180)
+                .accessibilityLabel("Migraines with and without rain")
+                .accessibilityValue("\(withPrecip) with rain, \(withoutPrecip) without rain")
             }
         }
     }
@@ -533,7 +547,7 @@ struct WeatherCorrelationView: View {
         VStack(spacing: 16) {
             Image(systemName: "cloud.slash.fill")
                 .font(.system(size: 60))
-                .foregroundColor(.gray)
+                .foregroundStyle(.gray)
             
             Text("No Weather Data Available")
                 .font(.title3)
@@ -541,7 +555,7 @@ struct WeatherCorrelationView: View {
             
             Text("Weather data will be automatically collected for new migraine entries. Make sure location services are enabled.")
                 .font(.body)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
             
@@ -551,7 +565,7 @@ struct WeatherCorrelationView: View {
                 Label("Enable Location Services", systemImage: "location.fill")
                     .padding()
                     .background(Color.blue)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .cornerRadius(10)
             }
         }
@@ -622,17 +636,17 @@ struct InsightCard: View {
                     .frame(width: 48, height: 48)
                 
                 Image(systemName: icon)
-                    .font(.system(size: 22))
-                    .foregroundColor(color)
+                    .scaledFont(size: 22)
+                    .foregroundStyle(color)
             }
             
             VStack(alignment: .leading, spacing: 6) {
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundColor(.primary)
+                    .scaledFont(size: 15, weight: .semibold, design: .rounded)
+                    .foregroundStyle(.primary)
                 Text(description)
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 13)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             

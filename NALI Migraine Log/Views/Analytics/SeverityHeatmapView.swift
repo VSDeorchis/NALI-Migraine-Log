@@ -112,14 +112,14 @@ struct SeverityHeatmapView: View {
                 Spacer()
                 if let selected = selected {
                     Text(selectedSummary(for: selected))
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 12, weight: .medium, design: .rounded)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 } else {
                     Text(periodSummary)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 12, weight: .medium, design: .rounded)
+                        .foregroundStyle(.secondary)
                 }
             }
             
@@ -174,7 +174,7 @@ struct SeverityHeatmapView: View {
                 ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                     Text(symbol)
                         .font(.system(size: headerFontSize, weight: .semibold, design: .rounded))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .frame(width: size, height: size)
                 }
             }
@@ -264,8 +264,8 @@ struct SeverityHeatmapView: View {
                         .fill(bucket.color.opacity(0.85))
                         .frame(width: 10, height: 10)
                     Text(bucket.title)
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 10, weight: .medium, design: .rounded)
+                        .foregroundStyle(.secondary)
                 }
             }
             Spacer()

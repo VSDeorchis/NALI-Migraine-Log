@@ -6,140 +6,371 @@ import SwiftUI
 
 /// Bridge between the iOS and watchOS apps via `WCSession`.
 ///
+/// **Sync protocol (v2):**
+/// - Each device sends a *delta* (`WatchSyncEnvelope.Kind.delta`) containing
+///   only the entries it created/edited itself, via `transferUserInfo`. The OS
+///   queues transfers until the counterpart is available, so a Watch-logged
+///   migraine reaches the phone even if it was logged offline. Dirty ids are
+///   persisted until the transfer is acknowledged in
+///   `session(_:didFinish:error:)`.
+/// - The phone additionally publishes a compact *snapshot* of recent history
+///   (no notes / coordinates / weather) through `updateApplicationContext` so
+///   a freshly installed Watch app has data to show. Snapshot records never
+///   overwrite entries the receiver has locally edited but not yet delivered.
+/// - Deletions travel as tombstones (`deletedIDs`) in both message kinds and
+///   are pruned after `tombstoneRetention`.
+///
 /// **Concurrency model (Swift 6-clean):**
 /// The class is `@MainActor` so every read/write of `@Published` state and
 /// every Core Data operation against `viewContext` runs on the main thread.
-/// All Apple framework callbacks (`WCSessionDelegate`, `Timer`,
-/// `WCSession.sendMessage` errorHandlers) are `nonisolated` and **must** hop
-/// to MainActor before touching `self`. This satisfies the Swift 6 strict
-/// concurrency model (no actor crossing without an explicit `await`) and
-/// also prevents the very-real data race where the previous version dispatched
-/// `sendMigraineData()` (a MainActor method that fetches via `viewContext`,
-/// itself main-thread-only) onto a background `DispatchQueue`.
+/// All Apple framework callbacks (`WCSessionDelegate`, `WCSession.sendMessage`
+/// errorHandlers) are `nonisolated` and hop to MainActor before touching
+/// `self`.
 @MainActor
 class WatchConnectivityManager: NSObject, ObservableObject {
     static let shared = WatchConnectivityManager()
     private let session: WCSession
     private let context: NSManagedObjectContext
-    
+
     @Published var isPaired = false
     @Published var isReachable = false
     @Published var lastSyncTime: Date?
-    
+
     // Synced risk score from iPhone (used by watchOS)
     @Published var syncedRiskPercentage: Int?
     @Published var syncedRiskLevel: String?
     @Published var syncedRiskFactors: [[String: Any]]?
     @Published var syncedRiskRecommendations: [String]?
     @Published var syncedRiskTimestamp: Date?
-    
-    private var deletedMigraineIds: Set<UUID> = []
-    private let deletedIdsKey = "com.neuroli.deletedMigraineIds"
-    
+
+    /// Entries this device changed and has not yet delivered to the counterpart.
+    private var pendingChangeIDs: Set<UUID> = []
+    /// Dirty ids grouped by in-flight `transferUserInfo` batch.
+    private var inFlightBatches: [UUID: Set<UUID>] = [:]
+    /// Deleted entry id → time of deletion.
+    private var tombstones: [UUID: Date] = [:]
+    /// Entry id → time of the newest edit this device knows about (its own or
+    /// one it accepted from the counterpart). Drives last-writer-wins.
+    private var revisions: [UUID: Date] = [:]
+    private var snapshotTask: Task<Void, Never>?
+
+    private let tombstonesKey = "com.neuroli.migraineTombstones"
+    private let revisionsKey = "com.neuroli.migraineSyncRevisions"
+    private let pendingChangesKey = "com.neuroli.pendingWatchSyncIds"
+    private let legacyDeletedIdsKey = "com.neuroli.deletedMigraineIds"
+    private let pendingRiskKey = "pendingRiskPayload"
+
+    private let tombstoneRetention: TimeInterval = 90 * 86_400
+    /// Upper bound on entries included in a phone → Watch snapshot.
+    private let snapshotLimit = 150
+    /// Conservative ceiling for a single application-context payload.
+    private let snapshotByteBudget = 60_000
+
     init(session: WCSession = .default) {
         self.session = session
         self.context = PersistenceController.shared.container.viewContext
         super.init()
-        
+
+        loadPersistedState()
+
         if WCSession.isSupported() {
             AppLogger.watch.debug("WCSession is supported")
             session.delegate = self
             session.activate()
-            
-            #if os(iOS)
-            // Schedule more frequent syncs for Watch connectivity. The Timer
-            // callback is non-isolated, so we must hop back to MainActor
-            // before touching `self` (Swift 6 enforces this).
-            Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.checkAndSyncData()
-                }
-            }
-            #endif
         }
-        
-        // Load deleted IDs from UserDefaults
-        if let deletedIdsData = UserDefaults.standard.data(forKey: deletedIdsKey),
-           let deletedIds = try? JSONDecoder().decode(Set<UUID>.self, from: deletedIdsData) {
-            deletedMigraineIds = deletedIds
-        }
-    }
-    
-    func checkAndSyncData() {
+
         #if os(iOS)
-        guard session.activationState == .activated else {
-            AppLogger.watch.debug("Session not activated")
-            return
+        // Entries that arrive from CloudKit (edited on a Mac, another phone)
+        // never pass through the view model, so refresh the Watch snapshot
+        // when the store reports remote changes.
+        NotificationCenter.default.addObserver(
+            forName: .NSPersistentStoreRemoteChange,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.scheduleSnapshot()
+            }
         }
-        
-        // Previously dispatched onto a background `syncQueue`, but
-        // `sendMigraineData()` reads `viewContext` (main-thread-only) and
-        // mutates `@Published` state. Running it on a background queue was
-        // a latent thread-safety bug and is forbidden under Swift 6. Run
-        // inline; we're already on the MainActor.
-        sendMigraineData()
         #endif
     }
-    
+
+    // MARK: - Persistence of sync bookkeeping
+
+    private func loadPersistedState() {
+        let defaults = UserDefaults.standard
+        if let data = defaults.data(forKey: tombstonesKey),
+           let stored = try? JSONDecoder().decode([UUID: Date].self, from: data) {
+            tombstones = stored
+        }
+        // One-time migration from the pre-v2 `Set<UUID>` format.
+        if let legacy = defaults.data(forKey: legacyDeletedIdsKey),
+           let ids = try? JSONDecoder().decode(Set<UUID>.self, from: legacy) {
+            let now = Date()
+            for id in ids where tombstones[id] == nil {
+                tombstones[id] = now
+            }
+            defaults.removeObject(forKey: legacyDeletedIdsKey)
+            saveTombstones()
+        }
+        if let data = defaults.data(forKey: pendingChangesKey),
+           let ids = try? JSONDecoder().decode(Set<UUID>.self, from: data) {
+            pendingChangeIDs = ids
+        }
+        if let data = defaults.data(forKey: revisionsKey),
+           let stored = try? JSONDecoder().decode([UUID: Date].self, from: data) {
+            revisions = stored
+        }
+        pruneTombstones()
+    }
+
+    private func saveTombstones() {
+        if let data = try? JSONEncoder().encode(tombstones) {
+            UserDefaults.standard.set(data, forKey: tombstonesKey)
+        }
+    }
+
+    private func saveRevisions() {
+        if let data = try? JSONEncoder().encode(revisions) {
+            UserDefaults.standard.set(data, forKey: revisionsKey)
+        }
+    }
+
+    /// Revision time used when encoding an entry. Entries edited before this
+    /// bookkeeping existed have no recorded revision and are sent as
+    /// `.distantPast` so they never win over a real edit on the other side.
+    private func revision(for id: UUID) -> Date {
+        revisions[id] ?? .distantPast
+    }
+
+    private func savePendingChanges() {
+        if let data = try? JSONEncoder().encode(pendingChangeIDs) {
+            UserDefaults.standard.set(data, forKey: pendingChangesKey)
+        }
+    }
+
+    private func pruneTombstones() {
+        let cutoff = Date().addingTimeInterval(-tombstoneRetention)
+        let before = tombstones.count
+        tombstones = tombstones.filter { $0.value >= cutoff }
+        if tombstones.count != before {
+            saveTombstones()
+        }
+        // Revisions for deleted entries only matter while the tombstone
+        // itself is still being sent.
+        let revisionsBefore = revisions.count
+        revisions = revisions.filter { id, _ in
+            guard let deletedAt = tombstones[id] else { return true }
+            return deletedAt >= cutoff
+        }
+        if revisions.count != revisionsBefore {
+            saveRevisions()
+        }
+    }
+
+    /// Forget all bookkeeping. Used when the user erases all app data.
+    func resetSyncState() {
+        pendingChangeIDs.removeAll()
+        inFlightBatches.removeAll()
+        tombstones.removeAll()
+        revisions.removeAll()
+        savePendingChanges()
+        saveTombstones()
+        saveRevisions()
+        UserDefaults.standard.removeObject(forKey: pendingRiskKey)
+    }
+
+    // MARK: - Public change notifications (called by the view models)
+
+    /// Marks an entry as changed on this device and queues a delta transfer.
+    func recordChange(of migraineId: UUID) {
+        revisions[migraineId] = Date()
+        pendingChangeIDs.insert(migraineId)
+        saveRevisions()
+        savePendingChanges()
+        flushPendingChanges()
+        scheduleSnapshot()
+    }
+
+    /// Records a deletion tombstone and queues a delta transfer.
     func recordDeletion(of migraineId: UUID) {
-        deletedMigraineIds.insert(migraineId)
-        saveDeletedIds()
-        checkAndSyncData()  // Trigger sync after deletion
+        recordDeletions(of: [migraineId])
     }
-    
-    private func saveDeletedIds() {
-        if let encodedData = try? JSONEncoder().encode(deletedMigraineIds) {
-            UserDefaults.standard.set(encodedData, forKey: deletedIdsKey)
+
+    /// Records tombstones for many entries at once (e.g. "delete all").
+    func recordDeletions(of migraineIds: [UUID]) {
+        let now = Date()
+        for id in migraineIds {
+            tombstones[id] = now
+            pendingChangeIDs.remove(id)
+            revisions.removeValue(forKey: id)
         }
+        saveTombstones()
+        savePendingChanges()
+        saveRevisions()
+        flushPendingChanges(forceTombstones: true)
+        scheduleSnapshot()
     }
-    
-    func sendMigraineData() {
-        do {
-            let migraines = try context.fetch(NSFetchRequest<MigraineEvent>(entityName: "MigraineEvent"))
-            // Drop entries without an `id` — they can't be reconciled on the
-            // other side. We don't need the unwrapped value beyond the guard,
-            // so check existence with a boolean rather than binding.
-            let migraineData = migraines.compactMap { migraine -> [String: Any]? in
-                guard migraine.id != nil else { return nil }
-                return migraine.toWatchSyncDictionary()
-            }
-            
-            var applicationContext: [String: Any] = [
-                "migraineData": migraineData,
-                "deletedIds": Array(deletedMigraineIds.map { $0.uuidString }),
-                "syncTime": Date().timeIntervalSince1970
-            ]
-            
-            // Include pending risk data if available
-            if let pendingRisk = UserDefaults.standard.dictionary(forKey: "pendingRiskPayload") {
-                applicationContext["riskUpdate"] = pendingRisk
-            }
-            
-            try session.updateApplicationContext(applicationContext)
-            
-            // Already on MainActor — no `DispatchQueue.main.async` hop needed.
-            lastSyncTime = Date()
-            let count = migraineData.count
-            let deletes = deletedMigraineIds.count
-            AppLogger.watch.info("Successfully synced \(count, privacy: .public) migraines and \(deletes, privacy: .public) deletions")
-            
-        } catch {
-            AppLogger.watch.error("Error syncing data: \(error.localizedDescription, privacy: .public)")
-            
-            // If updating application context fails, try sending as a message
-            if session.isReachable {
-                session.sendMessage(["requestSync": true], replyHandler: nil) { error in
-                    AppLogger.watch.error("Error sending sync request: \(error.localizedDescription, privacy: .public)")
+
+    // MARK: - Outbound: deltas
+
+    /// Sends every un-acknowledged local change (and current tombstones) as a
+    /// single queued `transferUserInfo`. Safe to call repeatedly; ids already
+    /// in flight are skipped.
+    private func flushPendingChanges(forceTombstones: Bool = false) {
+        guard session.activationState == .activated else {
+            AppLogger.watch.debug("Session not activated; delta deferred")
+            return
+        }
+        #if os(iOS)
+        guard session.isPaired, session.isWatchAppInstalled else {
+            AppLogger.watch.debug("No Watch app installed; delta skipped")
+            return
+        }
+        #endif
+
+        let inFlight = inFlightBatches.values.reduce(into: Set<UUID>()) { $0.formUnion($1) }
+        let idsToSend = pendingChangeIDs.subtracting(inFlight)
+        guard !idsToSend.isEmpty || (forceTombstones && !tombstones.isEmpty) else { return }
+
+        var records: [MigraineSyncRecord] = []
+        if !idsToSend.isEmpty {
+            let request = NSFetchRequest<MigraineEvent>(entityName: "MigraineEvent")
+            request.predicate = NSPredicate(format: "id IN %@", Array(idsToSend))
+            do {
+                let events = try context.fetch(request)
+                records = events.compactMap { event in
+                    guard let id = event.id else { return nil }
+                    return MigraineSyncRecord(event: event, includeNotes: true, modifiedAt: revision(for: id))
                 }
+            } catch {
+                AppLogger.watch.error("Failed to fetch pending entries: \(error.localizedDescription, privacy: .public)")
+                return
             }
+            // Ids that no longer resolve to an object were deleted locally;
+            // drop them from the dirty set so they don't retry forever.
+            let found = Set(records.map(\.id))
+            for missing in idsToSend.subtracting(found) {
+                pendingChangeIDs.remove(missing)
+            }
+            savePendingChanges()
+        }
+
+        let envelope = WatchSyncEnvelope(
+            kind: .delta,
+            sentAt: Date(),
+            records: records,
+            deletedIDs: Array(tombstones.keys)
+        )
+
+        do {
+            let batchID = UUID()
+            let payload: [String: Any] = [
+                WatchSyncEnvelope.payloadKey: try envelope.encoded(),
+                WatchSyncEnvelope.batchIDKey: batchID.uuidString
+            ]
+            inFlightBatches[batchID] = Set(records.map(\.id))
+            session.transferUserInfo(payload)
+            AppLogger.watch.info("Queued delta: \(records.count, privacy: .public) entries, \(envelope.deletedIDs.count, privacy: .public) tombstones")
+        } catch {
+            AppLogger.watch.error("Failed to encode delta: \(error.localizedDescription, privacy: .public)")
         }
     }
-    
+
+    private func completeBatch(_ batchID: UUID, error: Error?) {
+        guard let ids = inFlightBatches.removeValue(forKey: batchID) else { return }
+        if let error {
+            AppLogger.watch.error("Delta transfer failed; will retry: \(error.localizedDescription, privacy: .public)")
+            // Ids stay in `pendingChangeIDs`; next flush retries them.
+            return
+        }
+        pendingChangeIDs.subtract(ids)
+        savePendingChanges()
+        lastSyncTime = Date()
+        AppLogger.watch.info("Delta acknowledged: \(ids.count, privacy: .public) entries")
+    }
+
+    // MARK: - Outbound: snapshot (iOS → watchOS)
+
+    /// Debounces snapshot publication so a burst of edits produces one
+    /// application-context update.
+    private func scheduleSnapshot() {
+        #if os(iOS)
+        snapshotTask?.cancel()
+        snapshotTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard !Task.isCancelled else { return }
+            self?.sendSnapshot()
+        }
+        #endif
+    }
+
+    /// Publishes recent history to the Watch. No-op on watchOS.
+    func sendSnapshot() {
+        #if os(iOS)
+        guard session.activationState == .activated,
+              session.isPaired,
+              session.isWatchAppInstalled else {
+            return
+        }
+
+        let request = NSFetchRequest<MigraineEvent>(entityName: "MigraineEvent")
+        request.sortDescriptors = [NSSortDescriptor(keyPath: \MigraineEvent.startTime, ascending: false)]
+        request.fetchLimit = snapshotLimit
+
+        let records: [MigraineSyncRecord]
+        do {
+            records = try context.fetch(request).compactMap { event in
+                guard let id = event.id else { return nil }
+                return MigraineSyncRecord(event: event, includeNotes: false, modifiedAt: revision(for: id))
+            }
+        } catch {
+            AppLogger.watch.error("Snapshot fetch failed: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+
+        var limit = records.count
+        var applicationContext: [String: Any] = [:]
+        // Shrink until the payload fits the budget.
+        repeat {
+            let envelope = WatchSyncEnvelope(
+                kind: .snapshot,
+                sentAt: Date(),
+                records: Array(records.prefix(limit)),
+                deletedIDs: Array(tombstones.keys)
+            )
+            guard let data = try? envelope.encoded() else {
+                AppLogger.watch.error("Snapshot encoding failed")
+                return
+            }
+            if data.count <= snapshotByteBudget || limit == 0 {
+                applicationContext[WatchSyncEnvelope.payloadKey] = data
+                break
+            }
+            limit /= 2
+        } while true
+
+        if let pendingRisk = UserDefaults.standard.dictionary(forKey: pendingRiskKey) {
+            applicationContext["riskUpdate"] = pendingRisk
+        }
+
+        do {
+            try session.updateApplicationContext(applicationContext)
+            lastSyncTime = Date()
+            AppLogger.watch.info("Published snapshot with \(limit, privacy: .public) entries")
+        } catch {
+            AppLogger.watch.error("updateApplicationContext failed: \(error.localizedDescription, privacy: .public)")
+        }
+        #endif
+    }
+
+    // MARK: - Risk score (iOS → watchOS)
+
     #if os(iOS)
     /// Send the computed risk score to the Watch so both platforms show the same value.
     func sendRiskScore(_ riskScore: MigraineRiskScore) {
         guard session.activationState == .activated else { return }
-        
+
         let factorsData: [[String: Any]] = riskScore.topFactors.prefix(3).map { factor in
             [
                 "name": factor.name,
@@ -148,7 +379,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
                 "detail": factor.detail
             ]
         }
-        
+
         let riskPayload: [String: Any] = [
             "riskPercentage": riskScore.riskPercentage,
             "riskLevel": riskScore.riskLevel.rawValue,
@@ -157,30 +388,28 @@ class WatchConnectivityManager: NSObject, ObservableObject {
             "confidence": riskScore.confidence,
             "timestamp": Date().timeIntervalSince1970
         ]
-        
-        // Send as a message for immediate delivery if reachable
+
         if session.isReachable {
             session.sendMessage(["riskUpdate": riskPayload], replyHandler: nil) { error in
                 AppLogger.watch.error("Error sending risk to Watch: \(error.localizedDescription, privacy: .public)")
             }
         }
-        
-        // Also include in the next application context update so the Watch gets it eventually
-        UserDefaults.standard.set(riskPayload, forKey: "pendingRiskPayload")
+
+        // Also include in the next application context update so the Watch gets it eventually.
+        UserDefaults.standard.set(riskPayload, forKey: pendingRiskKey)
+        scheduleSnapshot()
     }
     #endif
-    
+
     #if os(watchOS)
-    /// Request full sync from the paired iPhone
+    /// Ask the paired iPhone to publish a fresh snapshot.
     func requestFullSync() {
-        guard session.isReachable else { return }
+        guard session.activationState == .activated, session.isReachable else { return }
         session.sendMessage(["requestSync": true], replyHandler: nil) { error in
             AppLogger.watch.error("Error requesting sync: \(error.localizedDescription, privacy: .public)")
         }
     }
-    
-    /// Process incoming risk score data from iPhone. Already on MainActor —
-    /// the caller must guarantee that.
+
     private func processRiskData(_ riskPayload: [String: Any]) {
         syncedRiskPercentage = riskPayload["riskPercentage"] as? Int
         syncedRiskLevel = riskPayload["riskLevel"] as? String
@@ -191,93 +420,147 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         }
     }
     #endif
-    
-    // Handle incoming sync requests. Already on MainActor.
-    func handleSyncRequest() {
-        sendMigraineData()
+
+    // MARK: - Inbound
+
+    private func handleIncoming(_ payload: [String: Any]) {
+        if let envelope = WatchSyncEnvelope.decode(from: payload) {
+            apply(envelope)
+        } else if let legacyRecords = payload["migraineData"] as? [[String: Any]],
+                  let legacyDeleted = payload["deletedIds"] as? [String] {
+            applyLegacy(records: legacyRecords, deletedIds: legacyDeleted)
+        }
+        #if os(watchOS)
+        if let riskPayload = payload["riskUpdate"] as? [String: Any] {
+            processRiskData(riskPayload)
+        }
+        #endif
     }
-    
-    private func processMigraineData(_ migraineDataArray: [[String: Any]], deletedIds: [String]) {
-        let context = PersistenceController.shared.container.viewContext
-        
-        // Process deletions first
-        for deletedIdString in deletedIds {
-            if let deletedId = UUID(uuidString: deletedIdString) {
-                deletedMigraineIds.insert(deletedId)
-                
-                let request = NSFetchRequest<MigraineEvent>(entityName: "MigraineEvent")
-                request.predicate = NSPredicate(format: "id == %@", deletedId as CVarArg)
-                
-                do {
-                    let existingMigraines = try context.fetch(request)
-                    for migraine in existingMigraines {
-                        context.delete(migraine)
-                    }
-                } catch {
-                    AppLogger.watch.error("Error processing deletion: \(error.localizedDescription, privacy: .public)")
+
+    private func apply(_ envelope: WatchSyncEnvelope) {
+        var applied = 0
+        var skipped = 0
+
+        applyTombstones(envelope.deletedIDs)
+
+        let incomingIDs = envelope.records.map(\.id)
+        var existing: [UUID: MigraineEvent] = [:]
+        if !incomingIDs.isEmpty {
+            let request = NSFetchRequest<MigraineEvent>(entityName: "MigraineEvent")
+            request.predicate = NSPredicate(format: "id IN %@", incomingIDs)
+            do {
+                for event in try context.fetch(request) {
+                    if let id = event.id { existing[id] = event }
                 }
+            } catch {
+                AppLogger.watch.error("Inbound lookup failed: \(error.localizedDescription, privacy: .public)")
+                return
             }
         }
-        
-        // Process updates/additions
-        for migraineData in migraineDataArray {
-            guard let idString = migraineData["id"] as? String,
+
+        var revisionsChanged = false
+        for record in envelope.records {
+            if tombstones[record.id] != nil {
+                skipped += 1
+                continue
+            }
+            // Last-writer-wins: an incoming copy older than the newest edit
+            // this device knows about is stale. Snapshots additionally must
+            // not clobber an edit the counterpart hasn't acknowledged yet.
+            if let known = revisions[record.id], record.modifiedAt < known {
+                skipped += 1
+                continue
+            }
+            if envelope.kind == .snapshot, pendingChangeIDs.contains(record.id) {
+                skipped += 1
+                continue
+            }
+            let event: MigraineEvent
+            if let match = existing[record.id] {
+                event = match
+            } else {
+                event = MigraineEvent(context: context)
+                existing[record.id] = event
+            }
+            record.apply(to: event)
+            revisions[record.id] = record.modifiedAt
+            revisionsChanged = true
+            applied += 1
+        }
+        if revisionsChanged {
+            saveRevisions()
+        }
+
+        saveIfNeeded(applied: applied, skipped: skipped, kind: envelope.kind.rawValue)
+    }
+
+    /// Accepts payloads from pre-v2 app versions. Insert-only: it never
+    /// overwrites an existing local entry, so a stale counterpart cannot roll
+    /// back edits made here.
+    private func applyLegacy(records: [[String: Any]], deletedIds: [String]) {
+        applyTombstones(deletedIds.compactMap(UUID.init(uuidString:)))
+
+        var applied = 0
+        for dict in records {
+            guard let idString = dict["id"] as? String,
                   let id = UUID(uuidString: idString),
-                  !deletedMigraineIds.contains(id) else { continue }
-            
+                  tombstones[id] == nil else { continue }
+
             let request = NSFetchRequest<MigraineEvent>(entityName: "MigraineEvent")
             request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
-            
-            do {
-                let migraine: MigraineEvent
-                let existingMigraines = try context.fetch(request)
-                
-                if let existingMigraine = existingMigraines.first {
-                    migraine = existingMigraine
-                } else {
-                    migraine = MigraineEvent(context: context)
-                    migraine.id = id
-                }
+            request.fetchLimit = 1
+            guard let count = try? context.count(for: request), count == 0 else { continue }
 
-                // Map every field via the shared decoder so symptoms,
-                // medications, and triggers all round-trip. Hand-rolling a
-                // subset here previously dropped all medication and trigger
-                // booleans on the receiving device.
-                migraine.updateFromDictionary(migraineData)
-
-            } catch {
-                AppLogger.watch.error("Error processing migraine data: \(error.localizedDescription, privacy: .public)")
+            let event = MigraineEvent(context: context)
+            event.id = id
+            event.updateFromDictionary(dict)
+            if !MigraineSyncRecord.painLevelRange.contains(Int(event.painLevel)) {
+                context.delete(event)
+                continue
             }
+            applied += 1
         }
-        
-        // Save changes
+        saveIfNeeded(applied: applied, skipped: 0, kind: "legacy")
+    }
+
+    private func applyTombstones(_ ids: [UUID]) {
+        guard !ids.isEmpty else { return }
+        let now = Date()
+        for id in ids where tombstones[id] == nil {
+            tombstones[id] = now
+            pendingChangeIDs.remove(id)
+            revisions.removeValue(forKey: id)
+        }
+        saveTombstones()
+        savePendingChanges()
+        saveRevisions()
+
+        let request = NSFetchRequest<MigraineEvent>(entityName: "MigraineEvent")
+        request.predicate = NSPredicate(format: "id IN %@", ids)
+        do {
+            for event in try context.fetch(request) {
+                context.delete(event)
+            }
+        } catch {
+            AppLogger.watch.error("Error applying tombstones: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func saveIfNeeded(applied: Int, skipped: Int, kind: String) {
+        guard context.hasChanges else { return }
         do {
             try context.save()
-            AppLogger.watch.info("Successfully processed \(migraineDataArray.count, privacy: .public) migraines")
+            AppLogger.watch.info("Applied \(kind, privacy: .public): \(applied, privacy: .public) upserts, \(skipped, privacy: .public) skipped")
         } catch {
-            AppLogger.watch.error("Error saving context: \(error.localizedDescription, privacy: .public)")
+            AppLogger.watch.error("Error saving inbound sync: \(error.localizedDescription, privacy: .public)")
             context.rollback()
         }
     }
-    
-    // Add debug logging to track data flow. Note: the migraine dictionary
-    // contains user-entered notes/locations, so it is NEVER logged in cleartext;
-    // only counts and reachability flags are marked `.public`.
-    func sendMigraineData(_ migraine: MigraineEvent) {
-        AppLogger.watch.debug("Attempting to send migraine data to Watch")
-        guard WCSession.default.isReachable else {
-            AppLogger.watch.debug("Watch is not reachable")
-            return
-        }
-        
-        let migraineData = migraine.toWatchSyncDictionary()
-        AppLogger.watch.debug("Converted migraine to dictionary (\(migraineData.count, privacy: .public) keys)")
-        
-        WCSession.default.sendMessage(migraineData, replyHandler: { _ in
-            AppLogger.watch.info("Migraine data sent successfully")
-        }, errorHandler: { error in
-            AppLogger.watch.error("Error sending migraine data: \(error.localizedDescription, privacy: .public)")
-        })
+
+    /// Handles a counterpart's request for fresh data.
+    func handleSyncRequest() {
+        flushPendingChanges(forceTombstones: true)
+        sendSnapshot()
     }
 }
 
@@ -285,16 +568,14 @@ class WatchConnectivityManager: NSObject, ObservableObject {
 //
 // Every method here is called by the WatchConnectivity framework on a
 // background queue. Marking the methods `nonisolated` makes the conformance
-// legal under Swift 6 strict-concurrency (no implicit MainActor crossing),
-// and we then explicitly hop to `@MainActor` inside each method before
-// touching any `self` state. Values captured into the `Task` (session flags,
-// payload dictionaries, primitives) are all Sendable.
+// legal under Swift 6 strict-concurrency, and we explicitly hop to
+// `@MainActor` inside each method before touching any `self` state. Values
+// captured into the `Task` (session flags, payload dictionaries, primitives)
+// are all Sendable.
 extension WatchConnectivityManager: WCSessionDelegate {
     nonisolated func session(_ session: WCSession,
                              activationDidCompleteWith activationState: WCSessionActivationState,
                              error: Error?) {
-        // Read sendable session state up-front so we don't reach back into
-        // `session` from inside the MainActor task (it isn't Sendable).
         let isPaired: Bool
         let isReachable: Bool
         #if os(iOS)
@@ -307,41 +588,46 @@ extension WatchConnectivityManager: WCSessionDelegate {
         let activationError = error
 
         Task { @MainActor [weak self] in
+            guard let self else { return }
             if let activationError {
                 AppLogger.watch.error("Session activation failed: \(activationError.localizedDescription, privacy: .public)")
                 return
             }
             AppLogger.watch.info("Session activated successfully")
+            self.isPaired = isPaired
+            self.isReachable = isReachable
             #if os(iOS)
-            self?.isPaired = isPaired
-            self?.isReachable = isReachable
-            self?.checkAndSyncData()
+            self.handleSyncRequest()
             #else
-            self?.handleSyncRequest()
+            self.flushPendingChanges(forceTombstones: true)
+            self.requestFullSync()
             #endif
         }
     }
-    
+
     nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
-        // The application context dictionary is plain `[String: Any]` (sent
-        // across processes by the OS as plist data), so it's safe to capture
-        // into the MainActor hop. Core Data work happens inside on the
-        // main-thread-bound `viewContext`.
-        let appContext = applicationContext
+        let payload = applicationContext
         Task { @MainActor [weak self] in
-            guard let self else { return }
-            if let migraineDataArray = appContext["migraineData"] as? [[String: Any]],
-               let deletedIds = appContext["deletedIds"] as? [String] {
-                self.processMigraineData(migraineDataArray, deletedIds: deletedIds)
-            }
-            #if os(watchOS)
-            if let riskPayload = appContext["riskUpdate"] as? [String: Any] {
-                self.processRiskData(riskPayload)
-            }
-            #endif
+            self?.handleIncoming(payload)
         }
     }
-    
+
+    nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        let payload = userInfo
+        Task { @MainActor [weak self] in
+            self?.handleIncoming(payload)
+        }
+    }
+
+    nonisolated func session(_ session: WCSession, didFinish userInfoTransfer: WCSessionUserInfoTransfer, error: Error?) {
+        guard let batchString = userInfoTransfer.userInfo[WatchSyncEnvelope.batchIDKey] as? String,
+              let batchID = UUID(uuidString: batchString) else { return }
+        let transferError = error
+        Task { @MainActor [weak self] in
+            self?.completeBatch(batchID, error: transferError)
+        }
+    }
+
     nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
         let payload = message
         Task { @MainActor [weak self] in
@@ -356,25 +642,36 @@ extension WatchConnectivityManager: WCSessionDelegate {
             #endif
         }
     }
-    
+
+    nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
+        let isReachable = session.isReachable
+        Task { @MainActor [weak self] in
+            self?.isReachable = isReachable
+            if isReachable {
+                self?.flushPendingChanges()
+            }
+        }
+    }
+
     #if os(iOS)
     nonisolated func sessionDidBecomeInactive(_ session: WCSession) {
         AppLogger.watch.debug("Session became inactive")
     }
-    
+
     nonisolated func sessionDidDeactivate(_ session: WCSession) {
         AppLogger.watch.debug("Session deactivated, reactivating...")
         session.activate()
     }
-    
+
     nonisolated func sessionWatchStateDidChange(_ session: WCSession) {
         let isPaired = session.isPaired
         let isReachable = session.isReachable
+        let installed = session.isWatchAppInstalled
         Task { @MainActor [weak self] in
             self?.isPaired = isPaired
             self?.isReachable = isReachable
-            if isPaired && isReachable {
-                self?.checkAndSyncData()
+            if isPaired && installed {
+                self?.handleSyncRequest()
             }
         }
     }

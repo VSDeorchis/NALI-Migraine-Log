@@ -357,7 +357,7 @@ struct NewMigraineView: View {
                         .scaleEffect(0.8)
                     Text("Reading health data...")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             } else if !healthKit.isAuthorized {
                 healthKitUnauthorizedRow
@@ -366,10 +366,10 @@ struct NewMigraineView: View {
             } else {
                 HStack(spacing: 10) {
                     Image(systemName: "heart.text.square")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     Text("No health data available")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
         } header: {
@@ -382,7 +382,7 @@ struct NewMigraineView: View {
             if healthSnapshot != nil {
                 Text("Live data from Apple Health — not stored with this entry.")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
         .listRowBackground(Color(.systemGray6).opacity(0.5))
@@ -404,19 +404,19 @@ struct NewMigraineView: View {
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "heart.slash")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Connect Apple Health")
                             .font(.subheadline.weight(.medium))
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.primary)
                         Text("See sleep, HRV, and more alongside this entry.")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
         } else {
@@ -427,19 +427,19 @@ struct NewMigraineView: View {
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "heart.slash")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Apple Health Not Available")
                             .font(.subheadline.weight(.medium))
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.primary)
                         Text("Open Settings to manage permissions for Headway.")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
                     Image(systemName: "arrow.up.right.square")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -537,7 +537,7 @@ struct NewMigraineView: View {
                         .scaleEffect(0.8)
                     Text("Fetching weather data...")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
@@ -545,10 +545,10 @@ struct NewMigraineView: View {
             case .success:
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
+                        .foregroundStyle(.green)
                     Text("Weather data added")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
@@ -556,10 +556,10 @@ struct NewMigraineView: View {
             case .failed:
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.orange)
+                        .foregroundStyle(.orange)
                     Text("Weather data unavailable")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
@@ -567,10 +567,10 @@ struct NewMigraineView: View {
             case .locationDenied:
                 HStack(spacing: 8) {
                     Image(systemName: "location.slash.fill")
-                        .foregroundColor(.orange)
+                        .foregroundStyle(.orange)
                     Text("Enable location for weather data")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
@@ -632,7 +632,7 @@ struct SectionHeader: View {
     var body: some View {
         Label(title, systemImage: systemImage)
             .font(.system(.subheadline, design: .rounded).weight(.semibold))
-            .foregroundColor(color)
+            .foregroundStyle(color)
     }
 }
 
@@ -647,18 +647,18 @@ struct HealthContextTile: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(color)
+                .scaledFont(size: 14, weight: .semibold)
+                .foregroundStyle(color)
                 .frame(width: 22)
             
             VStack(alignment: .leading, spacing: 1) {
                 Text(label)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 10, weight: .medium)
+                    .foregroundStyle(.secondary)
                     .textCase(.uppercase)
                 Text(value)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(.primary)
+                    .scaledFont(size: 14, weight: .semibold, design: .rounded)
+                    .foregroundStyle(.primary)
             }
             
             Spacer()

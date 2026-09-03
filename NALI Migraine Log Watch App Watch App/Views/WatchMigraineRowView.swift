@@ -29,7 +29,7 @@ struct WatchMigraineRowView: View {
             } else {
                 Text("Unknown Time")
                     .font(.headline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
             
             // Pain level with safe integer conversion
@@ -40,7 +40,7 @@ struct WatchMigraineRowView: View {
             if let location = migraine.location {
                 Text(location)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
             
             // Show active triggers
@@ -48,7 +48,7 @@ struct WatchMigraineRowView: View {
             if !triggers.isEmpty {
                 Text(triggers.joined(separator: ", "))
                     .font(.caption)
-                    .foregroundColor(.blue)
+                    .foregroundStyle(.blue)
             }
             
             // Show active medications
@@ -56,7 +56,7 @@ struct WatchMigraineRowView: View {
             if !medications.isEmpty {
                 Text(medications.joined(separator: ", "))
                     .font(.caption)
-                    .foregroundColor(.purple)
+                    .foregroundStyle(.purple)
             }
         }
         .padding(.vertical, 4)

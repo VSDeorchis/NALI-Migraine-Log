@@ -303,7 +303,7 @@ struct StatBox: View {
         VStack {
             Text(title)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             Text(value)
                 .font(.title2.bold())
         }

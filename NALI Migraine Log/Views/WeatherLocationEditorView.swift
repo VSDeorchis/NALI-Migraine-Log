@@ -34,33 +34,33 @@ struct WeatherLocationEditorView: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section(header: Text("Current Weather Data")) {
                     if migraine.hasWeatherData {
                         HStack {
                             Image(systemName: weatherIconForCode(Int(migraine.weatherCode)))
-                                .foregroundColor(weatherIconColor(for: migraine.weatherCode))
+                                .foregroundStyle(weatherIconColor(for: migraine.weatherCode))
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(WeatherService.weatherCondition(for: Int(migraine.weatherCode)))
                                     .font(.headline)
                                 Text(settings.formatTemperature(migraine.weatherTemperature))
                                     .font(.subheadline)
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                             }
                         }
                         
                         HStack {
                             Text("Location")
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                             Spacer()
                             Text(String(format: "%.4f, %.4f", migraine.weatherLatitude, migraine.weatherLongitude))
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                     } else {
                         Text("No weather data available")
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 
@@ -91,7 +91,7 @@ struct WeatherLocationEditorView: View {
                     
                     Text("Weather data will be fetched for the migraine's start time at the specified location.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 
                 Section {

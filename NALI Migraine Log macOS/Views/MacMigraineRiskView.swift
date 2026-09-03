@@ -149,15 +149,15 @@ struct MacMigraineRiskView: View {
                     VStack(spacing: 4) {
                         Text("\(risk.riskPercentage)%")
                             .font(.system(size: 48, weight: .bold, design: .rounded))
-                            .foregroundColor(risk.riskLevel.color)
+                            .foregroundStyle(risk.riskLevel.color)
                         
                         Text(risk.riskLevel.rawValue)
                             .font(.headline)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         
                         Label(risk.predictionSource.description, systemImage: risk.predictionSource.icon)
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .padding(.top, 8)
@@ -167,11 +167,11 @@ struct MacMigraineRiskView: View {
                     HStack {
                         Text("Confidence")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         Spacer()
                         Text("\(Int(risk.confidence * 100))%")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     
                     GeometryReader { geo in
@@ -197,10 +197,10 @@ struct MacMigraineRiskView: View {
                 VStack(spacing: 12) {
                     Image(systemName: "brain")
                         .font(.system(size: 48))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     Text("Click refresh to analyze your risk")
                         .font(.headline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 .frame(height: 240)
             }
@@ -278,7 +278,7 @@ struct MacMigraineRiskView: View {
                 RoundedRectangle(cornerRadius: 20)
                     .fill(isActive ? color.opacity(0.15) : Color.gray.opacity(0.1))
             )
-            .foregroundColor(isActive ? color : .secondary)
+            .foregroundStyle(isActive ? color : .secondary)
             .overlay(
                 RoundedRectangle(cornerRadius: 20)
                     .stroke(isActive ? color.opacity(0.3) : Color.clear, lineWidth: 1)
@@ -299,7 +299,7 @@ struct MacMigraineRiskView: View {
                 HStack(spacing: 12) {
                     Image(systemName: factor.icon)
                         .font(.title3)
-                        .foregroundColor(factor.color)
+                        .foregroundStyle(factor.color)
                         .frame(width: 32)
                     
                     VStack(alignment: .leading, spacing: 2) {
@@ -308,7 +308,7 @@ struct MacMigraineRiskView: View {
                             .fontWeight(.medium)
                         Text(factor.detail)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .lineLimit(2)
                     }
                     
@@ -348,14 +348,14 @@ struct MacMigraineRiskView: View {
             
             Image(systemName: "chart.line.text.clipboard")
                 .font(.system(size: 56))
-                .foregroundColor(.secondary.opacity(0.5))
+                .foregroundStyle(.secondary.opacity(0.5))
             
             Text("Not Enough Data")
                 .font(.title2.weight(.semibold))
             
             Text("Log your first migraine to start building your personal risk profile. The prediction engine learns from your history to identify patterns and forecast risk.")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
             
@@ -365,7 +365,7 @@ struct MacMigraineRiskView: View {
                 Label("15+ entries enable machine learning", systemImage: "15.circle")
             }
             .font(.subheadline)
-            .foregroundColor(.secondary)
+            .foregroundStyle(.secondary)
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 12)
@@ -461,18 +461,18 @@ struct MacMigraineRiskView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Recommendations", systemImage: "lightbulb.fill")
                 .font(.headline)
-                .foregroundColor(.primary)
+                .foregroundStyle(.primary)
             
             ForEach(Array(recommendations.enumerated()), id: \.offset) { _, rec in
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "chevron.right.circle.fill")
-                        .foregroundColor(.blue)
+                        .foregroundStyle(.blue)
                         .font(.caption)
                         .padding(.top, 2)
                     
                     Text(rec)
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -530,7 +530,7 @@ struct MacMigraineRiskView: View {
                 RoundedRectangle(cornerRadius: 14)
                     .fill(color.opacity(0.1))
             )
-            .foregroundColor(color)
+            .foregroundStyle(color)
         }
         .buttonStyle(.plain)
     }
@@ -541,7 +541,7 @@ struct MacMigraineRiskView: View {
         HStack(spacing: 12) {
             Image(systemName: modelStatusIcon)
                 .font(.title3)
-                .foregroundColor(modelStatusColor)
+                .foregroundStyle(modelStatusColor)
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(modelStatusTitle)
@@ -549,7 +549,7 @@ struct MacMigraineRiskView: View {
                     .fontWeight(.medium)
                 Text(modelStatusDetail)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
             
             Spacer()
@@ -572,7 +572,7 @@ struct MacMigraineRiskView: View {
         VStack(spacing: 24) {
             Image(systemName: "heart.text.square.fill")
                 .font(.system(size: 60))
-                .foregroundColor(.red)
+                .foregroundStyle(.red)
             
             Text("Connect HealthKit")
                 .font(.title2)
@@ -580,7 +580,7 @@ struct MacMigraineRiskView: View {
             
             Text("Improve prediction accuracy by sharing health data. We'll read sleep, heart rate variability, resting heart rate, step count, and menstrual cycle data.\n\nAll data stays on your device.")
                 .font(.body)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
             
@@ -618,7 +618,7 @@ struct MacMigraineRiskView: View {
     private func healthBenefit(icon: String, text: String) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .foregroundColor(.red)
+                .foregroundStyle(.red)
                 .frame(width: 24)
             Text(text)
                 .font(.subheadline)

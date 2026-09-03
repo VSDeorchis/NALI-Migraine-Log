@@ -14,21 +14,23 @@ import CoreLocation
 struct ForecastData: Codable {
     let latitude: Double
     let longitude: Double
+    let timezone: String?
     let hourly: HourlyForecast
     
     enum CodingKeys: String, CodingKey {
-        case latitude, longitude, hourly
+        case latitude, longitude, timezone, hourly
     }
 }
 
+/// See `HourlyWeather` for why the series are optional.
 struct HourlyForecast: Codable {
     let time: [String]
-    let temperature2m: [Double]
-    let surfacePressure: [Double]
-    let precipitation: [Double]
-    let cloudCover: [Int]
-    let weatherCode: [Int]
-    let relativeHumidity2m: [Int]
+    let temperature2m: [Double?]
+    let surfacePressure: [Double?]
+    let precipitation: [Double?]
+    let cloudCover: [Int?]
+    let weatherCode: [Int?]
+    let relativeHumidity2m: [Int?]
     
     enum CodingKeys: String, CodingKey {
         case time
@@ -71,6 +73,10 @@ class WeatherForecastService: ObservableObject {
     private let baseURL = "https://api.open-meteo.com/v1/forecast"
     private let session: URLSession
     private let cacheTimeout: TimeInterval = 1800  // 30 minutes
+    /// Coordinates the cached forecast was fetched for, rounded like the
+    /// request itself so tiny GPS jitter still hits the cache.
+    private var cachedCoordinateKey: String?
+    private var inFlight: Task<[ForecastHour], Error>?
     
     private init() {
         let config = URLSessionConfiguration.default
@@ -84,46 +90,59 @@ class WeatherForecastService: ObservableObject {
     /// Fetch the next 48 hours of weather forecast.
     /// Results are cached for 30 minutes.
     func fetchForecast(latitude: Double, longitude: Double) async throws -> [ForecastHour] {
-        // Return cached data if still fresh
+        try OpenMeteo.validate(latitude: latitude, longitude: longitude)
+        let coordinateKey = "\(OpenMeteo.coordinateString(latitude)),\(OpenMeteo.coordinateString(longitude))"
+
         if let lastFetch = lastFetchTime,
+           cachedCoordinateKey == coordinateKey,
            Date().timeIntervalSince(lastFetch) < cacheTimeout,
            !currentForecast.isEmpty {
             return currentForecast
         }
-        
+
+        // Coalesce concurrent callers (risk view, background refresh, Watch
+        // push) onto one network request.
+        if let inFlight {
+            return try await inFlight.value
+        }
+
+        let request = Task<[ForecastHour], Error> { @MainActor [baseURL, session] in
+            let url = try OpenMeteo.makeURL(base: baseURL, queryItems: [
+                URLQueryItem(name: "latitude", value: OpenMeteo.coordinateString(latitude)),
+                URLQueryItem(name: "longitude", value: OpenMeteo.coordinateString(longitude)),
+                URLQueryItem(name: "hourly", value: "temperature_2m,surface_pressure,precipitation,cloudcover,weathercode,relativehumidity_2m"),
+                URLQueryItem(name: "temperature_unit", value: "fahrenheit"),
+                URLQueryItem(name: "precipitation_unit", value: "inch"),
+                URLQueryItem(name: "forecast_days", value: "2"),
+                URLQueryItem(name: "timezone", value: "auto")
+            ])
+
+            let (data, response) = try await session.data(from: url)
+            try OpenMeteo.validateHTTP(response)
+
+            return try await Task.detached(priority: .userInitiated) {
+                let forecast = try JSONDecoder().decode(ForecastData.self, from: data)
+                return try Self.parseForecast(forecast)
+            }.value
+        }
+        inFlight = request
         isLoading = true
-        defer { isLoading = false }
-        
-        var components = URLComponents(string: baseURL)!
-        components.queryItems = [
-            URLQueryItem(name: "latitude", value: String(format: "%.4f", latitude)),
-            URLQueryItem(name: "longitude", value: String(format: "%.4f", longitude)),
-            URLQueryItem(name: "hourly", value: "temperature_2m,surface_pressure,precipitation,cloudcover,weathercode,relativehumidity_2m"),
-            URLQueryItem(name: "temperature_unit", value: "fahrenheit"),
-            URLQueryItem(name: "precipitation_unit", value: "inch"),
-            URLQueryItem(name: "forecast_days", value: "2"),
-            URLQueryItem(name: "timezone", value: "auto")
-        ]
-        
-        guard let url = components.url else {
-            throw WeatherError.invalidURL
+        defer {
+            inFlight = nil
+            isLoading = false
         }
-        
-        let (data, response) = try await session.data(from: url)
-        
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            throw WeatherError.invalidResponse
+
+        do {
+            let hours = try await request.value
+            currentForecast = hours
+            cachedCoordinateKey = coordinateKey
+            lastFetchTime = Date()
+            lastError = nil
+            return hours
+        } catch {
+            lastError = error
+            throw error
         }
-        
-        let forecast = try JSONDecoder().decode(ForecastData.self, from: data)
-        let hours = parseForecast(forecast)
-        
-        currentForecast = hours
-        lastFetchTime = Date()
-        lastError = nil
-        
-        return hours
     }
     
     /// Get the forecast for the next N hours from now.
@@ -173,43 +192,40 @@ class WeatherForecastService: ObservableObject {
     
     // MARK: - Private
     
-    private func parseForecast(_ forecast: ForecastData) -> [ForecastHour] {
+    nonisolated private static func parseForecast(_ forecast: ForecastData) throws -> [ForecastHour] {
         let hourly = forecast.hourly
-        guard !hourly.time.isEmpty else { return [] }
-        
-        let dateFormatter = DateFormatter()
-        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        let formats = [
-            "yyyy-MM-dd'T'HH:mm",
-            "yyyy-MM-dd'T'HH:mm:ss",
-            "yyyy-MM-dd'T'HH:mm:ssZ"
-        ]
-        
-        func parseDate(_ s: String) -> Date? {
-            for fmt in formats {
-                dateFormatter.dateFormat = fmt
-                if let d = dateFormatter.date(from: s) { return d }
-            }
-            return nil
-        }
-        
-        let basePressure = hourly.surfacePressure.first ?? 1013.0
+        try OpenMeteo.requireAlignedSeries(timeCount: hourly.time.count, series: [
+            ("temperature_2m", hourly.temperature2m.count),
+            ("surface_pressure", hourly.surfacePressure.count),
+            ("precipitation", hourly.precipitation.count),
+            ("cloudcover", hourly.cloudCover.count),
+            ("weathercode", hourly.weatherCode.count),
+            ("relativehumidity_2m", hourly.relativeHumidity2m.count)
+        ])
+
+        let parser = OpenMeteo.TimeParser(timeZoneIdentifier: forecast.timezone)
+        // `hour` is displayed to the user, so express it in the device's zone.
+        let calendar = Calendar.current
+        let basePressure = hourly.surfacePressure.compactMap { $0 }.first ?? 1013.0
         var hours: [ForecastHour] = []
-        
-        for i in 0..<hourly.time.count {
-            guard let date = parseDate(hourly.time[i]) else { continue }
-            let code = hourly.weatherCode[i]
-            
+        hours.reserveCapacity(hourly.time.count)
+
+        for i in hourly.time.indices {
+            guard let date = parser.date(from: hourly.time[i]),
+                  let temperature = hourly.temperature2m[i],
+                  let pressure = hourly.surfacePressure[i],
+                  let code = hourly.weatherCode[i] else { continue }
+
             hours.append(ForecastHour(
                 date: date,
-                hour: Calendar.current.component(.hour, from: date),
-                temperature: hourly.temperature2m[i],
-                pressure: hourly.surfacePressure[i],
-                pressureChange: hourly.surfacePressure[i] - basePressure,
-                precipitation: hourly.precipitation[i],
-                cloudCover: hourly.cloudCover[i],
+                hour: calendar.component(.hour, from: date),
+                temperature: temperature,
+                pressure: pressure,
+                pressureChange: pressure - basePressure,
+                precipitation: hourly.precipitation[i] ?? 0,
+                cloudCover: hourly.cloudCover[i] ?? 0,
                 weatherCode: code,
-                humidity: hourly.relativeHumidity2m[i],
+                humidity: hourly.relativeHumidity2m[i] ?? 0,
                 weatherCondition: WeatherService.weatherCondition(for: code),
                 weatherIcon: WeatherService.weatherIcon(for: code)
             ))

@@ -130,15 +130,15 @@ struct CalendarView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(day.formatted(date: .complete, time: .omitted))
-                            .font(.system(size: 17, weight: .semibold, design: .rounded))
+                            .scaledFont(size: 17, weight: .semibold, design: .rounded)
                         if dayMigraines.isEmpty {
                             Text("No migraines logged")
-                                .font(.system(size: 13))
-                                .foregroundColor(.secondary)
+                                .scaledFont(size: 13)
+                                .foregroundStyle(.secondary)
                         } else {
                             Text("\(dayMigraines.count) migraine\(dayMigraines.count == 1 ? "" : "s")")
-                                .font(.system(size: 13))
-                                .foregroundColor(.secondary)
+                                .scaledFont(size: 13)
+                                .foregroundStyle(.secondary)
                         }
                     }
                     Spacer()
@@ -146,7 +146,7 @@ struct CalendarView: View {
                         selectedDay = nil
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Show whole month")
@@ -158,10 +158,10 @@ struct CalendarView: View {
                     VStack(spacing: 12) {
                         Image(systemName: "calendar.badge.checkmark")
                             .font(.system(size: 36))
-                            .foregroundColor(.green.opacity(0.6))
+                            .foregroundStyle(.green.opacity(0.6))
                         Text("Migraine-free day")
-                            .font(.system(size: 14, weight: .medium, design: .rounded))
-                            .foregroundColor(.secondary)
+                            .scaledFont(size: 14, weight: .medium, design: .rounded)
+                            .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -182,7 +182,7 @@ struct CalendarView: View {
         } else {
             VStack(alignment: .leading, spacing: 12) {
                 Text(dateFormatter.string(from: selectedDate))
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .scaledFont(size: 17, weight: .semibold, design: .rounded)
                     .padding(.horizontal)
                     .padding(.top, 12)
                 
@@ -191,13 +191,13 @@ struct CalendarView: View {
                     VStack(spacing: 12) {
                         Image(systemName: "calendar.badge.checkmark")
                             .font(.system(size: 36))
-                            .foregroundColor(.green.opacity(0.6))
+                            .foregroundStyle(.green.opacity(0.6))
                         Text("No migraines this month")
-                            .font(.system(size: 14, weight: .medium, design: .rounded))
-                            .foregroundColor(.secondary)
+                            .scaledFont(size: 14, weight: .medium, design: .rounded)
+                            .foregroundStyle(.secondary)
                         Text("Tap a day to focus on it.")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary.opacity(0.7))
+                            .scaledFont(size: 12)
+                            .foregroundStyle(.secondary.opacity(0.7))
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -224,7 +224,7 @@ struct CalendarView: View {
         HStack {
             Button(action: previousMonth) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .semibold))
+                    .scaledFont(size: 16, weight: .semibold)
             }
             
             Text(dateFormatter.string(from: selectedDate))
@@ -235,17 +235,17 @@ struct CalendarView: View {
                 selectedDate = Date()
             }) {
                 Text("Today")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .scaledFont(size: 13, weight: .semibold, design: .rounded)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
                     .background(Color.blue.opacity(0.15))
-                    .foregroundColor(.blue)
+                    .foregroundStyle(.blue)
                     .clipShape(Capsule())
             }
             
             Button(action: nextMonth) {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 16, weight: .semibold))
+                    .scaledFont(size: 16, weight: .semibold)
             }
         }
         .padding(.horizontal)
@@ -256,7 +256,7 @@ struct CalendarView: View {
             ForEach(daysOfWeek, id: \.self) { day in
                 Text(day)
                     .font(.caption.bold())
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -320,13 +320,13 @@ struct CalendarView: View {
             VStack(spacing: 16) {
                 Image(systemName: "calendar.badge.checkmark")
                     .font(.system(size: 40))
-                    .foregroundColor(.green.opacity(0.6))
+                    .foregroundStyle(.green.opacity(0.6))
                 Text("No migraines this month")
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 15, weight: .medium, design: .rounded)
+                    .foregroundStyle(.secondary)
                 Text("Tap any day to see details")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary.opacity(0.7))
+                    .scaledFont(size: 13)
+                    .foregroundStyle(.secondary.opacity(0.7))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -502,8 +502,8 @@ struct DayCell: View {
                 
                 if migraines.count > 1 {
                     Text("\(migraines.count)")
-                        .font(.system(size: 8, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
+                        .scaledFont(size: 8, weight: .bold, design: .rounded)
+                        .foregroundStyle(.white)
                         .frame(width: 12, height: 12)
                         .background(painColor)
                         .clipShape(Circle())
@@ -538,7 +538,7 @@ struct CalendarLegend: View {
                 )
             }
         }
-        .font(.system(size: 10, weight: .medium, design: .rounded))
+        .scaledFont(size: 10, weight: .medium, design: .rounded)
     }
     
     private func legendItem(color: Color, label: String) -> some View {
@@ -547,7 +547,7 @@ struct CalendarLegend: View {
                 .fill(color.opacity(0.7))
                 .frame(width: 8, height: 8)
             Text(label)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
     }
 }
@@ -579,10 +579,10 @@ struct MigraineSummaryCard: View {
                     .font(.headline)
                 if let duration = migraine.duration {
                     Text("(\(Int(duration/3600))h \(Int((duration.truncatingRemainder(dividingBy: 3600))/60))m)")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 } else {
                     Text("(Ongoing)")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 Spacer()
                 Text("Pain: \(migraine.painLevel)/10")

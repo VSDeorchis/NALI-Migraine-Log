@@ -23,7 +23,7 @@ struct MacDailyCheckInView: View {
             VStack(spacing: 8) {
                 Image(systemName: "checklist.checked")
                     .font(.system(size: 40))
-                    .foregroundColor(.green)
+                    .foregroundStyle(.green)
                 
                 Text("How are you feeling today?")
                     .font(.title3)
@@ -31,7 +31,7 @@ struct MacDailyCheckInView: View {
                 
                 Text("This information helps improve prediction accuracy.")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
             
             Divider()
@@ -60,7 +60,7 @@ struct MacDailyCheckInView: View {
             HStack {
                 Label("Caffeine Intake", systemImage: "cup.and.saucer.fill")
                     .font(.headline)
-                    .foregroundColor(.brown)
+                    .foregroundStyle(.brown)
                 
                 Spacer()
                 
@@ -70,12 +70,12 @@ struct MacDailyCheckInView: View {
                     } label: {
                         Image(systemName: "minus.circle.fill")
                             .font(.title3)
-                            .foregroundColor(.brown)
+                            .foregroundStyle(.brown)
                     }
                     .buttonStyle(.plain)
                     
                     Text("\(caffeineIntake)")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .scaledFont(size: 24, weight: .bold, design: .rounded)
                         .frame(width: 40)
                     
                     Button {
@@ -83,13 +83,13 @@ struct MacDailyCheckInView: View {
                     } label: {
                         Image(systemName: "plus.circle.fill")
                             .font(.title3)
-                            .foregroundColor(.brown)
+                            .foregroundStyle(.brown)
                     }
                     .buttonStyle(.plain)
                     
                     Text(caffeineIntake == 1 ? "cup" : "cups")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .frame(width: 30, alignment: .leading)
                 }
             }
@@ -133,7 +133,7 @@ struct MacDailyCheckInView: View {
         VStack(alignment: .leading, spacing: 8) {
             Label(title, systemImage: icon)
                 .font(.headline)
-                .foregroundColor(color)
+                .foregroundStyle(color)
             
             HStack(spacing: 6) {
                 ForEach(1...5, id: \.self) { level in
@@ -145,7 +145,7 @@ struct MacDailyCheckInView: View {
                                 .font(.title3)
                                 .fontWeight(.bold)
                             Text(labels[level - 1])
-                                .font(.system(size: 9))
+                                .scaledFont(size: 9)
                                 .lineLimit(1)
                         }
                         .frame(maxWidth: .infinity)
@@ -162,7 +162,7 @@ struct MacDailyCheckInView: View {
                                         ? color
                                         : Color.clear, lineWidth: 2)
                         )
-                        .foregroundColor(value.wrappedValue == level ? color : .primary)
+                        .foregroundStyle(value.wrappedValue == level ? color : .primary)
                     }
                     .buttonStyle(.plain)
                 }
@@ -170,7 +170,7 @@ struct MacDailyCheckInView: View {
             
             Text(description)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
     }
     

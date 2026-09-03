@@ -73,7 +73,7 @@ struct UnitsSettingsView: View {
                 
                 Text("Used for weather data display in migraine entries")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
             
             Section("Pressure") {
@@ -86,7 +86,7 @@ struct UnitsSettingsView: View {
                 
                 Text("Used for barometric pressure display and change indicators")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -111,7 +111,7 @@ struct SyncSettingsView: View {
                     }
                 Text("Sync your migraine data across all your devices using iCloud.")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -124,6 +124,10 @@ struct SyncSettingsView: View {
 struct DataSettingsView: View {
     @State private var showingExportSuccess = false
     @State private var exportMessage = ""
+    @State private var showingDeleteAllConfirm = false
+    @State private var isDeletingAll = false
+    @State private var showingDeleteAllResult = false
+    @State private var deleteAllMessage = ""
 
     /// App version + build, read from the bundle's Info.plist so support and
     /// users see a single, consistent version string.
@@ -142,12 +146,34 @@ struct DataSettingsView: View {
                             .font(.body)
                         Text("Export your complete migraine history to a CSV file for use in spreadsheets or sharing with your physician.")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
                     Button("Export…") {
                         exportAllData()
                     }
+                }
+            }
+
+            Section("Privacy") {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Delete All Data")
+                            .font(.body)
+                        Text("Permanently removes every entry from this Mac, iCloud, your iPhone and Apple Watch, and the on-device prediction model. Files you exported are not affected.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if isDeletingAll {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    Button("Delete…", role: .destructive) {
+                        showingDeleteAllConfirm = true
+                    }
+                    .disabled(isDeletingAll)
+                    .accessibilityLabel("Delete all migraine data")
                 }
             }
             
@@ -156,7 +182,7 @@ struct DataSettingsView: View {
                     Text("Version")
                     Spacer()
                     Text(appVersionString)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
                 let migraineCount = countMigraines()
@@ -164,14 +190,14 @@ struct DataSettingsView: View {
                     Text("Total Entries")
                     Spacer()
                     Text("\(migraineCount)")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 
                 HStack {
                     Text("Data Storage")
                     Spacer()
                     Text("Core Data + iCloud")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -182,6 +208,37 @@ struct DataSettingsView: View {
         } message: {
             Text(exportMessage)
         }
+        .confirmationDialog(
+            "Delete all migraine data?",
+            isPresented: $showingDeleteAllConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Everything", role: .destructive) {
+                Task { await performDeleteAll() }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This cannot be undone. Entries synced through iCloud will also be removed from your other devices.")
+        }
+        .alert("Data Deleted", isPresented: $showingDeleteAllResult) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(deleteAllMessage)
+        }
+    }
+
+    @MainActor
+    private func performDeleteAll() async {
+        isDeletingAll = true
+        defer { isDeletingAll = false }
+        let vm = MigraineViewModel(context: PersistenceController.shared.container.viewContext)
+        do {
+            let outcome = try await vm.deleteAllData()
+            deleteAllMessage = "Removed \(outcome.deletedCount) entries."
+        } catch {
+            deleteAllMessage = "Delete failed: \(error.localizedDescription). No data was removed."
+        }
+        showingDeleteAllResult = true
     }
     
     private func countMigraines() -> Int {

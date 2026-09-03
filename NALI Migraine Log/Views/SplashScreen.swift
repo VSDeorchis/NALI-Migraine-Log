@@ -58,13 +58,13 @@ struct SplashScreen: View {
                         
                         Image(systemName: "brain.head.profile")
                             .font(.system(size: 45))
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                             .padding(.top, 15)
                             .opacity(showIcon ? 1 : 0)
                             .scaleEffect(showIcon ? 1 : 0.7)
                             .accessibilityLabel("Brain icon")
                     }
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 2)
                     
                     // Gradient divider
@@ -78,7 +78,7 @@ struct SplashScreen: View {
                         .font(.custom("Optima-Bold", size: 22, relativeTo: .title2))
                         .minimumScaleFactor(0.7)
                         .multilineTextAlignment(.center)
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 2)
                         .opacity(showPractice ? 1 : 0)
                         .offset(y: showPractice ? 0 : 8)
@@ -106,7 +106,7 @@ struct SplashScreen: View {
                         .font(.custom("Optima-Regular", size: 12, relativeTo: .caption))
                         .minimumScaleFactor(0.7)
                 }
-                .foregroundColor(.white.opacity(0.95))
+                .foregroundStyle(.white.opacity(0.95))
                 .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 1)
                 .padding()
                 .opacity(showFooter ? 1 : 0)
@@ -189,7 +189,7 @@ struct SplashScreen: View {
                 .font(.custom("AvenirNext-Regular", size: UIFontMetrics.default.scaledValue(for: 16)))
                 .minimumScaleFactor(0.7)
                 .tracking(3)
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
             
             taglineDot(glow: dot1Glow)
             
@@ -197,7 +197,7 @@ struct SplashScreen: View {
                 .font(.custom("AvenirNext-Regular", size: UIFontMetrics.default.scaledValue(for: 16)))
                 .minimumScaleFactor(0.7)
                 .tracking(3)
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
             
             taglineDot(glow: dot2Glow)
             
@@ -205,7 +205,7 @@ struct SplashScreen: View {
                 .font(.custom("AvenirNext-Regular", size: UIFontMetrics.default.scaledValue(for: 16)))
                 .minimumScaleFactor(0.7)
                 .tracking(3)
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
         }
         .textCase(.uppercase)
         .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 1)
@@ -216,7 +216,7 @@ struct SplashScreen: View {
     private func taglineDot(glow: CGFloat) -> some View {
         Text("  ·  ")
             .font(.custom("AvenirNext-Regular", size: UIFontMetrics.default.scaledValue(for: 16)))
-            .foregroundColor(.white)
+            .foregroundStyle(.white)
             .scaleEffect(1.0 + glow * 0.5)
             .opacity(0.6 + glow * 0.4)
             .shadow(color: .white.opacity(glow * 0.6), radius: 4 + glow * 4)

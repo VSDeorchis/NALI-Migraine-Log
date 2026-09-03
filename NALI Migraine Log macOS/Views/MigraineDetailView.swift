@@ -117,7 +117,7 @@ struct MigraineDetailView: View {
                         // Pain Details
                         DetailSection(title: "Pain Details") {
                             Text("Pain Level: \(migraine.painLevel)")
-                                .foregroundColor(painLevelColor(migraine.painLevel))
+                                .foregroundStyle(painLevelColor(migraine.painLevel))
                             Text("Location: \(migraine.location ?? "Not specified")")
                         }
                         
@@ -262,7 +262,7 @@ struct SymptomsGrid: View {
     var body: some View {
         if activeSymptoms.isEmpty {
             Text("No symptoms recorded")
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         } else {
             FlowLayout {
                 ForEach(activeSymptoms, id: \.0) { name, icon in

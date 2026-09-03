@@ -192,7 +192,11 @@ struct LogMigraineIntent: AppIntent {
         do {
             try context.save()
             AppLogger.coreData.notice("Logged migraine via Siri intent: pain=\(self.painLevel, privacy: .public)")
+            if let id = migraine.id {
+                WatchConnectivityManager.shared.recordChange(of: id)
+            }
         } catch {
+            context.rollback()
             AppLogger.coreData.error("Siri intent save failed: \(error.localizedDescription, privacy: .public)")
             // Surface the error so Siri/Shortcuts shows it to the user
             // rather than silently swallowing it.
@@ -203,6 +207,12 @@ struct LogMigraineIntent: AppIntent {
         // entries should also count toward review eligibility, otherwise
         // a Siri-heavy user would never see the prompt.
         ReviewPromptCoordinator.recordEntryLogged()
+
+        // Donating lets Siri Suggestions / Spotlight surface "Log a
+        // Migraine" at the times the user habitually logs. The donation
+        // carries only the intent parameters the user spoke, never the
+        // saved record.
+        _ = try? await IntentDonationManager.shared.donate(intent: self)
 
         // Fan out to Apple Health if the user has opted in. Doesn't block
         // the dialog return — but we do `await` here because we want the
@@ -260,7 +270,19 @@ struct HeadwayAppShortcuts: AppShortcutsProvider {
             shortTitle: "New Migraine Entry",
             systemImageName: "square.and.pencil"
         )
+        AppShortcut(
+            intent: GetRecentMigrainesIntent(),
+            phrases: [
+                "How many migraines did I log in \(.applicationName)",
+                "Show my recent migraines in \(.applicationName)",
+                "Get my recent migraines from \(.applicationName)",
+            ],
+            shortTitle: "Recent Migraines",
+            systemImageName: "calendar.badge.clock"
+        )
     }
+
+    static let shortcutTileColor: ShortcutTileColor = .purple
 }
 
 // MARK: - App Intents value types

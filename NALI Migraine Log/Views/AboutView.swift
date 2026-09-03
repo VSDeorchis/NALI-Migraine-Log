@@ -8,13 +8,13 @@ struct AboutView: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     // Header
                     Text("About")
                         .font(.custom("Optima-Regular", size: 34, relativeTo: .largeTitle))
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                         .padding(.bottom, 5)
                     
                     // Headshot and Name
@@ -29,13 +29,13 @@ struct AboutView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Vincent S. DeOrchis")
                                 .font(.custom("Optima-Bold", size: 20, relativeTo: .title3))
-                                .foregroundColor(.white)
+                                .foregroundStyle(.white)
                             Text("M.D., M.S., F.A.A.N.")
                                 .font(.custom("Optima-Regular", size: 16, relativeTo: .callout))
-                                .foregroundColor(.white.opacity(0.9))
+                                .foregroundStyle(.white.opacity(0.9))
                             Text("Board-Certified Neurologist")
                                 .font(.custom("Optima-Regular", size: 14, relativeTo: .subheadline))
-                                .foregroundColor(.white.opacity(0.8))
+                                .foregroundStyle(.white.opacity(0.8))
                         }
                     }
                     .padding(.bottom, 4)
@@ -43,19 +43,19 @@ struct AboutView: View {
                     // Bio
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Headway: Migraine Monitor was created by Vincent S. DeOrchis, M.D., M.S., F.A.A.N., a board-certified neurologist and Managing Partner of Neurological Associates of Long Island, P.C., where he specializes in Clinical Neurophysiology and Neuromuscular Disorders.")
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                             .lineSpacing(4)
                         
                         Text("Dr. DeOrchis studied Neural Science at New York University and earned his Master\u{2019}s degree in Physiology and Biophysics from Georgetown University before receiving his medical degree from SUNY Downstate College of Medicine. He completed his Neurology residency at Albert Einstein College of Medicine\u{2019}s Montefiore Medical Center, where he served as Chief Resident, followed by a fellowship in Clinical Neurophysiology and Neuromuscular Disease.")
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                             .lineSpacing(4)
                         
                         Text("A Fellow of the American Academy of Neurology, Dr. DeOrchis has been recognized as a Castle Connolly Top Doctor and was the only neurologist in Nassau County named to Super Doctors 2025 by The New York Times. His research has been published in Headache, Neurology, Muscle & Nerve, and other peer-reviewed journals, and he serves as a principal investigator on numerous clinical trials. He currently holds the positions of Director of Neurology and Stroke Director at St. Francis Hospital and Heart Center and is a Clinical Assistant Professor of Neurology at Hofstra Medical School.")
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                             .lineSpacing(4)
                         
                         Text("Driven by a passion for clinical technology, Dr. DeOrchis has developed several digital health tools beyond Headway, including iFell, which records heart rate at the moment of a fall to help identify cardiovascular causes, and BrainMetrix, an analytics platform for quantitative brain MRI volumetric analysis. He also holds a patent pending for an avatar-assisted telemedicine platform and partnered with Fujifilm to bring the first Synergy Series MRI system in the nation to his practice. Headway and iFell are available free on the Apple App Store.")
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                             .lineSpacing(4)
                     }
                     
@@ -69,14 +69,14 @@ struct AboutView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 6) {
                             Image(systemName: "lock.shield.fill")
-                                .foregroundColor(.white)
+                                .foregroundStyle(.white)
                             Text("Your Privacy")
                                 .font(.custom("Optima-Bold", size: 16, relativeTo: .callout))
-                                .foregroundColor(.white)
+                                .foregroundStyle(.white)
                         }
                         
                         Text("All data entered into Headway is stored locally on your device and never transmitted to a third party. Data may optionally be preserved to your personal Apple iCloud account.")
-                            .foregroundColor(.white.opacity(0.9))
+                            .foregroundStyle(.white.opacity(0.9))
                             .font(.subheadline)
                             .lineSpacing(3)
 
@@ -88,7 +88,7 @@ struct AboutView: View {
                                 Image(systemName: "arrow.up.right.square")
                                     .font(.caption)
                             }
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                             .padding(.top, 4)
                         }
                         .accessibilityLabel("View privacy policy")
@@ -104,22 +104,22 @@ struct AboutView: View {
                     
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Maintaining a headache diary has been a well established method for identifying and managing headache symptoms and triggers\u{00B9}\u{00B7}\u{00B2}")
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                             .font(.subheadline) +
                         Text(". Further information can be found at the ")
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                             .font(.subheadline) +
                         Text("American Migraine Foundation")
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                             .font(.subheadline)
                             .underline() +
                         Text(".")
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                             .font(.subheadline)
                         
                         Text("\u{00B9} van Casteren DS, et al. E-diary use in clinical headache practice: A prospective observational study. Cephalalgia. 2021.")
                             .font(.caption)
-                            .foregroundColor(.white.opacity(0.7))
+                            .foregroundStyle(.white.opacity(0.7))
                             .onTapGesture {
                                 if let url = URL(string: "https://pubmed.ncbi.nlm.nih.gov/33938248/") {
                                     UIApplication.shared.open(url)
@@ -128,7 +128,7 @@ struct AboutView: View {
                         
                         Text("\u{00B2} Minen MT, et al. Headache clinicians\u{2019} perspectives on the remote monitoring of patients\u{2019} electronic diary data: A qualitative study. Headache. 2023.")
                             .font(.caption)
-                            .foregroundColor(.white.opacity(0.7))
+                            .foregroundStyle(.white.opacity(0.7))
                             .onTapGesture {
                                 if let url = URL(string: "https://pubmed.ncbi.nlm.nih.gov/37313636/") {
                                     UIApplication.shared.open(url)
@@ -153,7 +153,7 @@ struct AboutView: View {
                             Spacer()
                             Image(systemName: "chevron.right")
                         }
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                         .padding()
                         .background(Color.white.opacity(0.15))
                         .cornerRadius(12)
@@ -162,7 +162,7 @@ struct AboutView: View {
                     // Version
                     Text("Ver \(appVersion)")
                         .font(.custom("Optima-Regular", size: 12, relativeTo: .caption))
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundStyle(.white.opacity(0.6))
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 8)
                 }
@@ -171,7 +171,6 @@ struct AboutView: View {
             .background(backgroundColor)
             .navigationTitle("")
         }
-        .navigationViewStyle(.stack)
     }
 }
 

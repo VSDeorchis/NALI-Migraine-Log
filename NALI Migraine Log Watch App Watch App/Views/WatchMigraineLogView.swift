@@ -13,14 +13,14 @@ struct WatchMigraineLogView: View {
                     navigator.requestNewEntry()
                 }) {
                     Label("New Entry", systemImage: "plus.circle.fill")
-                        .foregroundColor(.blue)
+                        .foregroundStyle(.blue)
                 }
                 
                 NavigationLink {
                     WatchMigraineRiskView(viewModel: viewModel)
                 } label: {
                     Label("Risk Prediction", systemImage: "brain.head.profile")
-                        .foregroundColor(.purple)
+                        .foregroundStyle(.purple)
                 }
             }
             
@@ -28,8 +28,8 @@ struct WatchMigraineLogView: View {
             Section("Recent") {
                 if viewModel.migraines.isEmpty {
                     Text("No migraines logged")
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 13)
+                        .foregroundStyle(.secondary)
                 } else {
                     ForEach(viewModel.migraines.prefix(5)) { migraine in
                         WatchMigraineRowView(migraine: migraine)

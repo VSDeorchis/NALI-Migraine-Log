@@ -26,10 +26,20 @@ enum MigraineError: LocalizedError {
 }
 
 class MigraineViewModel: NSObject, ObservableObject {
-    enum TimeFrame {
+    enum TimeFrame: Hashable {
         case week
         case month
         case year
+    }
+
+    /// Result of `deleteAllData()`. Core Data, Watch bookkeeping, ML
+    /// artifacts and stale exports are always cleared or the call throws;
+    /// Health is the one dependency whose failure is reported instead,
+    /// because the local wipe already happened and the user can finish
+    /// the job in the Health app.
+    struct DeleteAllOutcome {
+        var deletedCount: Int
+        var healthCleanupError: Error?
     }
     
     @Published private(set) var migraines: [MigraineEvent] = []
@@ -100,10 +110,32 @@ class MigraineViewModel: NSObject, ObservableObject {
     
     private var autoSyncTimer: Timer?
     private let autoSyncInterval: TimeInterval = 300 // 5 minutes
-    
-    // Add caching for chart data
-    private var chartDataCache: [String: Any] = [:]
-    private var lastChartUpdateTime: Date?
+
+    /// Weather lookups that are still running for a freshly-saved entry,
+    /// keyed by the entry's object ID so a delete can cancel the lookup
+    /// instead of letting it write into a dead managed object.
+    private var weatherTasks: [NSManagedObjectID: Task<Void, Never>] = [:]
+
+    private struct ChartCache {
+        var filtered: [TimeFrame: [MigraineEvent]] = [:]
+        var triggers: [TimeFrame: [(String, Int)]] = [:]
+        var medications: [TimeFrame: [(String, Int)]] = [:]
+        var updatedAt: Date?
+
+        func isFresh(within timeout: TimeInterval) -> Bool {
+            guard let updatedAt else { return false }
+            return Date().timeIntervalSince(updatedAt) < timeout
+        }
+
+        mutating func removeAll() {
+            filtered.removeAll()
+            triggers.removeAll()
+            medications.removeAll()
+            updatedAt = nil
+        }
+    }
+
+    private var chartCache = ChartCache()
     private let chartCacheTimeout: TimeInterval = 5 // 5 seconds
     
     init(context: NSManagedObjectContext) {
@@ -308,6 +340,10 @@ class MigraineViewModel: NSObject, ObservableObject {
 
             migraineLog.notice("Migraine saved (initial data); id=\(migraine.id?.uuidString ?? "nil", privacy: .public); array count=\(self.migraines.count, privacy: .public)")
 
+            if let id = migraine.id {
+                WatchConnectivityManager.shared.recordChange(of: id)
+            }
+
             // Bump the engagement counter that gates the in-app review
             // prompt. Done only on the *initial* successful save (not on
             // subsequent weather/edit saves) so that a single user action
@@ -332,32 +368,54 @@ class MigraineViewModel: NSObject, ObservableObject {
             }
         } catch {
             viewContext.automaticallyMergesChangesFromParent = originalMergesSetting
+            viewContext.rollback()
+            lastError = .saveFailed(error)
             migraineLog.error("Failed to save migraine: \(error.localizedDescription, privacy: .public)")
             return nil
         }
 
-        // Kick off weather fetch on a MainActor-isolated task. The
-        // `@MainActor` annotation is load-bearing under Swift 6 strict
-        // concurrency: `MigraineEvent` is a non-Sendable NSManagedObject, so
-        // it can only be captured into a closure that shares its actor with
-        // the call site. Running the whole task on MainActor lets us pass the
-        // object reference safely (the NSManagedObjectContext it belongs to
-        // is the main-thread `viewContext`, so all access stays on the same
-        // thread the object was fetched on — Core Data's actual rule).
-        Task { @MainActor [weak self] in
-            self?.migraineLog.debug("Starting weather fetch task")
-            await self?.fetchWeatherData(for: migraine)
-            do {
-                self?.migraineLog.debug("Saving weather data for migraine id \(migraine.id?.uuidString ?? "nil", privacy: .public)")
-                try self?.viewContext.save()
-                self?.migraineLog.debug("Weather data save succeeded")
-            } catch {
-                self?.migraineLog.error("Failed to save weather data: \(error.localizedDescription, privacy: .public)")
-            }
-        }
+        startWeatherFetch(for: migraine)
 
         migraineLog.debug("addMigraine returning")
         return migraine
+    }
+
+    /// Kicks off the weather lookup for a just-saved entry and keeps the
+    /// task so `deleteMigraine`/`deleteAllData` can cancel it. The task is
+    /// MainActor-isolated because `MigraineEvent` is a non-Sendable
+    /// NSManagedObject owned by the main-queue `viewContext`.
+    @MainActor
+    private func startWeatherFetch(for migraine: MigraineEvent) {
+        let objectID = migraine.objectID
+        weatherTasks[objectID]?.cancel()
+        weatherTasks[objectID] = Task { @MainActor [weak self] in
+            defer { self?.weatherTasks.removeValue(forKey: objectID) }
+            guard let self else { return }
+            await self.fetchWeatherData(for: migraine)
+            guard !Task.isCancelled, Self.isLive(migraine) else { return }
+            self.saveWeatherChanges(for: migraine)
+        }
+    }
+
+    /// True while the object is still attached to a context and has not
+    /// been deleted; weather results for anything else are dropped.
+    private static func isLive(_ migraine: MigraineEvent) -> Bool {
+        !migraine.isDeleted && migraine.managedObjectContext != nil
+    }
+
+    @MainActor
+    private func saveWeatherChanges(for migraine: MigraineEvent) {
+        guard viewContext.hasChanges else { return }
+        do {
+            try viewContext.save()
+            if let id = migraine.id {
+                WatchConnectivityManager.shared.recordChange(of: id)
+            }
+        } catch {
+            viewContext.rollback()
+            lastError = .saveFailed(error)
+            migraineLog.error("Failed to save weather data: \(error.localizedDescription, privacy: .public)")
+        }
     }
     
     // MARK: - Weather Integration
@@ -387,8 +445,7 @@ class MigraineViewModel: NSObject, ObservableObject {
             let latitude = location.coordinate.latitude
             let longitude = location.coordinate.longitude
             
-            // Coordinates are private user data — keep at default privacy.
-            AppLogger.weather.debug("Fetching weather for location: \(latitude), \(longitude)")
+            AppLogger.weather.debug("Fetching weather for current location (accuracy \(Int(location.horizontalAccuracy), privacy: .public) m)")
             
             // Fetch weather snapshot with timeout
             let snapshot = try await withTimeout(seconds: 10) {
@@ -397,6 +454,11 @@ class MigraineViewModel: NSObject, ObservableObject {
                     latitude: latitude,
                     longitude: longitude
                 )
+            }
+            guard Self.isLive(migraine) else {
+                migraineLog.debug("Weather snapshot arrived for a deleted entry; discarding")
+                weatherFetchStatus = .idle
+                return
             }
             migraineLog.debug("Weather snapshot received; updating migraine")
             
@@ -476,13 +538,8 @@ class MigraineViewModel: NSObject, ObservableObject {
 
         AppLogger.weather.notice("Retrying weather fetch for migraine")
         await fetchWeatherData(for: migraine)
-
-        do {
-            try viewContext.save()
-            AppLogger.weather.notice("Weather data saved after retry")
-        } catch {
-            AppLogger.weather.error("Failed to save weather data after retry: \(error.localizedDescription, privacy: .public)")
-        }
+        guard Self.isLive(migraine) else { return }
+        saveWeatherChanges(for: migraine)
     }
 
     /// Fetch weather data for a specific location (manual override)
@@ -501,8 +558,7 @@ class MigraineViewModel: NSObject, ObservableObject {
         weatherFetchStatus = .fetching
 
         do {
-            // Coordinates are private user data — keep at default privacy.
-            AppLogger.weather.debug("Fetching weather for custom location: \(latitude), \(longitude)")
+            AppLogger.weather.debug("Fetching weather for a user-chosen location")
 
             let snapshot = try await withTimeout(seconds: 10) {
                 try await WeatherService.shared.fetchWeatherSnapshot(
@@ -512,6 +568,11 @@ class MigraineViewModel: NSObject, ObservableObject {
                 )
             }
 
+            guard Self.isLive(migraine) else {
+                weatherFetchStatus = .idle
+                return
+            }
+
             // Update migraine with weather data
             migraine.updateWeatherData(from: snapshot)
             migraine.updateWeatherLocation(latitude: latitude, longitude: longitude)
@@ -519,6 +580,9 @@ class MigraineViewModel: NSObject, ObservableObject {
 
             // Save changes
             try viewContext.save()
+            if let id = migraine.id {
+                WatchConnectivityManager.shared.recordChange(of: id)
+            }
             AppLogger.weather.notice("Weather data updated with custom location")
 
             // Reset status after 3 seconds
@@ -526,6 +590,7 @@ class MigraineViewModel: NSObject, ObservableObject {
             weatherFetchStatus = .idle
 
         } catch {
+            if viewContext.hasChanges { viewContext.rollback() }
             AppLogger.weather.error("Failed to fetch weather for custom location: \(error.localizedDescription, privacy: .public)")
             weatherFetchStatus = .failed(error.localizedDescription)
 
@@ -553,26 +618,23 @@ class MigraineViewModel: NSObject, ObservableObject {
         var failedCount = 0
 
         for (index, migraine) in migrainesWithoutWeather.enumerated() {
-            // Update progress
-            await MainActor.run {
-                progressCallback(index + 1, total)
+            if Task.isCancelled { break }
+            progressCallback(index + 1, total)
+
+            guard Self.isLive(migraine) else {
+                failedCount += 1
+                continue
             }
 
             // Fetch weather data
             await fetchWeatherData(for: migraine)
 
             // Check if successful
-            if migraine.hasWeatherData {
+            if Self.isLive(migraine), migraine.hasWeatherData {
                 successCount += 1
+                saveWeatherChanges(for: migraine)
             } else {
                 failedCount += 1
-            }
-
-            // Save after each fetch to avoid losing data
-            do {
-                try viewContext.save()
-            } catch {
-                AppLogger.weather.error("Failed to save after backfill iteration: \(error.localizedDescription, privacy: .public)")
             }
 
             // Small delay to avoid overwhelming the API
@@ -605,39 +667,41 @@ class MigraineViewModel: NSObject, ObservableObject {
         missedEvents: Bool,
         notes: String
     ) async {
-        await MainActor.run {
-            migraine.startTime = startTime
-            migraine.endTime = endTime
-            migraine.painLevel = painLevel
-            migraine.location = location
-            migraine.notes = notes
+        migraine.startTime = startTime
+        migraine.endTime = endTime
+        migraine.painLevel = painLevel
+        migraine.location = location
+        migraine.notes = notes
 
-            migraine.triggers = triggers
-            migraine.medications = medications
+        migraine.triggers = triggers
+        migraine.medications = medications
 
-            migraine.hasAura = hasAura
-            migraine.hasPhotophobia = hasPhotophobia
-            migraine.hasPhonophobia = hasPhonophobia
-            migraine.hasNausea = hasNausea
-            migraine.hasVomiting = hasVomiting
-            migraine.hasWakeUpHeadache = hasWakeUpHeadache
-            migraine.hasTinnitus = hasTinnitus
-            migraine.hasVertigo = hasVertigo
-            migraine.missedWork = missedWork
-            migraine.missedSchool = missedSchool
-            migraine.missedEvents = missedEvents
+        migraine.hasAura = hasAura
+        migraine.hasPhotophobia = hasPhotophobia
+        migraine.hasPhonophobia = hasPhonophobia
+        migraine.hasNausea = hasNausea
+        migraine.hasVomiting = hasVomiting
+        migraine.hasWakeUpHeadache = hasWakeUpHeadache
+        migraine.hasTinnitus = hasTinnitus
+        migraine.hasVertigo = hasVertigo
+        migraine.missedWork = missedWork
+        migraine.missedSchool = missedSchool
+        migraine.missedEvents = missedEvents
 
-            save()
+        guard save() else { return }
 
-            // Mirror the edited migraine to Apple Health, replacing any
-            // sample we previously wrote for the same id. The
-            // `writeMigraineToHealth` path is delete-then-write internally,
-            // so this stays idempotent even if the user toggles sync off
-            // and back on between edits.
-            if #available(iOS 17.0, watchOS 10.0, *) {
-                Task { @MainActor in
-                    await HealthKitManager.shared.writeMigraineToHealth(migraine)
-                }
+        if let id = migraine.id {
+            WatchConnectivityManager.shared.recordChange(of: id)
+        }
+
+        // Mirror the edited migraine to Apple Health, replacing any
+        // sample we previously wrote for the same id. The
+        // `writeMigraineToHealth` path is delete-then-write internally,
+        // so this stays idempotent even if the user toggles sync off
+        // and back on between edits.
+        if #available(iOS 17.0, watchOS 10.0, *) {
+            Task { @MainActor in
+                await HealthKitManager.shared.writeMigraineToHealth(migraine)
             }
         }
     }
@@ -646,16 +710,15 @@ class MigraineViewModel: NSObject, ObservableObject {
     func deleteMigraine(_ migraine: MigraineEvent) {
         guard let id = migraine.id else { return }
         let mirroredID = id.uuidString
+
+        weatherTasks.removeValue(forKey: migraine.objectID)?.cancel()
         
         // Just delete the migraine - no need to handle relationships since we're using strings
         viewContext.delete(migraine)
         
         do {
             try viewContext.save()
-            // Record the deletion for syncing
-            Task { @MainActor in
-                WatchConnectivityManager.shared.recordDeletion(of: id)
-            }
+            WatchConnectivityManager.shared.recordDeletion(of: id)
             // Mirror the deletion to Apple Health if mirroring is on. Captured
             // the UUID into a local before the Core Data delete so we can
             // still address the Health sample after the managed object goes
@@ -674,21 +737,26 @@ class MigraineViewModel: NSObject, ObservableObject {
         }
     }
     
-    private func save() {
-        guard viewContext.hasChanges else { return }
-        
-        viewContext.perform { [weak self] in
-            do {
-                try self?.viewContext.save()
-                self?.pendingChanges += 1
-                if case .enabled = self?.syncStatus {
-                    self?.syncStatus = .pendingChanges(self?.pendingChanges ?? 0)
-                }
-            } catch {
-                self?.lastError = .saveFailed(error)
-                AppLogger.coreData.error("Error saving context: \(error.localizedDescription, privacy: .public)")
-                self?.viewContext.rollback()
+    /// Saves `viewContext` synchronously (it is a main-queue context and
+    /// every caller is already on the main actor). Returns `false` and
+    /// publishes `lastError` when the save fails.
+    @MainActor
+    @discardableResult
+    private func save() -> Bool {
+        guard viewContext.hasChanges else { return true }
+
+        do {
+            try viewContext.save()
+            pendingChanges += 1
+            if case .enabled = syncStatus {
+                syncStatus = .pendingChanges(pendingChanges)
             }
+            return true
+        } catch {
+            lastError = .saveFailed(error)
+            AppLogger.coreData.error("Error saving context: \(error.localizedDescription, privacy: .public)")
+            viewContext.rollback()
+            return false
         }
     }
     
@@ -721,32 +789,94 @@ class MigraineViewModel: NSObject, ObservableObject {
     }
     
     #if DEBUG
-    /// Dev-only diagnostic dump of the in-memory migraine list. Field values
-    /// pass through default privacy so user-entered text is redacted in any
-    /// non-DEBUG path that might invoke this.
+    /// Dev-only diagnostic dump of the in-memory migraine list. Only
+    /// non-identifying fields (id, timestamps, pain, counts) are logged.
     func printDebugInfo() {
         AppLogger.coreData.debug("=== Current Migraines (\(self.migraines.count, privacy: .public)) ===")
         for migraine in migraines {
-            let triggerNames = migraine.orderedTriggers.map(\.displayName).joined(separator: ", ")
-            let medNames = migraine.orderedMedications.map(\.displayName).joined(separator: ", ")
             AppLogger.coreData.debug(
-                "id=\(migraine.id?.uuidString ?? "nil", privacy: .public) start=\(migraine.startTime?.description ?? "nil", privacy: .public) pain=\(migraine.painLevel, privacy: .public) loc=\(migraine.location ?? "nil") triggers=[\(triggerNames, privacy: .public)] meds=[\(medNames, privacy: .public)] notes=\(self.getUserNotes(from: migraine) ?? "")"
+                "id=\(migraine.id?.uuidString ?? "nil", privacy: .public) start=\(migraine.startTime?.description ?? "nil", privacy: .public) pain=\(migraine.painLevel, privacy: .public) triggers=\(migraine.triggers.count, privacy: .public) meds=\(migraine.medications.count, privacy: .public) hasNotes=\(!(migraine.notes ?? "").isEmpty, privacy: .public)"
             )
         }
     }
     #endif
-    
-    func clearAllData() {
-        let fetchRequest: NSFetchRequest<NSFetchRequestResult> = NSFetchRequest(entityName: "MigraineEvent")
-        let deleteRequest = NSBatchDeleteRequest(fetchRequest: fetchRequest)
-        
+
+    /// Erases every migraine on this device and everything derived from it:
+    /// Core Data rows (deleted one by one so CloudKit mirroring propagates
+    /// the deletes — batch requests bypass the mirroring pipeline), Watch
+    /// sync bookkeeping (the Watch receives tombstones for every id), the
+    /// Health samples this app wrote, the on-device ML training data and
+    /// model, and any export files still sitting in the temp directory.
+    /// Recovery backups made by `PersistenceController` are left alone;
+    /// the user manages those explicitly from Settings.
+    @MainActor
+    func deleteAllData() async throws -> DeleteAllOutcome {
+        for task in weatherTasks.values { task.cancel() }
+        weatherTasks.removeAll()
+
+        let request = NSFetchRequest<MigraineEvent>(entityName: "MigraineEvent")
+
+        let all: [MigraineEvent]
         do {
-            try viewContext.execute(deleteRequest)
-            try viewContext.save()
-            fetchMigraines()
+            all = try viewContext.fetch(request)
         } catch {
+            lastError = .fetchFailed(error)
+            throw MigraineError.fetchFailed(error)
+        }
+
+        let ids = all.compactMap(\.id)
+        for migraine in all {
+            viewContext.delete(migraine)
+        }
+
+        do {
+            try viewContext.save()
+        } catch {
+            viewContext.rollback()
             lastError = .saveFailed(error)
             AppLogger.coreData.error("Error clearing data: \(error.localizedDescription, privacy: .public)")
+            throw MigraineError.saveFailed(error)
+        }
+
+        WatchConnectivityManager.shared.recordDeletions(of: ids)
+        MigrainePredictionService.shared.clearTrainedArtifacts()
+        Self.removeExportFiles()
+
+        var outcome = DeleteAllOutcome(deletedCount: all.count)
+        if #available(iOS 17.0, watchOS 10.0, *) {
+            do {
+                try await HealthKitManager.shared.deleteAllMirroredSamples()
+            } catch {
+                outcome.healthCleanupError = error
+                AppLogger.health.error("Delete-all could not remove Health samples: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
+        migraines = []
+        invalidateCache()
+        fetchMigraines()
+
+        AppLogger.coreData.notice("Deleted all migraine data (\(all.count, privacy: .public) entries)")
+        return outcome
+    }
+
+    /// File name prefix shared by CSV and PDF exports; used to find and
+    /// remove leftover exports without touching anything else in tmp.
+    static let exportFilePrefix = "Headway_Migraine_"
+
+    /// Deletes export files left in the temporary directory after a share
+    /// sheet was dismissed. Safe to call any time; exports are rebuilt on
+    /// demand.
+    static func removeExportFiles() {
+        let fm = FileManager.default
+        let tmp = fm.temporaryDirectory
+        guard let contents = try? fm.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil) else { return }
+        for url in contents where url.lastPathComponent.hasPrefix(exportFilePrefix) {
+            do {
+                try fm.removeItem(at: url)
+            } catch {
+                AppLogger.coreData.debug("Could not remove stale export: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
@@ -786,7 +916,7 @@ class MigraineViewModel: NSObject, ObservableObject {
         
         let calendar = Calendar.current
         let now = Date()
-        let oneMonthAgo = calendar.date(byAdding: .month, value: -1, to: now)!
+        let oneMonthAgo = calendar.date(byAdding: .month, value: -1, to: now) ?? now.addingTimeInterval(-30 * 86_400)
         
         let monthlyCount = migraines.filter { migraine in
             guard let startTime = migraine.startTime else { return false }
@@ -844,11 +974,8 @@ class MigraineViewModel: NSObject, ObservableObject {
     }
     
     private func checkAndSync() {
-        if case .enabled = syncStatus {
-            if case .pendingChanges = syncStatus {
-                syncPendingChanges()
-            }
-        }
+        guard case .pendingChanges = syncStatus else { return }
+        syncPendingChanges()
     }
     
     private func handleSyncStatusChange(_ status: SyncStatus) {
@@ -881,6 +1008,7 @@ class MigraineViewModel: NSObject, ObservableObject {
     
     deinit {
         autoSyncTimer?.invalidate()
+        for task in weatherTasks.values { task.cancel() }
         NotificationCenter.default.removeObserver(self)
     }
     
@@ -911,10 +1039,8 @@ class MigraineViewModel: NSObject, ObservableObject {
     }
     
     func getTriggerFrequency(for timeFilter: TimeFrame) -> [(String, Int)] {
-        let cacheKey = "triggers-\(timeFilter)"
-        if let cached = chartDataCache[cacheKey] as? [(String, Int)],
-           let lastUpdate = lastChartUpdateTime,
-           Date().timeIntervalSince(lastUpdate) < chartCacheTimeout {
+        if chartCache.isFresh(within: chartCacheTimeout),
+           let cached = chartCache.triggers[timeFilter] {
             return cached
         }
 
@@ -926,16 +1052,14 @@ class MigraineViewModel: NSObject, ObservableObject {
         }
 
         let result = triggerCounts.sorted { $0.value > $1.value }
-        chartDataCache[cacheKey] = result
-        lastChartUpdateTime = Date()
+        chartCache.triggers[timeFilter] = result
+        chartCache.updatedAt = Date()
         return result
     }
 
     func getMedicationFrequency(for timeFilter: TimeFrame) -> [(String, Int)] {
-        let cacheKey = "medications-\(timeFilter)"
-        if let cached = chartDataCache[cacheKey] as? [(String, Int)],
-           let lastUpdate = lastChartUpdateTime,
-           Date().timeIntervalSince(lastUpdate) < chartCacheTimeout {
+        if chartCache.isFresh(within: chartCacheTimeout),
+           let cached = chartCache.medications[timeFilter] {
             return cached
         }
 
@@ -947,24 +1071,21 @@ class MigraineViewModel: NSObject, ObservableObject {
         }
 
         let result = medicationCounts.sorted { $0.value > $1.value }
-        chartDataCache[cacheKey] = result
-        lastChartUpdateTime = Date()
+        chartCache.medications[timeFilter] = result
+        chartCache.updatedAt = Date()
         return result
     }
     
     // Add safe navigation state management
     func clearNavigationSelections() {
         // This should be called when navigation state needs to be reset
-        chartDataCache.removeAll()
-        lastChartUpdateTime = nil
+        chartCache.removeAll()
     }
     
     // Optimize filtered migraines
     private func filteredMigraines(for timeFrame: TimeFrame) -> [MigraineEvent] {
-        let cacheKey = "filtered-\(timeFrame)"
-        if let cached = chartDataCache[cacheKey] as? [MigraineEvent],
-           let lastUpdate = lastChartUpdateTime,
-           Date().timeIntervalSince(lastUpdate) < chartCacheTimeout {
+        if chartCache.isFresh(within: chartCacheTimeout),
+           let cached = chartCache.filtered[timeFrame] {
             return cached
         }
         
@@ -973,48 +1094,42 @@ class MigraineViewModel: NSObject, ObservableObject {
             return isDate(startTime, inTimeFrame: timeFrame)
         }
         
-        chartDataCache[cacheKey] = filtered
-        lastChartUpdateTime = Date()
+        chartCache.filtered[timeFrame] = filtered
+        chartCache.updatedAt = Date()
         return filtered
     }
     
     // Add cache invalidation
     func invalidateCache() {
-        chartDataCache.removeAll()
-        lastChartUpdateTime = nil
+        chartCache.removeAll()
         objectWillChange.send()
     }
     
     private func isDate(_ date: Date, inTimeFrame timeFrame: TimeFrame) -> Bool {
-        let calendar = Calendar.current
-        let now = Date()
-        
-        switch timeFrame {
-        case .week:
-            let weekStart = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now))!
-            let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart)!
-            return date >= weekStart && date < weekEnd
-        
-        case .month:
-            let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now))!
-            let monthEnd = calendar.date(byAdding: .month, value: 1, to: monthStart)!
-            return date >= monthStart && date < monthEnd
-        
-        case .year:
-            let yearStart = calendar.date(from: calendar.dateComponents([.year], from: now))!
-            let yearEnd = calendar.date(byAdding: .year, value: 1, to: yearStart)!
-            return date >= yearStart && date < yearEnd
+        guard let interval = Self.interval(for: timeFrame, containing: Date()) else {
+            return false
         }
+        return interval.contains(date) && date < interval.end
+    }
+
+    /// Calendar interval (week / month / year) containing `reference`, or
+    /// `nil` if the calendar cannot produce one for that instant.
+    private static func interval(for timeFrame: TimeFrame, containing reference: Date) -> DateInterval? {
+        let component: Calendar.Component
+        switch timeFrame {
+        case .week: component = .weekOfYear
+        case .month: component = .month
+        case .year: component = .year
+        }
+        return Calendar.current.dateInterval(of: component, for: reference)
     }
     
-    /// Dev-only data dump. Each field passes through default privacy so the
-    /// log is automatically scrubbed in release. ID/dates/counts are marked
-    /// `.public` because they're not user-identifying.
+    #if DEBUG
+    /// Dev-only data dump of non-identifying fields (id, dates, pain,
+    /// counts). Free-text fields are never logged.
     func verifyMigraineData(_ migraine: MigraineEvent) {
-        let triggers = migraine.orderedTriggers.map(\.displayName).joined(separator: ", ")
-        let meds = migraine.orderedMedications.map(\.displayName).joined(separator: ", ")
         AppLogger.coreData.debug(
-            "verifyMigraineData id=\(migraine.id?.uuidString ?? "nil", privacy: .public) start=\(migraine.startTime?.description ?? "nil", privacy: .public) pain=\(migraine.painLevel, privacy: .public) loc=\(migraine.location ?? "nil") triggers=[\(triggers, privacy: .public)] meds=[\(meds, privacy: .public)] notes=\(self.getUserNotes(from: migraine) ?? "")"
+            "verifyMigraineData id=\(migraine.id?.uuidString ?? "nil", privacy: .public) start=\(migraine.startTime?.description ?? "nil", privacy: .public) pain=\(migraine.painLevel, privacy: .public) triggers=\(migraine.triggers.count, privacy: .public) meds=\(migraine.medications.count, privacy: .public)"
         )
     }
 
@@ -1028,21 +1143,8 @@ class MigraineViewModel: NSObject, ObservableObject {
             for migraine in testMigraines {
                 verifyMigraineData(migraine)
             }
-            AppLogger.coreData.debug("Trigger frequency (month): \(self.getTriggerFrequency(for: .month).description, privacy: .public)")
-            AppLogger.coreData.debug("Medication frequency (month): \(self.getMedicationFrequency(for: .month).description, privacy: .public)")
         } catch {
             AppLogger.coreData.error("Error verifying test data: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    private func debugPrintAllMigraines() {
-        AppLogger.coreData.debug("=== All Migraines (\(self.migraines.count, privacy: .public)) ===")
-        for migraine in migraines {
-            let triggers = migraine.orderedTriggers.map(\.displayName).joined(separator: ", ")
-            let meds = migraine.orderedMedications.map(\.displayName).joined(separator: ", ")
-            AppLogger.coreData.debug(
-                "id=\(migraine.id?.uuidString ?? "unknown", privacy: .public) date=\(migraine.startTime?.description ?? "unknown", privacy: .public) triggers=[\(triggers, privacy: .public)] meds=[\(meds, privacy: .public)]"
-            )
         }
     }
 
@@ -1068,28 +1170,19 @@ class MigraineViewModel: NSObject, ObservableObject {
             viewContext.rollback()
         }
     }
+    #endif
     
+    /// Warms the chart caches for `timeFilter`. Every helper it calls only
+    /// touches in-memory state, so the work is done inline on the main
+    /// actor rather than hopping to a detached task and back.
     @MainActor
     func loadChartData(for timeFilter: TimeFrame) async {
-        // Throttle: skip if cached data is still fresh.
-        guard lastChartUpdateTime == nil ||
-              Date().timeIntervalSince(lastChartUpdateTime!) > chartCacheTimeout else {
-            return
-        }
+        guard !chartCache.isFresh(within: chartCacheTimeout) else { return }
 
-        // Surrounding `func` is already `@MainActor`, and every reachable
-        // helper here (`filteredMigraines`, `getTriggerFrequency`,
-        // `getMedicationFrequency`) only touches in-memory caches and
-        // already-fetched `migraines`. The previous `await Task { … }.value`
-        // wrapper hopped to a non-isolated executor and back for no benefit
-        // — it just added a context switch and risked a Sendable warning on
-        // `chartDataCache` mutation. Inline the work.
-        let filtered = filteredMigraines(for: timeFilter)
-        chartDataCache["filtered-\(timeFilter)"] = filtered
-        chartDataCache["triggers-\(timeFilter)"] = getTriggerFrequency(for: timeFilter)
-        chartDataCache["medications-\(timeFilter)"] = getMedicationFrequency(for: timeFilter)
-
-        lastChartUpdateTime = Date()
+        chartCache.filtered[timeFilter] = filteredMigraines(for: timeFilter)
+        chartCache.triggers[timeFilter] = getTriggerFrequency(for: timeFilter)
+        chartCache.medications[timeFilter] = getMedicationFrequency(for: timeFilter)
+        chartCache.updatedAt = Date()
         objectWillChange.send()
     }
     

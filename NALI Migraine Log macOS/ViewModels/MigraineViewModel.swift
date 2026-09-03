@@ -122,6 +122,44 @@ class MigraineViewModel: ObservableObject {
         fetchMigraines()
     }
 
+    struct DeleteAllOutcome {
+        var deletedCount: Int
+        var healthCleanupError: Error?
+    }
+
+    @MainActor
+    func deleteAllData() async throws -> DeleteAllOutcome {
+        let request = MigraineEvent.fetchRequest()
+        let all = try viewContext.fetch(request)
+
+        for migraine in all {
+            viewContext.delete(migraine)
+        }
+
+        do {
+            try viewContext.save()
+        } catch {
+            viewContext.rollback()
+            AppLogger.coreData.error("Error clearing data: \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
+
+        MigrainePredictionService.shared.clearTrainedArtifacts()
+
+        var outcome = DeleteAllOutcome(deletedCount: all.count)
+        do {
+            try await HealthKitManager.shared.deleteAllMirroredSamples()
+        } catch {
+            outcome.healthCleanupError = error
+            AppLogger.health.error("Delete-all could not remove Health samples: \(error.localizedDescription, privacy: .public)")
+        }
+
+        migraines = []
+        fetchMigraines()
+        AppLogger.coreData.notice("Deleted all migraine data (\(all.count, privacy: .public) entries)")
+        return outcome
+    }
+
     private func save() {
         do {
             try viewContext.save()

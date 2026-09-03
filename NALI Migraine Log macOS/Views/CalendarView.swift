@@ -55,7 +55,7 @@ struct CalendarView: View {
                     ForEach(daysOfWeek, id: \.self) { day in
                         Text(day)
                             .font(.caption.bold())
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 
@@ -104,7 +104,7 @@ struct CalendarView: View {
                         Spacer()
                         Text("\(selectedDateMigraines.count) migraine\(selectedDateMigraines.count == 1 ? "" : "s")")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     .padding()
                     
@@ -122,13 +122,13 @@ struct CalendarView: View {
                 VStack(spacing: 12) {
                     Image(systemName: "calendar.badge.checkmark")
                         .font(.system(size: 36))
-                        .foregroundColor(.secondary.opacity(0.4))
+                        .foregroundStyle(.secondary.opacity(0.4))
                     Text("No migraines on this date")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     Text(selectedDate, style: .date)
                         .font(.caption)
-                        .foregroundColor(.secondary.opacity(0.5))
+                        .foregroundStyle(.secondary.opacity(0.5))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -145,7 +145,7 @@ struct CalendarView: View {
         HStack(spacing: 16) {
             Text("Pain Intensity:")
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             
             HStack(spacing: 4) {
                 ForEach([
@@ -164,8 +164,8 @@ struct CalendarView: View {
                                     .stroke(color == .clear ? Color.secondary.opacity(0.3) : color.opacity(0.8), lineWidth: 0.5)
                             )
                         Text(label)
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
+                            .scaledFont(size: 9)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -185,7 +185,7 @@ struct CalendarView: View {
                     .font(.system(.title3, design: .rounded).weight(.bold))
                 Text("Entries")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
             
             VStack(spacing: 2) {
@@ -193,16 +193,16 @@ struct CalendarView: View {
                     .font(.system(.title3, design: .rounded).weight(.bold))
                 Text("Days")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
             
             VStack(spacing: 2) {
                 Text("\(avgPain)")
                     .font(.system(.title3, design: .rounded).weight(.bold))
-                    .foregroundColor(painColor(for: Int16(avgPain)))
+                    .foregroundStyle(painColor(for: Int16(avgPain)))
                 Text("Avg Pain")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal)
@@ -329,8 +329,8 @@ private struct HeatMapDayCell: View {
                         }
                         if migraines.count > 3 {
                             Text("+")
-                                .font(.system(size: 7, weight: .bold))
-                                .foregroundColor(heatColor)
+                                .scaledFont(size: 7, weight: .bold)
+                                .foregroundStyle(heatColor)
                         }
                     }
                 }
@@ -365,27 +365,27 @@ private struct CalendarMigraineRow: View {
                 Spacer()
                 Text("Pain: \(migraine.painLevel)")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundColor(painColor)
+                    .foregroundStyle(painColor)
             }
             
             HStack {
                 Text(migraine.location ?? "Unknown")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                 
                 if let dur = formattedDuration {
                     Text("·")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     Label(dur, systemImage: "clock")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
             
             if !migraine.triggers.isEmpty {
                 Text(migraine.orderedTriggers.map(\.displayName).joined(separator: ", "))
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
         }

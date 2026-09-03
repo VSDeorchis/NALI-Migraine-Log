@@ -47,7 +47,7 @@ struct PainSlider: View {
                 Spacer()
                 Text(painLevelDescription(value))
                     .font(.subheadline)
-                    .foregroundColor(currentColor(Double(value)))
+                    .foregroundStyle(currentColor(Double(value)))
             }
             
             GeometryReader { geometry in
@@ -85,13 +85,13 @@ struct PainSlider: View {
             
             HStack {
                 Text("Mild")
-                    .foregroundColor(.green)
+                    .foregroundStyle(.green)
                 Spacer()
                 Text("Moderate")
-                    .foregroundColor(.yellow)
+                    .foregroundStyle(.yellow)
                 Spacer()
                 Text("Severe")
-                    .foregroundColor(.red)
+                    .foregroundStyle(.red)
             }
             .font(.caption)
         }

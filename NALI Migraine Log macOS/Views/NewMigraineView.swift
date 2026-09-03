@@ -235,18 +235,18 @@ struct NewMigraineView: View {
                         .controlSize(.small)
                     Text("Reading health data...")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             } else if !healthKit.isAuthorized {
                 HStack(spacing: 10) {
                     Image(systemName: "heart.slash")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("HealthKit Not Authorized")
                             .font(.subheadline.weight(.medium))
                         Text("Enable in System Settings > Privacy to see health context")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
             } else if let snapshot = healthSnapshot {
@@ -254,20 +254,20 @@ struct NewMigraineView: View {
             } else {
                 HStack(spacing: 10) {
                     Image(systemName: "heart.text.square")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     Text("No health data available")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
         } header: {
             Label("Health Context", systemImage: "heart.fill")
-                .foregroundColor(.pink)
+                .foregroundStyle(.pink)
         } footer: {
             if healthSnapshot != nil {
                 Text("Live data from Apple Health — not stored with this entry.")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -335,14 +335,14 @@ struct MacHealthTile: View {
     var body: some View {
         VStack(spacing: 4) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(color)
+                .scaledFont(size: 16, weight: .semibold)
+                .foregroundStyle(color)
             Text(value)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundColor(.primary)
+                .scaledFont(size: 13, weight: .semibold, design: .rounded)
+                .foregroundStyle(.primary)
             Text(label)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(.secondary)
+                .scaledFont(size: 10, weight: .medium)
+                .foregroundStyle(.secondary)
                 .textCase(.uppercase)
         }
         .frame(maxWidth: .infinity)

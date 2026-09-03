@@ -247,7 +247,7 @@ struct StatisticsView: View {
             if totalImpact > 0 {
                 VStack(alignment: .leading, spacing: 12) {
                     Label("Life Impact", systemImage: "heart.slash.fill")
-                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .scaledFont(size: 17, weight: .semibold, design: .rounded)
                         .foregroundStyle(.red)
                         .padding(.horizontal, 4)
                     
@@ -463,8 +463,8 @@ struct StatisticsView: View {
                 .foregroundStyle(.blue)
             if monthlyData.isEmpty {
                 Text("No data for this period.")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 13)
+                    .foregroundStyle(.secondary)
             } else {
                 Chart(monthlyData) { point in
                     BarMark(
@@ -477,7 +477,7 @@ struct StatisticsView: View {
                 .chartXAxis {
                     AxisMarks(values: .stride(by: .month)) { value in
                         AxisValueLabel(format: .dateTime.month(.abbreviated))
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .font(.system(.caption2, design: .rounded, weight: .medium))
                     }
                 }
                 .frame(height: 160)
@@ -506,25 +506,25 @@ struct StatisticsView: View {
                         .frame(width: 56, height: 56)
                     
                     Image(systemName: "cloud.sun.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(.white)
+                        .scaledFont(size: 24)
+                        .foregroundStyle(.white)
                 }
                 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Weather Correlation")
-                        .font(.system(size: 17, weight: .semibold, design: .rounded))
-                        .foregroundColor(.primary)
+                        .scaledFont(size: 17, weight: .semibold, design: .rounded)
+                        .foregroundStyle(.primary)
                     Text("Analyze how weather patterns correlate with your migraines")
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 13)
+                        .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
                 
                 Spacer()
                 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 14, weight: .semibold)
+                    .foregroundStyle(.secondary)
             }
             .padding(20)
             .background(
@@ -697,10 +697,10 @@ struct StatisticsView: View {
                                 
                                 VStack(spacing: 8) {
                                     Text("No Data for This Period")
-                                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                                        .scaledFont(size: 20, weight: .semibold, design: .rounded)
                                     Text("Try selecting a different time range, or log a migraine to start seeing statistics.")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.secondary)
+                                        .scaledFont(size: 14)
+                                        .foregroundStyle(.secondary)
                                         .multilineTextAlignment(.center)
                                         .padding(.horizontal, 40)
                                 }
@@ -1043,7 +1043,7 @@ struct StatisticsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Triggers", systemImage: "bolt.fill")
                     .font(.headline)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.blue)
                     .padding(.horizontal)
@@ -1060,7 +1060,7 @@ struct StatisticsView: View {
                 
                 if triggerData.isEmpty {
                     Text("No trigger data for selected period")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .frame(height: 200)
                 } else {
                     Chart(triggerData.prefix(5)) { point in
@@ -1082,7 +1082,7 @@ struct StatisticsView: View {
                             AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
                                 .foregroundStyle(Color.gray.opacity(0.3))
                             AxisValueLabel()
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .font(.system(.caption, design: .rounded, weight: .medium))
                                 .foregroundStyle(Color.primary)
                         }
                     }
@@ -1093,7 +1093,7 @@ struct StatisticsView: View {
                             AxisTick(stroke: StrokeStyle(lineWidth: 1))
                                 .foregroundStyle(Color.gray.opacity(0.5))
                             AxisValueLabel()
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .font(.system(.caption, design: .rounded, weight: .medium))
                                 .foregroundStyle(Color.secondary)
                         }
                     }
@@ -1103,6 +1103,12 @@ struct StatisticsView: View {
                             .cornerRadius(12)
                     }
                     .frame(height: 220)
+                    .accessibilityLabel("Most common triggers")
+                    .accessibilityValue(
+                        triggerData.prefix(5)
+                            .map { "\($0.trigger), \($0.count)" }
+                            .joined(separator: "; ")
+                    )
                     .onTapGesture { location in
                         guard !isNavigating else { return }
                         if let trigger = triggerData.first?.trigger {
@@ -1123,7 +1129,7 @@ struct StatisticsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Medications", systemImage: "pill.fill")
                     .font(.headline)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.purple)
                     .padding(.horizontal)
@@ -1140,7 +1146,7 @@ struct StatisticsView: View {
                 
                 if medicationData.isEmpty {
                     Text("No medication data for selected period")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .frame(height: 200)
                 } else {
                     Chart(medicationData.prefix(5)) { point in
@@ -1160,13 +1166,19 @@ struct StatisticsView: View {
                                         .fill(Color.purple.opacity(0.7))
                                         .frame(width: 8, height: 8)
                                     Text(point.medication)
-                                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                                        .foregroundColor(.secondary)
+                                        .scaledFont(size: 11, weight: .medium, design: .rounded)
+                                        .foregroundStyle(.secondary)
                                 }
                             }
                         }
                     }
                     .frame(height: 240)
+                    .accessibilityLabel("Medication usage")
+                    .accessibilityValue(
+                        medicationData.prefix(5)
+                            .map { "\($0.medication), \($0.count)" }
+                            .joined(separator: "; ")
+                    )
                     .onTapGesture { location in
                         guard !isNavigating else { return }
                         if let medication = medicationData.first?.medication {
@@ -1205,7 +1217,7 @@ struct StatisticsView: View {
                     AxisTick(stroke: StrokeStyle(lineWidth: 1))
                         .foregroundStyle(Color.gray.opacity(0.5))
                     AxisValueLabel()
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .font(.system(.caption, design: .rounded, weight: .medium))
                         .foregroundStyle(Color.secondary)
                 }
             }
@@ -1216,7 +1228,7 @@ struct StatisticsView: View {
                     AxisTick(stroke: StrokeStyle(lineWidth: 1))
                         .foregroundStyle(Color.gray.opacity(0.5))
                     AxisValueLabel()
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .font(.system(.caption, design: .rounded, weight: .medium))
                         .foregroundStyle(Color.secondary)
                 }
             }
@@ -1243,6 +1255,13 @@ struct StatisticsView: View {
                 }
             }
             .frame(height: 220)
+            .accessibilityLabel("Migraines by time of day")
+            .accessibilityValue(
+                timeOfDayData
+                    .filter { $0.count > 0 }
+                    .map { "\($0.timeOfDay), \($0.count)" }
+                    .joined(separator: "; ")
+            )
         }
     }
     
@@ -1252,7 +1271,7 @@ struct StatisticsView: View {
             
             if data.isEmpty {
                 Text("No impact data for selected period")
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .frame(height: 200)
             } else {
                 Chart(data) { point in
@@ -1276,7 +1295,7 @@ struct StatisticsView: View {
                         AxisTick(stroke: StrokeStyle(lineWidth: 1))
                             .foregroundStyle(Color.gray.opacity(0.5))
                         AxisValueLabel()
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .font(.system(.caption, design: .rounded, weight: .medium))
                             .foregroundStyle(Color.secondary)
                     }
                 }
@@ -1285,7 +1304,7 @@ struct StatisticsView: View {
                         AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
                             .foregroundStyle(Color.gray.opacity(0.3))
                         AxisValueLabel()
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .font(.system(.caption, design: .rounded, weight: .medium))
                             .foregroundStyle(Color.primary)
                     }
                 }
@@ -1312,6 +1331,10 @@ struct StatisticsView: View {
                     }
                 }
                 .frame(height: 220)
+                .accessibilityLabel("Quality of life impact")
+                .accessibilityValue(
+                    data.map { "\($0.type), \($0.count)" }.joined(separator: "; ")
+                )
             }
         }
     }
@@ -1345,8 +1368,8 @@ struct StatisticsView: View {
                     Spacer()
                     if severePainDays > 0 {
                         Text("\(severePainDays) severe day\(severePainDays == 1 ? "" : "s")")
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundColor(.secondary)
+                            .scaledFont(size: 12, weight: .medium, design: .rounded)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .padding(.horizontal, 4)
@@ -1361,8 +1384,8 @@ struct StatisticsView: View {
                     .annotation(position: .top, alignment: .center, spacing: 4) {
                         if point.count > 0 {
                             Text(String(point.count))
-                                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                .foregroundColor(.secondary)
+                                .scaledFont(size: 11, weight: .semibold, design: .rounded)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -1373,10 +1396,10 @@ struct StatisticsView: View {
                                let bucket = SeverityBucket.allCases.first(where: { $0.title == bucketTitle }) {
                                 VStack(spacing: 2) {
                                     Text(bucket.title)
-                                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                        .scaledFont(size: 12, weight: .semibold, design: .rounded)
                                         .foregroundStyle(Color.primary)
                                     Text(bucket.rangeDescription)
-                                        .font(.system(size: 10, weight: .regular, design: .rounded))
+                                        .scaledFont(size: 10, weight: .regular, design: .rounded)
                                         .foregroundStyle(Color.secondary)
                                 }
                             }
@@ -1388,7 +1411,7 @@ struct StatisticsView: View {
                         AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
                             .foregroundStyle(Color.gray.opacity(0.3))
                         AxisValueLabel()
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .font(.system(.caption, design: .rounded, weight: .medium))
                             .foregroundStyle(Color.secondary)
                     }
                 }
@@ -1427,7 +1450,7 @@ struct StatisticsView: View {
                     AxisTick(stroke: StrokeStyle(lineWidth: 1))
                         .foregroundStyle(Color.gray.opacity(0.5))
                     AxisValueLabel()
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .font(.system(.caption, design: .rounded, weight: .medium))
                         .foregroundStyle(Color.secondary)
                 }
             }
@@ -1438,7 +1461,7 @@ struct StatisticsView: View {
                     AxisTick(stroke: StrokeStyle(lineWidth: 1))
                         .foregroundStyle(Color.gray.opacity(0.5))
                     AxisValueLabel()
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .font(.system(.caption, design: .rounded, weight: .medium))
                         .foregroundStyle(Color.secondary)
                 }
             }
@@ -1465,6 +1488,13 @@ struct StatisticsView: View {
                 }
             }
             .frame(height: 220)
+            .accessibilityLabel("Pain level distribution")
+            .accessibilityValue(
+                painLevelData
+                    .filter { $0.count > 0 }
+                    .map { "level \($0.level), \($0.count)" }
+                    .joined(separator: "; ")
+            )
         }
     }
     
@@ -1473,7 +1503,7 @@ struct StatisticsView: View {
         ChartSection(title: "Monthly Distribution") {
             if monthlyData.isEmpty {
                 Text("No data available")
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .frame(height: 200)
             } else {
                 Chart(monthlyData) { point in
@@ -1491,7 +1521,7 @@ struct StatisticsView: View {
                         AxisTick(stroke: StrokeStyle(lineWidth: 1))
                             .foregroundStyle(Color.gray.opacity(0.5))
                         AxisValueLabel(format: .dateTime.month(.abbreviated))
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .font(.system(.caption, design: .rounded, weight: .medium))
                             .foregroundStyle(Color.secondary)
                     }
                 }
@@ -1502,7 +1532,7 @@ struct StatisticsView: View {
                         AxisTick(stroke: StrokeStyle(lineWidth: 1))
                             .foregroundStyle(Color.gray.opacity(0.5))
                         AxisValueLabel()
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .font(.system(.caption, design: .rounded, weight: .medium))
                             .foregroundStyle(Color.secondary)
                     }
                 }
@@ -1512,6 +1542,12 @@ struct StatisticsView: View {
                         .cornerRadius(12)
                 }
                 .frame(height: 220)
+                .accessibilityLabel("Migraines per month")
+                .accessibilityValue(
+                    monthlyData
+                        .map { "\($0.month.formatted(.dateTime.month(.abbreviated).year())), \($0.count)" }
+                        .joined(separator: "; ")
+                )
             }
         }
     }
@@ -1526,7 +1562,7 @@ struct StatRow: View {
             Text(title)
             Spacer()
             Text(value)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
     }
 }
@@ -1588,7 +1624,7 @@ struct ChartSection<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             if !title.isEmpty {
                 Text(title)
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .scaledFont(size: 17, weight: .semibold, design: .rounded)
                     .padding(.horizontal, 20)
                     .padding(.top, 4)
             }
@@ -1625,22 +1661,22 @@ struct StatBox: View {
     var body: some View {
         VStack(spacing: 8) {
             Text(title)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundColor(.secondary)
+                .scaledFont(size: 11, weight: .medium, design: .rounded)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .minimumScaleFactor(0.8)
             
             Text(value)
-                .font(.system(size: 24, weight: .bold, design: .rounded))
-                .foregroundColor(Color(red: 68/255, green: 130/255, blue: 180/255))
+                .scaledFont(size: 24, weight: .bold, design: .rounded)
+                .foregroundStyle(Color(red: 68/255, green: 130/255, blue: 180/255))
                 .minimumScaleFactor(0.7)
                 .lineLimit(1)
             
             if let subtitle = subtitle {
                 Text(subtitle)
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 10, weight: .medium, design: .rounded)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
@@ -1671,27 +1707,27 @@ struct StatBox: View {
         case .up(let detail):
             HStack(spacing: 2) {
                 Image(systemName: "arrow.up.right")
-                    .font(.system(size: 9, weight: .bold))
+                    .scaledFont(size: 9, weight: .bold)
                 Text(detail)
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .scaledFont(size: 9, weight: .medium, design: .rounded)
             }
-            .foregroundColor(.red)
+            .foregroundStyle(.red)
         case .down(let detail):
             HStack(spacing: 2) {
                 Image(systemName: "arrow.down.right")
-                    .font(.system(size: 9, weight: .bold))
+                    .scaledFont(size: 9, weight: .bold)
                 Text(detail)
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .scaledFont(size: 9, weight: .medium, design: .rounded)
             }
-            .foregroundColor(.green)
+            .foregroundStyle(.green)
         case .same:
             HStack(spacing: 2) {
                 Image(systemName: "arrow.right")
-                    .font(.system(size: 9, weight: .bold))
+                    .scaledFont(size: 9, weight: .bold)
                 Text("No change")
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .scaledFont(size: 9, weight: .medium, design: .rounded)
             }
-            .foregroundColor(.secondary)
+            .foregroundStyle(.secondary)
         }
     }
 }
@@ -1756,16 +1792,16 @@ struct ImpactBadge: View {
         Button(action: action) {
             VStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 20))
-                    .foregroundColor(color)
+                    .scaledFont(size: 20)
+                    .foregroundStyle(color)
                 
                 Text("\(count)")
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
+                    .scaledFont(size: 22, weight: .bold, design: .rounded)
+                    .foregroundStyle(.primary)
                 
                 Text(label)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 11, weight: .medium, design: .rounded)
+                    .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)

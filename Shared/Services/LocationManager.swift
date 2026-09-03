@@ -17,7 +17,14 @@ class LocationManager: NSObject, ObservableObject {
     @Published var lastError: Error?
     
     let locationManager = CLLocationManager()
-    private var locationContinuation: CheckedContinuation<CLLocation, Error>?
+    /// Callers currently awaiting `getCurrentLocation()`, keyed so that
+    /// overlapping requests, timeouts and cancellation each resolve only
+    /// their own continuation. Main-actor confined.
+    @MainActor private var locationWaiters: [UUID: CheckedContinuation<CLLocation, Error>] = [:]
+
+    /// A cached fix younger than this is returned without touching CoreLocation.
+    private let cachedLocationMaxAge: TimeInterval = 3600
+    private let locationRequestTimeout: UInt64 = 10_000_000_000
     
     /// Cross-platform check for location authorization
     /// macOS uses .authorized; iOS/watchOS use .authorizedWhenInUse
@@ -64,10 +71,8 @@ class LocationManager: NSObject, ObservableObject {
 
                 AppLogger.location.notice("LocationManager initialized; status=\(self.statusDescription(currentStatus), privacy: .public)")
 
-                // If already authorized, start monitoring.
                 if Self.isStatusAuthorized(currentStatus) {
-                    AppLogger.location.debug("Already authorized; starting monitoring")
-                    self.locationManager.startUpdatingLocation()
+                    self.refreshLocationIfStale()
                 }
 
                 // IMPORTANT: Request authorization early so iOS recognizes this app
@@ -130,74 +135,78 @@ class LocationManager: NSObject, ObservableObject {
     
     /// Refresh authorization status (useful when returning from Settings)
     func refreshAuthorizationStatus() {
-        // Use class method for more reliable status check
-        let currentStatus: CLAuthorizationStatus
-        if #available(iOS 14.0, *) {
-            currentStatus = locationManager.authorizationStatus
-        } else {
-            currentStatus = CLLocationManager.authorizationStatus()
-        }
-        
-        // Only update if changed
+        let currentStatus = locationManager.authorizationStatus
+
         if currentStatus != authorizationStatus {
             AppLogger.location.notice("Status changed: \(self.statusDescription(self.authorizationStatus), privacy: .public) → \(self.statusDescription(currentStatus), privacy: .public)")
             authorizationStatus = currentStatus
-        } else {
-            AppLogger.location.debug("Status unchanged at \(self.statusDescription(currentStatus), privacy: .public)")
         }
 
-        // Start monitoring if authorized
         if Self.isStatusAuthorized(currentStatus) {
-            startMonitoring()
+            refreshLocationIfStale()
         }
     }
-    
-    /// Get current location (one-time)
-    func getCurrentLocation() async throws -> CLLocation {
-        // Check authorization status from the actual manager
-        let status = locationManager.authorizationStatus
 
+    private var hasFreshLocation: Bool {
+        guard let location else { return false }
+        return abs(location.timestamp.timeIntervalSinceNow) < cachedLocationMaxAge
+    }
+
+    /// One-shot location fix (waits up to 10 s). Multiple concurrent callers
+    /// each get their own result; cancelling the calling task releases only
+    /// that caller.
+    @MainActor
+    func getCurrentLocation() async throws -> CLLocation {
+        let status = locationManager.authorizationStatus
         AppLogger.location.debug("getCurrentLocation called; status=\(self.statusDescription(status), privacy: .public)")
 
-        // In iOS 25+, "When I Share" shows as .notDetermined but we can still request location
-        // If status is .notDetermined, try requesting location anyway (iOS will show permission dialog)
-        if status == .notDetermined {
-            AppLogger.location.debug("Status notDetermined; falling through to requestLocation (iOS 25+ 'When I Share' mode)")
-            // Fall through to request location - iOS will handle the permission
-        } else if !Self.isStatusAuthorized(status) {
+        // `.notDetermined` can also mean the iOS 18 "Ask Next Time / When I
+        // Share" mode; `requestLocation()` then surfaces the system prompt.
+        if status != .notDetermined, !Self.isStatusAuthorized(status) {
             AppLogger.location.error("Location not authorized; throwing LocationError.unauthorized")
             throw LocationError.unauthorized
         }
 
-        // If we have a recent location (within 1 hour), use it
-        if let location = location,
-           abs(location.timestamp.timeIntervalSinceNow) < 3600 {
+        if hasFreshLocation, let location {
             AppLogger.location.debug("Using cached location")
             return location
         }
 
+        try Task.checkCancellation()
         AppLogger.location.debug("Requesting fresh location")
-        return try await withThrowingTaskGroup(of: CLLocation.self) { group in
-            // Add location request task
-            group.addTask {
-                try await withCheckedThrowingContinuation { continuation in
-                    Task { @MainActor in
-                        self.locationContinuation = continuation
-                    }
-                    self.locationManager.requestLocation()
-                }
+
+        let waiterID = UUID()
+        let timeout = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: self?.locationRequestTimeout ?? 10_000_000_000)
+            guard !Task.isCancelled else { return }
+            self?.resolveWaiter(waiterID, with: .failure(LocationError.timeout))
+        }
+        defer { timeout.cancel() }
+
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                locationWaiters[waiterID] = continuation
+                locationManager.requestLocation()
             }
-            
-            // Add timeout task
-            group.addTask {
-                try await Task.sleep(nanoseconds: 10_000_000_000) // 10 seconds
-                throw LocationError.timeout
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                self?.resolveWaiter(waiterID, with: .failure(CancellationError()))
             }
-            
-            // Return first result (either location or timeout)
-            let result = try await group.next()!
-            group.cancelAll()
-            return result
+        }
+    }
+
+    @MainActor
+    private func resolveWaiter(_ id: UUID, with result: Result<CLLocation, Error>) {
+        guard let continuation = locationWaiters.removeValue(forKey: id) else { return }
+        continuation.resume(with: result)
+    }
+
+    @MainActor
+    private func resolveAllWaiters(with result: Result<CLLocation, Error>) {
+        let waiters = locationWaiters
+        locationWaiters.removeAll()
+        for continuation in waiters.values {
+            continuation.resume(with: result)
         }
     }
     
@@ -207,17 +216,12 @@ class LocationManager: NSObject, ObservableObject {
         return (location.coordinate.latitude, location.coordinate.longitude)
     }
     
-    /// Start monitoring location changes
-    func startMonitoring() {
-        guard isLocationAuthorized else {
-            return
-        }
-        locationManager.startUpdatingLocation()
-    }
-    
-    /// Stop monitoring location changes
-    func stopMonitoring() {
-        locationManager.stopUpdatingLocation()
+    /// Requests a single fix when the cached one is missing or older than an
+    /// hour. Weather lookups only need a coarse, occasional position, so the
+    /// app never runs continuous location updates.
+    func refreshLocationIfStale() {
+        guard isLocationAuthorized, !hasFreshLocation else { return }
+        locationManager.requestLocation()
     }
 }
 
@@ -232,10 +236,11 @@ extension LocationManager: CLLocationManagerDelegate {
             self.authorizationStatus = status
 
             if Self.isStatusAuthorized(status) {
-                self.startMonitoring()
+                self.refreshLocationIfStale()
             } else if status == .denied || status == .restricted {
                 AppLogger.location.error("Location denied or restricted")
                 self.lastError = LocationError.unauthorized
+                self.resolveAllWaiters(with: .failure(LocationError.unauthorized))
             }
         }
     }
@@ -243,19 +248,11 @@ extension LocationManager: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let newLocation = locations.last else { return }
 
-        // Coordinates are user-private — keep default privacy (redacted in release).
-        AppLogger.location.debug("Location updated: \(newLocation.coordinate.latitude), \(newLocation.coordinate.longitude)")
+        AppLogger.location.debug("Location updated (accuracy \(Int(newLocation.horizontalAccuracy), privacy: .public) m)")
 
         Task { @MainActor in
-            // Update stored location
             self.location = newLocation
-
-            // Resolve any pending continuation
-            if let continuation = self.locationContinuation {
-                continuation.resume(returning: newLocation)
-                self.locationContinuation = nil
-                AppLogger.location.debug("Location continuation resolved")
-            }
+            self.resolveAllWaiters(with: .success(newLocation))
         }
     }
     
@@ -270,13 +267,7 @@ extension LocationManager: CLLocationManagerDelegate {
 
         Task { @MainActor in
             self.lastError = error
-
-            // Resolve any pending continuation with error
-            if let continuation = self.locationContinuation {
-                continuation.resume(throwing: error)
-                self.locationContinuation = nil
-                AppLogger.location.debug("Location continuation resolved with error")
-            }
+            self.resolveAllWaiters(with: .failure(error))
         }
     }
 }

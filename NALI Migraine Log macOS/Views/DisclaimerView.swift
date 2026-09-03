@@ -22,7 +22,7 @@ struct DisclaimerView: View {
                 
                 Text("iCloud sync enables data synchronization across your devices. Your data remains private and is never shared with third parties.")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .padding(.horizontal)
             }
             .padding(.vertical)
