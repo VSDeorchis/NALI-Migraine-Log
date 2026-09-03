@@ -68,8 +68,8 @@ public enum MigraineMedication: String, CaseIterable, Identifiable, Hashable, Co
         case .naratriptan:  return "Naratriptan"
         case .frovatriptan: return "Frovatriptan"
         case .reyvow:       return "Lasmiditan"
-        case .trudhesa:     return "Dihydroergotamine nasal spray"
-        case .elyxyb:       return "Celecoxib oral solution"
+        case .trudhesa:     return "Dihydroergotamine"
+        case .elyxyb:       return "Celecoxib"
         case .other:        return "Other"
         }
     }
