@@ -49,13 +49,11 @@ class WatchConnectivityManager: NSObject, ObservableObject {
     private var inFlightBatches: [UUID: Set<UUID>] = [:]
     /// Deleted entry id → time of deletion.
     private var tombstones: [UUID: Date] = [:]
-    /// Entry id → time of the newest edit this device knows about (its own or
-    /// one it accepted from the counterpart). Drives last-writer-wins.
-    private var revisions: [UUID: Date] = [:]
     private var snapshotTask: Task<Void, Never>?
 
     private let tombstonesKey = "com.neuroli.migraineTombstones"
-    private let revisionsKey = "com.neuroli.migraineSyncRevisions"
+    /// Pre-`modifiedAt` bookkeeping; cleared on first launch of this build.
+    private let legacyRevisionsKey = "com.neuroli.migraineSyncRevisions"
     private let pendingChangesKey = "com.neuroli.pendingWatchSyncIds"
     private let legacyDeletedIdsKey = "com.neuroli.deletedMigraineIds"
     private let pendingRiskKey = "pendingRiskPayload"
@@ -117,10 +115,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
            let ids = try? JSONDecoder().decode(Set<UUID>.self, from: data) {
             pendingChangeIDs = ids
         }
-        if let data = defaults.data(forKey: revisionsKey),
-           let stored = try? JSONDecoder().decode([UUID: Date].self, from: data) {
-            revisions = stored
-        }
+        defaults.removeObject(forKey: legacyRevisionsKey)
         pruneTombstones()
     }
 
@@ -128,19 +123,6 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         if let data = try? JSONEncoder().encode(tombstones) {
             UserDefaults.standard.set(data, forKey: tombstonesKey)
         }
-    }
-
-    private func saveRevisions() {
-        if let data = try? JSONEncoder().encode(revisions) {
-            UserDefaults.standard.set(data, forKey: revisionsKey)
-        }
-    }
-
-    /// Revision time used when encoding an entry. Entries edited before this
-    /// bookkeeping existed have no recorded revision and are sent as
-    /// `.distantPast` so they never win over a real edit on the other side.
-    private func revision(for id: UUID) -> Date {
-        revisions[id] ?? .distantPast
     }
 
     private func savePendingChanges() {
@@ -156,16 +138,6 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         if tombstones.count != before {
             saveTombstones()
         }
-        // Revisions for deleted entries only matter while the tombstone
-        // itself is still being sent.
-        let revisionsBefore = revisions.count
-        revisions = revisions.filter { id, _ in
-            guard let deletedAt = tombstones[id] else { return true }
-            return deletedAt >= cutoff
-        }
-        if revisions.count != revisionsBefore {
-            saveRevisions()
-        }
     }
 
     /// Forget all bookkeeping. Used when the user erases all app data.
@@ -173,10 +145,8 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         pendingChangeIDs.removeAll()
         inFlightBatches.removeAll()
         tombstones.removeAll()
-        revisions.removeAll()
         savePendingChanges()
         saveTombstones()
-        saveRevisions()
         UserDefaults.standard.removeObject(forKey: pendingRiskKey)
     }
 
@@ -184,9 +154,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
 
     /// Marks an entry as changed on this device and queues a delta transfer.
     func recordChange(of migraineId: UUID) {
-        revisions[migraineId] = Date()
         pendingChangeIDs.insert(migraineId)
-        saveRevisions()
         savePendingChanges()
         flushPendingChanges()
         scheduleSnapshot()
@@ -203,11 +171,9 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         for id in migraineIds {
             tombstones[id] = now
             pendingChangeIDs.remove(id)
-            revisions.removeValue(forKey: id)
         }
         saveTombstones()
         savePendingChanges()
-        saveRevisions()
         flushPendingChanges(forceTombstones: true)
         scheduleSnapshot()
     }
@@ -239,10 +205,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
             request.predicate = NSPredicate(format: "id IN %@", Array(idsToSend))
             do {
                 let events = try context.fetch(request)
-                records = events.compactMap { event in
-                    guard let id = event.id else { return nil }
-                    return MigraineSyncRecord(event: event, includeNotes: true, modifiedAt: revision(for: id))
-                }
+                records = events.compactMap { MigraineSyncRecord(event: $0, includeNotes: true) }
             } catch {
                 AppLogger.watch.error("Failed to fetch pending entries: \(error.localizedDescription, privacy: .public)")
                 return
@@ -320,10 +283,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
 
         let records: [MigraineSyncRecord]
         do {
-            records = try context.fetch(request).compactMap { event in
-                guard let id = event.id else { return nil }
-                return MigraineSyncRecord(event: event, includeNotes: false, modifiedAt: revision(for: id))
-            }
+            records = try context.fetch(request).compactMap { MigraineSyncRecord(event: $0, includeNotes: false) }
         } catch {
             AppLogger.watch.error("Snapshot fetch failed: \(error.localizedDescription, privacy: .public)")
             return
@@ -458,16 +418,15 @@ class WatchConnectivityManager: NSObject, ObservableObject {
             }
         }
 
-        var revisionsChanged = false
         for record in envelope.records {
             if tombstones[record.id] != nil {
                 skipped += 1
                 continue
             }
-            // Last-writer-wins: an incoming copy older than the newest edit
-            // this device knows about is stale. Snapshots additionally must
-            // not clobber an edit the counterpart hasn't acknowledged yet.
-            if let known = revisions[record.id], record.modifiedAt < known {
+            // Last-writer-wins on the persisted `modifiedAt`. Snapshots
+            // additionally must not clobber an edit the counterpart hasn't
+            // acknowledged yet.
+            if let local = existing[record.id], record.modifiedAt < local.revision {
                 skipped += 1
                 continue
             }
@@ -483,12 +442,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
                 existing[record.id] = event
             }
             record.apply(to: event)
-            revisions[record.id] = record.modifiedAt
-            revisionsChanged = true
             applied += 1
-        }
-        if revisionsChanged {
-            saveRevisions()
         }
 
         saveIfNeeded(applied: applied, skipped: skipped, kind: envelope.kind.rawValue)
@@ -529,11 +483,9 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         for id in ids where tombstones[id] == nil {
             tombstones[id] = now
             pendingChangeIDs.remove(id)
-            revisions.removeValue(forKey: id)
         }
         saveTombstones()
         savePendingChanges()
-        saveRevisions()
 
         let request = NSFetchRequest<MigraineEvent>(entityName: "MigraineEvent")
         request.predicate = NSPredicate(format: "id IN %@", ids)

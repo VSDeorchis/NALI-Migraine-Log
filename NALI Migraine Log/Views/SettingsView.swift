@@ -75,6 +75,7 @@ struct SettingsView: View {
     /// Drives the two-pane settings layout on iPad. Compact (iPhone)
     /// keeps the long single-form scroll users have always known.
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.scenePhase) private var scenePhase
     
     /// Currently-selected category in the iPad two-pane layout. Backed
     /// by `@State` so it sticks across view rebuilds while the sheet
@@ -722,6 +723,21 @@ struct SettingsView: View {
                 }
                 .accessibilityHint("When on, every migraine you save is also written to Apple Health as a Headache entry.")
 
+                if healthKitManager.isWriteAccessRevoked {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Apple Health is not accepting migraines")
+                            Text("Headache write access was turned off in Health. New entries stay in Headway only until you allow it again under Health → Sharing → Apps → Headway.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+
                 if healthKitManager.isHealthSyncEnabled {
                     Button {
                         Task { await performHealthBackfill() }
@@ -739,7 +755,7 @@ struct SettingsView: View {
                             }
                         }
                     }
-                    .disabled(isHealthBackfilling || viewModel.migraines.isEmpty)
+                    .disabled(isHealthBackfilling || viewModel.migraines.isEmpty || healthKitManager.isWriteAccessRevoked)
                     .accessibilityHint("Writes every migraine in your log to Apple Health, replacing any prior copies.")
                 }
 
@@ -815,6 +831,14 @@ struct SettingsView: View {
                     }
                 )
             }
+            .onAppear {
+                healthKitManager.refreshAuthorizationStatus()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    healthKitManager.refreshAuthorizationStatus()
+                }
+            }
         }
     }
 
@@ -827,7 +851,7 @@ struct SettingsView: View {
         // see "Wrote 0 entries" with no explanation.
         await healthKitManager.requestAuthorization()
 
-        guard healthKitManager.isAuthorized else {
+        guard healthKitManager.isAuthorized, healthKitManager.writeStatus == .authorized else {
             healthBackfillResult = "Apple Health did not authorize this app to write headache entries. You can change that in Health → Sharing → Apps → Headway."
             showingHealthBackfillAlert = true
             return

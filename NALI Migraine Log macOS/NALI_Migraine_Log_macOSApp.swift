@@ -14,6 +14,7 @@ struct NALI_Migraine_Log_macOSApp: App {
     @State private var showingSplash = true
     @State private var selectedTab = 0
     @State private var hasAcceptedDisclaimer = UserDefaults.standard.bool(forKey: Constants.hasAcceptedDisclaimer)
+    @State private var declinedDisclaimer = false
     let persistenceController = PersistenceController.shared
     
     init() {
@@ -38,8 +39,14 @@ struct NALI_Migraine_Log_macOSApp: App {
         WindowGroup {
             ZStack {
                 if !hasAcceptedDisclaimer {
-                    DisclaimerView(hasAcceptedDisclaimer: $hasAcceptedDisclaimer) {
-                        NSApplication.shared.terminate(nil)
+                    if declinedDisclaimer {
+                        DisclaimerDeclinedView {
+                            declinedDisclaimer = false
+                        }
+                    } else {
+                        DisclaimerView(hasAcceptedDisclaimer: $hasAcceptedDisclaimer) {
+                            declinedDisclaimer = true
+                        }
                     }
                 } else if showingSplash {
                     SplashScreen()

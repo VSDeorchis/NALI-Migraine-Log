@@ -317,7 +317,7 @@ private struct HeatMapDayCell: View {
             VStack(spacing: 2) {
                 Text("\(calendar.component(.day, from: date))")
                     .font(.system(.body, design: .rounded).weight(isToday ? .bold : .regular))
-                    .foregroundColor(isSelected ? .accentColor : (isToday ? .accentColor : .primary))
+                    .foregroundStyle(isSelected || isToday ? Color.accentColor : Color.primary)
                 
                 if !migraines.isEmpty {
                     HStack(spacing: 1) {

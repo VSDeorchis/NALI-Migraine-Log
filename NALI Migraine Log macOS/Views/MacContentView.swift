@@ -53,10 +53,10 @@ struct MacContentView: View {
                             } label: {
                                 Label {
                                     Text(filter.rawValue)
-                                        .foregroundColor(selectedFilter == filter ? .accentColor : .primary)
+                                        .foregroundStyle(selectedFilter == filter ? Color.accentColor : Color.primary)
                                 } icon: {
                                     Image(systemName: filter.icon)
-                                        .foregroundColor(selectedFilter == filter ? .accentColor : .secondary)
+                                        .foregroundStyle(selectedFilter == filter ? Color.accentColor : Color.secondary)
                                 }
                             }
                             .buttonStyle(.plain)

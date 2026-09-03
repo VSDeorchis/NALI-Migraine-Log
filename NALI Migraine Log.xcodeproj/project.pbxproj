@@ -56,6 +56,9 @@
 		AAFE000400000000000A000A /* BackgroundTaskScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A000A /* BackgroundTaskScheduler.swift */; };
 		AAFE000400000000000A000B /* OpenMeteoSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A000B /* OpenMeteoSupport.swift */; };
 		AAFE000400000000000A000C /* ScaledFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A000C /* ScaledFont.swift */; };
+		AAFE000200000000000A000D /* MigraineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A000D /* MigraineStore.swift */; };
+		AAFE000300000000000A000D /* MigraineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A000D /* MigraineStore.swift */; };
+		AAFE000400000000000A000D /* MigraineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A000D /* MigraineStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -138,6 +141,7 @@
 		698A291E2EDB54F300090EFA /* LocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationManager.swift; sourceTree = "<group>"; };
 		698A291F2EDB54F300090EFA /* WeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherService.swift; sourceTree = "<group>"; };
 		69C15B0C2D59B28E002BAA7E /* NALI_Migraine_Log.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = NALI_Migraine_Log.xcdatamodel; sourceTree = "<group>"; };
+		69C15B0D2D59B28E002BAA7E /* NALI_Migraine_Log 2.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "NALI_Migraine_Log 2.xcdatamodel"; sourceTree = "<group>"; };
 		AAFE000100000000000A0001 /* FeatureExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureExtractor.swift; sourceTree = "<group>"; };
 		AAFE000100000000000A0002 /* WeatherForecastService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherForecastService.swift; sourceTree = "<group>"; };
 		AAFE000100000000000A0003 /* HealthKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitManager.swift; sourceTree = "<group>"; };
@@ -150,6 +154,7 @@
 		AAFE000100000000000A000A /* BackgroundTaskScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTaskScheduler.swift; sourceTree = "<group>"; };
 		AAFE000100000000000A000B /* OpenMeteoSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenMeteoSupport.swift; sourceTree = "<group>"; };
 		AAFE000100000000000A000C /* ScaledFont.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaledFont.swift; sourceTree = "<group>"; };
+		AAFE000100000000000A000D /* MigraineStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigraineStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -164,6 +169,10 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Assets.xcassets,
+				"ViewModels/MigraineViewModel+Analytics.swift",
+				"ViewModels/MigraineViewModel+CloudSync.swift",
+				"ViewModels/MigraineViewModel+Debug.swift",
+				"ViewModels/MigraineViewModel+Weather.swift",
 				ViewModels/MigraineViewModel.swift,
 			);
 			target = 69782C9D2D4727B30078C9C0 /* NALI Migraine Log Watch App Watch App */;
@@ -381,6 +390,7 @@
 		69A6B47E2D59BAA200AD2CFA /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				AAFE000100000000000A000D /* MigraineStore.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -754,6 +764,7 @@
 				AAFE000200000000000A000A /* BackgroundTaskScheduler.swift in Sources */,
 				AAFE000200000000000A000B /* OpenMeteoSupport.swift in Sources */,
 				AAFE000200000000000A000C /* ScaledFont.swift in Sources */,
+				AAFE000200000000000A000D /* MigraineStore.swift in Sources */,
 				69C15B1F2D59B28E002BAA7E /* NALI_Migraine_Log.xcdatamodeld in Sources */,
 				69A6B47C2D59BA2500AD2CFA /* WatchConnectivityManager.swift in Sources */,
 			);
@@ -793,6 +804,7 @@
 				AAFE000300000000000A000A /* BackgroundTaskScheduler.swift in Sources */,
 				AAFE000300000000000A000B /* OpenMeteoSupport.swift in Sources */,
 				AAFE000300000000000A000C /* ScaledFont.swift in Sources */,
+				AAFE000300000000000A000D /* MigraineStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -830,6 +842,7 @@
 				AAFE000400000000000A000A /* BackgroundTaskScheduler.swift in Sources */,
 				AAFE000400000000000A000B /* OpenMeteoSupport.swift in Sources */,
 				AAFE000400000000000A000C /* ScaledFont.swift in Sources */,
+				AAFE000400000000000A000D /* MigraineStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1520,9 +1533,10 @@
 		69C15B092D59B28E002BAA7E /* NALI_Migraine_Log.xcdatamodeld */ = {
 			isa = XCVersionGroup;
 			children = (
+				69C15B0D2D59B28E002BAA7E /* NALI_Migraine_Log 2.xcdatamodel */,
 				69C15B0C2D59B28E002BAA7E /* NALI_Migraine_Log.xcdatamodel */,
 			);
-			currentVersion = 69C15B0C2D59B28E002BAA7E /* NALI_Migraine_Log.xcdatamodel */;
+			currentVersion = 69C15B0D2D59B28E002BAA7E /* NALI_Migraine_Log 2.xcdatamodel */;
 			path = NALI_Migraine_Log.xcdatamodeld;
 			sourceTree = "<group>";
 			versionGroupType = wrapper.xcdatamodel;

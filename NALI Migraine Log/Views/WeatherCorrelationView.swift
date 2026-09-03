@@ -227,6 +227,21 @@ struct WeatherCorrelationView: View {
                     .accessibilityValue(
                         "\(pressureData.count) migraines; \(pressureData.filter { abs($0.change) >= 5 }.count) followed a significant pressure change"
                     )
+                    .accessibilityChartDescriptor(
+                        BarChartAudioGraph(
+                            title: "Pressure change before each migraine",
+                            xAxisTitle: "Date",
+                            yAxisTitle: "24-hour pressure change",
+                            bars: pressureData.map {
+                                BarChartAudioGraph.Bar(
+                                    label: $0.date.formatted(date: .abbreviated, time: .omitted),
+                                    value: settings.convertPressure($0.change)
+                                )
+                            },
+                            valueUnit: settings.pressureUnit.symbol,
+                            fractionDigits: 1
+                        )
+                    )
                     
                     // Pressure change legend
                     HStack(spacing: 20) {
@@ -288,6 +303,14 @@ struct WeatherCorrelationView: View {
                     .accessibilityLabel("Migraines by weather condition")
                     .accessibilityValue(
                         conditionData.map { "\($0.condition), \($0.count)" }.joined(separator: "; ")
+                    )
+                    .accessibilityChartDescriptor(
+                        BarChartAudioGraph(
+                            title: "Migraines by weather condition",
+                            xAxisTitle: "Condition",
+                            yAxisTitle: "Migraines",
+                            counts: conditionData.map { ($0.condition, $0.count) }
+                        )
                     )
                 }
             }
@@ -389,6 +412,14 @@ struct WeatherCorrelationView: View {
                     .accessibilityValue(
                         tempRanges.map { "\($0.range), \($0.count)" }.joined(separator: "; ")
                     )
+                    .accessibilityChartDescriptor(
+                        BarChartAudioGraph(
+                            title: "Migraines by temperature range",
+                            xAxisTitle: "Temperature range",
+                            yAxisTitle: "Migraines",
+                            counts: tempRanges.map { ($0.range, $0.count) }
+                        )
+                    )
                 }
             }
         }
@@ -456,6 +487,14 @@ struct WeatherCorrelationView: View {
                 .frame(height: 180)
                 .accessibilityLabel("Migraines with and without rain")
                 .accessibilityValue("\(withPrecip) with rain, \(withoutPrecip) without rain")
+                .accessibilityChartDescriptor(
+                    BarChartAudioGraph(
+                        title: "Migraines with and without rain",
+                        xAxisTitle: "Precipitation",
+                        yAxisTitle: "Migraines",
+                        counts: precipData.map { ($0.category, $0.count) }
+                    )
+                )
             }
         }
     }

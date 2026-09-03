@@ -2,15 +2,30 @@ import SwiftUI
 
 struct DisclaimerView: View {
     @Binding var hasAcceptedDisclaimer: Bool
-    let dismissAction: () -> Void
-    let viewModel: MigraineViewModel
+    /// Invoked when the user declines. The caller decides what to show;
+    /// the process is never terminated.
+    let declineAction: () -> Void
     @StateObject private var settings = SettingsManager.shared
     @StateObject private var locationManager = LocationManager.shared
     @State private var showingICloudAlert = false
-    @State private var showingSettings = false
     @State private var enableLocationServices = false
     
     var body: some View {
+        ScrollView {
+            content
+        }
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(radius: 10)
+        .padding()
+        .alert("Data Storage Information", isPresented: $showingICloudAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Your migraine data is stored locally on your device. If iCloud sync is enabled, data will also be stored in your personal iCloud account to enable synchronization between your iPhone and Apple Watch. The data is private and only accessible through your Apple ID. You can change sync settings at any time through the app's settings.")
+        }
+    }
+
+    private var content: some View {
         VStack(spacing: 20) {
             Text("Disclaimer")
                 .font(.title)
@@ -82,7 +97,7 @@ struct DisclaimerView: View {
             
             HStack(spacing: 20) {
                 Button("Decline") {
-                    dismissAction()
+                    declineAction()
                 }
                 .foregroundStyle(.red)
                 
@@ -108,23 +123,44 @@ struct DisclaimerView: View {
             }
             
             Button("Learn More About Data Storage") {
-                showingSettings = true
+                showingICloudAlert = true
             }
             .font(.footnote)
             .foregroundStyle(.blue)
         }
         .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(radius: 10)
-        .padding()
-        .alert("Data Storage Information", isPresented: $showingICloudAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("Your migraine data is stored locally on your device. If iCloud sync is enabled, data will also be stored in your personal iCloud account to enable synchronization between your iPhone and Apple Watch. The data is private and only accessible through your Apple ID. You can change sync settings at any time through the app's settings.")
-        }
-        .sheet(isPresented: $showingSettings) {
-            SettingsView(viewModel: viewModel)
-        }
     }
-} 
+}
+
+/// Shown in place of the main UI after the disclaimer is declined. Nothing
+/// else is reachable until the user returns to the disclaimer and accepts.
+struct DisclaimerDeclinedView: View {
+    let reviewAction: () -> Void
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "hand.raised.fill")
+                .font(.system(size: 44))
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+
+            Text("Disclaimer Not Accepted")
+                .font(.title2)
+                .bold()
+
+            Text("Headway can only be used after you accept the medical disclaimer. Nothing has been recorded and no data has left your device. You can review the disclaimer again at any time.")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal)
+
+            Button("Review Disclaimer", action: reviewAction)
+                .buttonStyle(.borderedProminent)
+
+            Link("Privacy Policy", destination: AppContactInfo.privacyPolicyURL)
+                .font(.footnote)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemBackground))
+    }
+}

@@ -139,10 +139,11 @@ extension MigraineSyncRecord {
     ///
     /// - Parameter includeNotes: free-text notes are only sent for
     ///   Watch-authored deltas; phone-pushed history omits them.
-    init?(event: MigraineEvent, includeNotes: Bool, modifiedAt: Date = Date()) {
+    init?(event: MigraineEvent, includeNotes: Bool) {
         guard let id = event.id else { return nil }
+        let modifiedAt = event.revision
         self.id = id
-        self.startTime = event.startTime ?? modifiedAt
+        self.startTime = event.startTime ?? event.modifiedAt ?? Date()
         self.endTime = event.endTime
         self.painLevel = Int(event.painLevel)
         self.location = event.location
@@ -173,6 +174,7 @@ extension MigraineSyncRecord {
     /// snapshot never erases text typed on the receiving device.
     func apply(to event: MigraineEvent) {
         event.id = id
+        event.modifiedAt = modifiedAt
         event.startTime = startTime
         event.endTime = endTime
         event.painLevel = Int16(clamping: painLevel)

@@ -21,6 +21,9 @@ struct NALI_Migraine_LogApp: App {
     @StateObject private var navigator = AppNavigationCoordinator.shared
     @State private var showingSplash = true
     @State private var hasAcceptedDisclaimer = UserDefaults.standard.bool(forKey: Constants.hasAcceptedDisclaimer)
+    /// Set when the user taps Decline. The app stays open on a blocking
+    /// explanation until they return to the disclaimer and accept.
+    @State private var declinedDisclaimer = false
     @State private var showingSettings = false
     /// One-time "What's New" announcement after a feature update. Gated
     /// by `WhatsNew` so it shows once per release and never to a
@@ -69,16 +72,21 @@ struct NALI_Migraine_LogApp: App {
         WindowGroup {
             ZStack {
                 if !hasAcceptedDisclaimer {
-                    Color.black.opacity(0.3)
-                        .ignoresSafeArea()
-                    
-                    DisclaimerView(
-                        hasAcceptedDisclaimer: $hasAcceptedDisclaimer,
-                        dismissAction: {
-                            exit(0)
-                        },
-                        viewModel: viewModel
-                    )
+                    if declinedDisclaimer {
+                        DisclaimerDeclinedView {
+                            declinedDisclaimer = false
+                        }
+                    } else {
+                        Color.black.opacity(0.3)
+                            .ignoresSafeArea()
+
+                        DisclaimerView(
+                            hasAcceptedDisclaimer: $hasAcceptedDisclaimer,
+                            declineAction: {
+                                declinedDisclaimer = true
+                            }
+                        )
+                    }
                 } else if showingSplash {
                     SplashScreen()
                         .onAppear {
