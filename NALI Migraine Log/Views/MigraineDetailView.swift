@@ -81,20 +81,20 @@ struct MigraineDetailView: View {
             Section(header: 
                 Label("WEATHER DATA", systemImage: "cloud.sun.fill")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.blue)
+                    .foregroundStyle(.blue)
             ) {
                 if migraine.hasWeatherData {
                     // Show current weather data
                     HStack {
                         Image(systemName: weatherIconForCode(Int(migraine.weatherCode)))
-                            .foregroundColor(weatherIconColor(for: migraine.weatherCode))
+                            .foregroundStyle(weatherIconColor(for: migraine.weatherCode))
                             .font(.title2)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(WeatherService.weatherCondition(for: Int(migraine.weatherCode)))
                                 .font(.headline)
                             Text(settings.formatTemperature(migraine.weatherTemperature))
                                 .font(.subheadline)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                         Spacer()
                         Button(action: {
@@ -110,7 +110,7 @@ struct MigraineDetailView: View {
                         Text("Pressure Change")
                         Spacer()
                         Text(settings.formatPressureChange(migraine.weatherPressureChange24h))
-                            .foregroundColor(pressureChangeColor(migraine.weatherPressureChange24h))
+                            .foregroundStyle(pressureChangeColor(migraine.weatherPressureChange24h))
                     }
                     .font(.caption)
                 } else {
@@ -123,7 +123,7 @@ struct MigraineDetailView: View {
                                     .fontWeight(.medium)
                                 Text("Weather data wasn't collected for this entry")
                                     .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                             }
                             Spacer()
                             Menu {
@@ -155,11 +155,11 @@ struct MigraineDetailView: View {
                         // Note about location permission
                         HStack(spacing: 6) {
                             Image(systemName: "info.circle.fill")
-                                .foregroundColor(.blue)
+                                .foregroundStyle(.blue)
                                 .font(.caption2)
                             Text("When you tap 'Fetch Weather', iOS will ask for location permission. Tap 'Allow Once' to fetch weather data for this entry.")
                                 .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         .padding(.vertical, 6)
@@ -175,7 +175,7 @@ struct MigraineDetailView: View {
             Section(header: 
                 Label("PAIN DETAILS", systemImage: "thermometer")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.blue)
+                    .foregroundStyle(.blue)
             ) {
                 DatePicker("Start Time", selection: $startTime)
                 Toggle("Add End Time", isOn: Binding(
@@ -210,7 +210,7 @@ struct MigraineDetailView: View {
             Section(header: 
                 Label("PRIMARY SYMPTOMS", systemImage: "exclamationmark.circle")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.purple)
+                    .foregroundStyle(.purple)
             ) {
                 Toggle("Aura", isOn: $hasAura)
                 Toggle("Light Sensitivity", isOn: $hasPhotophobia)
@@ -224,7 +224,7 @@ struct MigraineDetailView: View {
             Section(header: 
                 Label("ADDITIONAL SYMPTOMS", systemImage: "plus.circle")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.purple)
+                    .foregroundStyle(.purple)
             ) {
                 Toggle("Wake-up Headache", isOn: $hasWakeUpHeadache)
                 Toggle("Tinnitus", isOn: $hasTinnitus)
@@ -236,7 +236,7 @@ struct MigraineDetailView: View {
             Section(header:
                 Label("TRIGGERS", systemImage: "bolt.circle")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.orange)
+                    .foregroundStyle(.orange)
             ) {
                 TriggerSelectionView(selection: $triggers)
             }
@@ -246,7 +246,7 @@ struct MigraineDetailView: View {
             Section(header:
                 Label("MEDICATIONS", systemImage: "pills.circle")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.orange)
+                    .foregroundStyle(.orange)
             ) {
                 MedicationSelectionView(selection: $medications)
             }
@@ -256,7 +256,7 @@ struct MigraineDetailView: View {
             Section(header: 
                 Label("IMPACT", systemImage: "chart.bar.fill")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.red)
+                    .foregroundStyle(.red)
             ) {
                 Toggle("Missed Work", isOn: $missedWork)
                 Toggle("Missed School", isOn: $missedSchool)
@@ -271,7 +271,7 @@ struct MigraineDetailView: View {
             Section(header: 
                 Label("NOTES", systemImage: "note.text")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.red)
+                    .foregroundStyle(.red)
             ) {
                 TextEditor(text: $notes)
                     .frame(minHeight: horizontalSizeClass == .regular ? 200 : 100)

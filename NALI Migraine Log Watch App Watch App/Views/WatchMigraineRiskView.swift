@@ -115,15 +115,15 @@ struct WatchMigraineRiskView: View {
                 // Data source indicator
                 if hasFreshSyncedRisk {
                     Label("Synced from iPhone", systemImage: "iphone")
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 9)
+                        .foregroundStyle(.secondary)
                 }
                 
                 // Last updated
                 if let updated = displayLastUpdated {
                     Text("Updated \(updated, style: .relative) ago")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 10)
+                        .foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, 4)
@@ -165,12 +165,12 @@ struct WatchMigraineRiskView: View {
                     // Center content
                     VStack(spacing: 2) {
                         Text("\(displayRiskPercentage)%")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundColor(displayRiskColor)
+                            .scaledFont(size: 24, weight: .bold, design: .rounded)
+                            .foregroundStyle(displayRiskColor)
                         
                         Text(displayRiskLevel)
-                            .font(.system(size: 10, weight: .semibold, design: .rounded))
-                            .foregroundColor(.secondary)
+                            .scaledFont(size: 10, weight: .semibold, design: .rounded)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .padding(.top, 4)
@@ -178,24 +178,24 @@ struct WatchMigraineRiskView: View {
                 // Risk level label with icon
                 HStack(spacing: 4) {
                     Image(systemName: iconForRiskLevel(displayRiskLevel))
-                        .font(.system(size: 12))
-                        .foregroundColor(displayRiskColor)
+                        .scaledFont(size: 12)
+                        .foregroundStyle(displayRiskColor)
                     Text("Migraine Risk")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 12, weight: .medium, design: .rounded)
+                        .foregroundStyle(.secondary)
                 }
             } else {
                 // No data yet
                 VStack(spacing: 8) {
                     Image(systemName: "brain.head.profile")
-                        .font(.system(size: 28))
-                        .foregroundColor(.blue.opacity(0.6))
+                        .scaledFont(size: 28)
+                        .foregroundStyle(.blue.opacity(0.6))
                     Text("No risk data")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 13, weight: .medium)
+                        .foregroundStyle(.secondary)
                     Text("Tap refresh to analyze")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 10)
+                        .foregroundStyle(.secondary)
                 }
                 .frame(height: 100)
             }
@@ -216,19 +216,19 @@ struct WatchMigraineRiskView: View {
     private func topFactorsSection(_ factors: [RiskFactor]) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Top Factors")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundColor(.secondary)
+                .scaledFont(size: 11, weight: .semibold, design: .rounded)
+                .foregroundStyle(.secondary)
             
             ForEach(factors.prefix(3)) { factor in
                 HStack(spacing: 8) {
                     Image(systemName: factor.icon)
-                        .font(.system(size: 12))
-                        .foregroundColor(factor.color)
+                        .scaledFont(size: 12)
+                        .foregroundStyle(factor.color)
                         .frame(width: 16)
                     
                     VStack(alignment: .leading, spacing: 1) {
                         Text(factor.name)
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .scaledFont(size: 12, weight: .medium, design: .rounded)
                             .lineLimit(1)
                         
                         // Mini contribution bar
@@ -260,18 +260,18 @@ struct WatchMigraineRiskView: View {
     private func recommendationsSection(_ recommendations: [String]) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Recommendations")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundColor(.secondary)
+                .scaledFont(size: 11, weight: .semibold, design: .rounded)
+                .foregroundStyle(.secondary)
             
             ForEach(recommendations, id: \.self) { rec in
                 HStack(alignment: .top, spacing: 6) {
                     Image(systemName: "lightbulb.fill")
-                        .font(.system(size: 10))
-                        .foregroundColor(.yellow)
+                        .scaledFont(size: 10)
+                        .foregroundStyle(.yellow)
                         .padding(.top, 2)
                     
                     Text(rec)
-                        .font(.system(size: 11, design: .rounded))
+                        .scaledFont(size: 11, design: .rounded)
                         .lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)
                 }

@@ -22,11 +22,11 @@ struct NeurologicalAssociatesView: View {
                 
                 // Practice Description
                 Text("Neurological Associates of Long Island has been providing comprehensive, compassionate, and innovative neurologic care to our community for over 50 years. Our team of 10 board-certified neurologists covers virtually every aspect of neurologic disease, supported by extensive on-site diagnostic testing, physical therapy, and infusion services. We are also actively engaged in clinical research, investigating novel therapies for a variety of neurologic conditions.")
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .lineSpacing(3)
                 
                 Text("In our continued effort to improve patient outcomes, we have created Headway. This app empowers patients to accurately track their headache symptoms, medications, and triggers, offering a clearer picture for both patients and physicians to guide treatment plans and improve headache management. At Neurological Associates, we remain committed to delivering timely appointments, assisting with insurance complexities, and ensuring every visit is a comfortable and informative experience.")
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .lineSpacing(3)
                 
                 // Horizontal Line
@@ -40,7 +40,7 @@ struct NeurologicalAssociatesView: View {
                 Group {
                     Text("Contact Us")
                         .font(.title2)
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                     
                     Button(action: {
                         openMaps()
@@ -48,36 +48,36 @@ struct NeurologicalAssociatesView: View {
                         VStack(alignment: .leading, spacing: 5) {
                             Text(practiceName)
                                 .fontWeight(.bold)
-                                .foregroundColor(.white)
+                                .foregroundStyle(.white)
                             Text(streetAddress)
-                                .foregroundColor(.white)
+                                .foregroundStyle(.white)
                             Text(suite)
-                                .foregroundColor(.white)
+                                .foregroundStyle(.white)
                             Text(cityStateZip)
-                                .foregroundColor(.white)
+                                .foregroundStyle(.white)
                         }
                     }
                     
                     HStack {
                         Image(systemName: "phone")
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                         Button("Tel: \(phoneNumber)") {
                             callPhone()
                         }
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                     }
                     .padding(.top, 5)
                     
                     HStack {
                         Image(systemName: "printer")
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                         Text("Fax: \(faxNumber)")
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                     }
                     
                     HStack {
                         Image(systemName: "globe")
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                         Link("www.neuroli.com", destination: URL(string: "https://www.neuroli.com")!)
                             .accentColor(.white)
                             .underline()
@@ -115,7 +115,7 @@ struct NeurologicalAssociatesView: View {
 }
 
 #Preview {
-    NavigationView {
+    NavigationStack {
         NeurologicalAssociatesView()
     }
 }

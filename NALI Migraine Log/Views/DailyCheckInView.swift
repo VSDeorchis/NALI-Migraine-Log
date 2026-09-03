@@ -57,7 +57,7 @@ struct DailyCheckInView: View {
                             .frame(maxWidth: .infinity)
                             .padding()
                             .background(Color.green)
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                             .cornerRadius(14)
                     }
                     .padding(.top, 8)
@@ -82,7 +82,7 @@ struct DailyCheckInView: View {
         VStack(spacing: 8) {
             Image(systemName: "checklist.checked")
                 .font(.system(size: 40))
-                .foregroundColor(.green)
+                .foregroundStyle(.green)
             
             Text("How are you feeling today?")
                 .font(.title3)
@@ -90,7 +90,7 @@ struct DailyCheckInView: View {
             
             Text("This information helps improve prediction accuracy.")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
         .padding(.bottom, 8)
@@ -109,7 +109,7 @@ struct DailyCheckInView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label(title, systemImage: icon)
                 .font(.headline)
-                .foregroundColor(color)
+                .foregroundStyle(color)
             
             // Scale buttons
             HStack(spacing: 8) {
@@ -122,7 +122,7 @@ struct DailyCheckInView: View {
                                 .font(.title3)
                                 .fontWeight(.bold)
                             Text(labels[level - 1])
-                                .font(.system(size: 8))
+                                .scaledFont(size: 8)
                                 .lineLimit(1)
                         }
                         .frame(maxWidth: .infinity)
@@ -139,14 +139,14 @@ struct DailyCheckInView: View {
                                         ? color
                                         : Color.clear, lineWidth: 2)
                         )
-                        .foregroundColor(value.wrappedValue == level ? color : .primary)
+                        .foregroundStyle(value.wrappedValue == level ? color : .primary)
                     }
                 }
             }
             
             Text(description)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
         .padding()
         .background(
@@ -161,7 +161,7 @@ struct DailyCheckInView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Caffeine Intake", systemImage: "cup.and.saucer.fill")
                 .font(.headline)
-                .foregroundColor(.brown)
+                .foregroundStyle(.brown)
             
             HStack(spacing: 12) {
                 Button {
@@ -169,7 +169,7 @@ struct DailyCheckInView: View {
                 } label: {
                     Image(systemName: "minus.circle.fill")
                         .font(.title2)
-                        .foregroundColor(.brown)
+                        .foregroundStyle(.brown)
                 }
                 
                 VStack(spacing: 2) {
@@ -177,7 +177,7 @@ struct DailyCheckInView: View {
                         .font(.system(size: 36, weight: .bold, design: .rounded))
                     Text(caffeineIntake == 1 ? "cup" : "cups")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 .frame(width: 80)
                 
@@ -186,14 +186,14 @@ struct DailyCheckInView: View {
                 } label: {
                     Image(systemName: "plus.circle.fill")
                         .font(.title2)
-                        .foregroundColor(.brown)
+                        .foregroundStyle(.brown)
                 }
             }
             .frame(maxWidth: .infinity)
             
             Text(caffeineDescription)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
         .padding()
         .background(

@@ -57,8 +57,8 @@ struct HealthCorrelationsSectionView: View {
                         cycleCard
                     }
                     Text("Tap a card for the full chart and clinical-grade comparison.")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 11)
+                        .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
@@ -152,7 +152,7 @@ struct HealthCorrelationsSectionView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Health Correlations", systemImage: "heart.text.square.fill")
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .scaledFont(size: 17, weight: .semibold, design: .rounded)
                 .foregroundStyle(.teal)
                 .padding(.horizontal, 4)
             content()
@@ -179,14 +179,14 @@ struct HealthCorrelationsSectionView: View {
     private var connectCTA: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Connect Apple Health to see how your sleep and HRV correlate with your migraines.")
-                .font(.system(size: 13))
-                .foregroundColor(.secondary)
+                .scaledFont(size: 13)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Button(action: onConnectTapped) {
                 HStack(spacing: 6) {
                     Image(systemName: "heart.fill")
                     Text("Connect Health")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .scaledFont(size: 14, weight: .semibold, design: .rounded)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
@@ -209,8 +209,8 @@ struct HealthCorrelationsSectionView: View {
     private var reconnectCTA: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Apple Health isn't sharing sleep, HRV, or other samples with Headway. You may have dismissed Apple's permission sheet before scrolling through every category.")
-                .font(.system(size: 13))
-                .foregroundColor(.secondary)
+                .scaledFont(size: 13)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Button {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -220,7 +220,7 @@ struct HealthCorrelationsSectionView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "gear")
                     Text("Open Settings")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .scaledFont(size: 14, weight: .semibold, design: .rounded)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
@@ -244,8 +244,8 @@ struct HealthCorrelationsSectionView: View {
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("No sleep or HRV data was found in this window. Either Apple Health has nothing recorded for these dates, or Sleep and HRV aren't shared with Headway.")
-                .font(.system(size: 13))
-                .foregroundColor(.secondary)
+                .scaledFont(size: 13)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Button {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -255,7 +255,7 @@ struct HealthCorrelationsSectionView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "gear")
                     Text("Check Permissions")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .scaledFont(size: 14, weight: .semibold, design: .rounded)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
@@ -291,19 +291,19 @@ private struct CorrelationCard: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: metric.systemImage)
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(size: 13, weight: .semibold)
                     .foregroundStyle(metric.accent)
                 Text(headline)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 12, weight: .semibold, design: .rounded)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Spacer(minLength: 0)
             }
             
             Text(primaryValue)
-                .font(.system(size: 22, weight: .bold, design: .rounded))
-                .foregroundColor(.primary)
+                .scaledFont(size: 22, weight: .bold, design: .rounded)
+                .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             
@@ -311,8 +311,8 @@ private struct CorrelationCard: View {
                 trendChip(detail)
             } else {
                 Text(subtleNote)
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 10, weight: .medium, design: .rounded)
+                    .foregroundStyle(.secondary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -393,9 +393,9 @@ private struct CorrelationCard: View {
         let color: Color = isAdverse ? .orange : (isBenign ? .green : .secondary)
         return HStack(spacing: 4) {
             Image(systemName: arrow)
-                .font(.system(size: 9, weight: .bold))
+                .scaledFont(size: 9, weight: .bold)
             Text(detail)
-                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .scaledFont(size: 10, weight: .medium, design: .rounded)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -423,20 +423,20 @@ private struct CycleCorrelationCard: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
                 Image(systemName: AnalyticsMetric.cyclePhase.systemImage)
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(size: 13, weight: .semibold)
                     .foregroundStyle(AnalyticsMetric.cyclePhase.accent)
                 Text("Cycle phase distribution")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 12, weight: .semibold, design: .rounded)
+                    .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 11, weight: .semibold)
+                    .foregroundStyle(.secondary)
             }
             
             Text(headline)
-                .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundColor(.primary)
+                .scaledFont(size: 18, weight: .bold, design: .rounded)
+                .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
             
             if let distribution, distribution.totalAnchored > 0 {
@@ -444,8 +444,8 @@ private struct CycleCorrelationCard: View {
                 phaseLegend(distribution: distribution)
             } else {
                 Text("Log a few cycles in Apple Health to see how migraines line up with your phases.")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 11)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -514,8 +514,8 @@ private struct CycleCorrelationCard: View {
                         .fill(Self.phaseColors[phase] ?? .gray)
                         .frame(width: 8, height: 8)
                     Text("\(phase.title) \(pct)%")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundColor(.secondary)
+                        .scaledFont(size: 10, weight: .medium, design: .rounded)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }

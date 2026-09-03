@@ -73,7 +73,7 @@ struct UnitsSettingsView: View {
                 
                 Text("Used for weather data display in migraine entries")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
             
             Section("Pressure") {
@@ -86,7 +86,7 @@ struct UnitsSettingsView: View {
                 
                 Text("Used for barometric pressure display and change indicators")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -111,7 +111,7 @@ struct SyncSettingsView: View {
                     }
                 Text("Sync your migraine data across all your devices using iCloud.")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -146,7 +146,7 @@ struct DataSettingsView: View {
                             .font(.body)
                         Text("Export your complete migraine history to a CSV file for use in spreadsheets or sharing with your physician.")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
                     Button("Export…") {
@@ -182,7 +182,7 @@ struct DataSettingsView: View {
                     Text("Version")
                     Spacer()
                     Text(appVersionString)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
                 let migraineCount = countMigraines()
@@ -190,14 +190,14 @@ struct DataSettingsView: View {
                     Text("Total Entries")
                     Spacer()
                     Text("\(migraineCount)")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 
                 HStack {
                     Text("Data Storage")
                     Spacer()
                     Text("Core Data + iCloud")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
         }

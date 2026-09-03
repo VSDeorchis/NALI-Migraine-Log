@@ -25,10 +25,10 @@ struct AboutView: View {
                             .fontWeight(.bold)
                         Text("M.D., M.S., F.A.A.N.")
                             .font(.title3)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         Text("Board-Certified Neurologist")
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .padding(.bottom, 4)
@@ -60,7 +60,7 @@ struct AboutView: View {
                     
                     Text("All data entered into Headway is stored locally on your device and never transmitted to a third party. Data may optionally be preserved to your personal Apple iCloud account.")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .lineSpacing(3)
 
                     Link(destination: AppContactInfo.privacyPolicyURL) {
@@ -83,14 +83,14 @@ struct AboutView: View {
                     
                     Text("\u{00B9} van Casteren DS, et al. E-diary use in clinical headache practice: A prospective observational study. Cephalalgia. 2021.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .onTapGesture {
                             openURL("https://pubmed.ncbi.nlm.nih.gov/33938248/")
                         }
                     
                     Text("\u{00B2} Minen MT, et al. Headache clinicians\u{2019} perspectives on the remote monitoring of patients\u{2019} electronic diary data: A qualitative study. Headache. 2023.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .onTapGesture {
                             openURL("https://pubmed.ncbi.nlm.nih.gov/37313636/")
                         }
@@ -119,7 +119,7 @@ struct AboutView: View {
                 // Version
                 Text("Ver \(appVersion)")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 8)
             }

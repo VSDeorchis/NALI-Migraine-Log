@@ -130,7 +130,7 @@ struct AppCommands: Commands {
                 Text("⌘,  Settings")
             }
             .font(.caption)
-            .foregroundColor(.secondary)
+            .foregroundStyle(.secondary)
         }
     }
     

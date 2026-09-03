@@ -77,7 +77,7 @@ struct HealthKitPermissionPrimerView: View {
                     VStack(spacing: 12) {
                         Image(systemName: "heart.text.square.fill")
                             .font(.system(size: 56))
-                            .foregroundColor(.pink)
+                            .foregroundStyle(.pink)
                             .accessibilityHidden(true)
 
                         Text("Connect Apple Health")
@@ -87,7 +87,7 @@ struct HealthKitPermissionPrimerView: View {
 
                         Text("Headway can use Apple Health to enrich every migraine you log and improve risk predictions. Everything stays on your device — nothing is sent to a server.")
                             .font(.body)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
                     }
@@ -100,7 +100,7 @@ struct HealthKitPermissionPrimerView: View {
                     VStack(spacing: 8) {
                         HStack(alignment: .top, spacing: 10) {
                             Image(systemName: "arrow.down.circle.fill")
-                                .foregroundColor(.blue)
+                                .foregroundStyle(.blue)
                                 .accessibilityHidden(true)
                             Text("On the next screen, Apple will show a list of toggles. **Please scroll all the way down** and turn on each item you're comfortable sharing — Apple's screen does not fit on most iPhones without scrolling.")
                                 .font(.subheadline)
@@ -115,7 +115,7 @@ struct HealthKitPermissionPrimerView: View {
                         Text("What we read")
                             .font(.subheadline)
                             .fontWeight(.semibold)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .textCase(.uppercase)
                             .padding(.leading, 4)
 
@@ -159,7 +159,7 @@ struct HealthKitPermissionPrimerView: View {
                         Text("What we write")
                             .font(.subheadline)
                             .fontWeight(.semibold)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .textCase(.uppercase)
                             .padding(.leading, 4)
 
@@ -176,11 +176,11 @@ struct HealthKitPermissionPrimerView: View {
                     // framing.
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: "lock.shield.fill")
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .accessibilityHidden(true)
                         Text("You can decline any item now and change your mind later in iOS Settings → Privacy → Health → Headway.")
                             .font(.footnote)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     .padding(.horizontal, 4)
 
@@ -195,7 +195,7 @@ struct HealthKitPermissionPrimerView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
                                 .background(Color.accentColor)
-                                .foregroundColor(.white)
+                                .foregroundStyle(.white)
                                 .clipShape(RoundedRectangle(cornerRadius: 14))
                         }
                         .accessibilityHint("Opens Apple's permission sheet. Scroll all the way down on that screen to see every toggle.")
@@ -204,7 +204,7 @@ struct HealthKitPermissionPrimerView: View {
                             onSkip()
                             dismiss()
                         }
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .padding(.vertical, 8)
                     }
                     .padding(.top, 4)
@@ -227,8 +227,8 @@ struct HealthKitPermissionPrimerView: View {
     ) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(tint)
+                .scaledFont(size: 18, weight: .semibold)
+                .foregroundStyle(tint)
                 .frame(width: 28, height: 28)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
@@ -237,7 +237,7 @@ struct HealthKitPermissionPrimerView: View {
                     .fontWeight(.semibold)
                 Text(detail)
                     .font(.footnote)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
         }

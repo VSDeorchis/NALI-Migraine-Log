@@ -92,18 +92,18 @@ struct WhatsNewView: View {
         VStack(spacing: 8) {
             Image(systemName: "sparkles")
                 .font(.system(size: 40))
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 2)
                 .accessibilityHidden(true)
 
             Text("What\u{2019}s New")
                 .font(.custom("Optima-Bold", size: 32, relativeTo: .largeTitle))
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
 
             Text("Now with Siri & Apple Watch")
                 .font(.custom("Optima-Regular", size: 18, relativeTo: .title3))
                 .multilineTextAlignment(.center)
-                .foregroundColor(.white.opacity(0.9))
+                .foregroundStyle(.white.opacity(0.9))
         }
         .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 2)
     }
@@ -115,18 +115,18 @@ struct WhatsNewView: View {
                     .fill(Color.white.opacity(0.18))
                     .frame(width: 46, height: 46)
                 Image(systemName: feature.symbol)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(.white)
+                    .scaledFont(size: 20, weight: .semibold)
+                    .foregroundStyle(.white)
             }
             .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(feature.title)
                     .font(.custom("Optima-Bold", size: 18, relativeTo: .headline))
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                 Text(feature.detail)
                     .font(.custom("Optima-Regular", size: 15, relativeTo: .subheadline))
-                    .foregroundColor(.white.opacity(0.88))
+                    .foregroundStyle(.white.opacity(0.88))
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -139,7 +139,7 @@ struct WhatsNewView: View {
         Button(action: onDismiss) {
             Text("Got It")
                 .font(.custom("Optima-Bold", size: 18, relativeTo: .headline))
-                .foregroundColor(Color(red: 68/255, green: 130/255, blue: 180/255))
+                .foregroundStyle(Color(red: 68/255, green: 130/255, blue: 180/255))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 15)
                 .background(

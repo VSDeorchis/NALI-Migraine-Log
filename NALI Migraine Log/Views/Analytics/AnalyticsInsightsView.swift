@@ -127,7 +127,7 @@ struct AnalyticsInsightsView: View {
         } else {
             VStack(alignment: .leading, spacing: 12) {
                 Label("Insights", systemImage: "lightbulb.fill")
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .scaledFont(size: 17, weight: .semibold, design: .rounded)
                     .foregroundStyle(.yellow)
                     .padding(.horizontal, 4)
                 
@@ -162,17 +162,17 @@ private struct InsightCardView: View {
                     .fill(insight.tint.opacity(0.15))
                     .frame(width: 36, height: 36)
                 Image(systemName: insight.systemImage)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(insight.tint)
+                    .scaledFont(size: 16, weight: .semibold)
+                    .foregroundStyle(insight.tint)
             }
             
             VStack(alignment: .leading, spacing: 4) {
                 Text(insight.title)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(.primary)
+                    .scaledFont(size: 14, weight: .semibold, design: .rounded)
+                    .foregroundStyle(.primary)
                 Text(insight.detail)
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 13)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             

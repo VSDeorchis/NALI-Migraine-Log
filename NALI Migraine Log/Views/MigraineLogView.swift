@@ -175,7 +175,7 @@ struct MigraineLogView: View {
         HStack(spacing: 12) {
             Button(action: { showingSettings = true }) {
                 Image(systemName: "gear")
-                    .font(.system(size: 20, weight: .medium))
+                    .scaledFont(size: 20, weight: .medium)
                     .foregroundColor(.accentColor)
                     .frame(width: 32, height: 32)
                     .contentShape(Rectangle())
@@ -189,7 +189,7 @@ struct MigraineLogView: View {
             
             Text("History")
                 .font(.system(.headline, design: .rounded, weight: .semibold))
-                .foregroundColor(.primary)
+                .foregroundStyle(.primary)
                 .lineLimit(1)
             
             Spacer(minLength: 8)
@@ -200,7 +200,7 @@ struct MigraineLogView: View {
                 showingNewMigraineSheet = true
             }) {
                 Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 26, weight: .medium))
+                    .scaledFont(size: 26, weight: .medium)
                     .foregroundStyle(Color.accentColor)
                     .frame(width: 32, height: 32)
                     .contentShape(Rectangle())
@@ -614,12 +614,12 @@ struct EmptyMigraineStateView: View {
             // Text
             VStack(spacing: 8) {
                 Text(titleText)
-                    .font(.system(size: 22, weight: .semibold, design: .rounded))
-                    .foregroundColor(.primary)
+                    .scaledFont(size: 22, weight: .semibold, design: .rounded)
+                    .foregroundStyle(.primary)
                 
                 Text(subtitleText)
-                    .font(.system(size: 15))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 15)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
             }
@@ -632,8 +632,8 @@ struct EmptyMigraineStateView: View {
                     onAddTapped()
                 }) {
                     Label("Log Your First Migraine", systemImage: "plus.circle.fill")
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white)
+                        .scaledFont(size: 16, weight: .semibold, design: .rounded)
+                        .foregroundStyle(.white)
                         .padding(.horizontal, 24)
                         .padding(.vertical, 14)
                         .background(
@@ -743,25 +743,25 @@ struct StoreRecoveryBanner: View {
         Button(action: onTap) {
             HStack(spacing: 12) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(.white)
+                    .scaledFont(size: 20, weight: .semibold)
+                    .foregroundStyle(.white)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Database Recovered")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white)
+                        .scaledFont(size: 14, weight: .semibold, design: .rounded)
+                        .foregroundStyle(.white)
 
                     Text("Your previous data was set aside safely. Tap to view recovery options.")
-                        .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.95))
+                        .scaledFont(size: 12)
+                        .foregroundStyle(.white.opacity(0.95))
                         .multilineTextAlignment(.leading)
                 }
 
                 Spacer(minLength: 0)
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.9))
+                    .scaledFont(size: 12, weight: .semibold)
+                    .foregroundStyle(.white.opacity(0.9))
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -828,8 +828,8 @@ struct SearchBar: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(.secondary)
-                .font(.system(size: 16))
+                .foregroundStyle(.secondary)
+                .scaledFont(size: 16)
             
             TextField("Search medications, triggers, or notes", text: $text)
                 .font(.system(.body, design: .rounded))
@@ -841,8 +841,8 @@ struct SearchBar: View {
                     text = ""
                 }) {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
-                        .font(.system(size: 16))
+                        .foregroundStyle(.secondary)
+                        .scaledFont(size: 16)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear search")

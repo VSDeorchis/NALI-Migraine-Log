@@ -28,7 +28,7 @@ struct DisclaimerView: View {
                     
                     Text("iCloud sync enables data synchronization across your devices. Your data remains private and is never shared with third parties.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .padding(.horizontal)
                 }
                 
@@ -44,16 +44,16 @@ struct DisclaimerView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 6) {
                             Image(systemName: "cloud.sun.fill")
-                                .foregroundColor(.blue)
-                                .font(.system(size: 13))
+                                .foregroundStyle(.blue)
+                                .scaledFont(size: 13)
                             Text("Weather Tracking")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(.primary)
+                                .scaledFont(size: 13, weight: .semibold)
+                                .foregroundStyle(.primary)
                         }
                         
                         Text("Your location is used to automatically fetch weather data (temperature, barometric pressure changes) for each migraine entry. This helps identify weather-related triggers.")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                         
                         if enableLocationServices {
@@ -61,17 +61,17 @@ struct DisclaimerView: View {
                                 Text("How It Works")
                                     .font(.caption2)
                                     .fontWeight(.semibold)
-                                    .foregroundColor(.blue)
+                                    .foregroundStyle(.blue)
                                 Text("iOS will ask for your location each time you save a migraine entry. Simply tap 'Allow Once' to automatically fetch weather data. This privacy-first approach keeps you in control.")
                                     .font(.caption2)
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                             .padding(.top, 4)
                         } else {
                             Text("You can enable weather tracking later in Settings.")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -84,7 +84,7 @@ struct DisclaimerView: View {
                 Button("Decline") {
                     dismissAction()
                 }
-                .foregroundColor(.red)
+                .foregroundStyle(.red)
                 
                 Button("Accept") {
                     UserDefaults.standard.set(true, forKey: Constants.hasAcceptedDisclaimer)
@@ -104,14 +104,14 @@ struct DisclaimerView: View {
                         locationManager.requestPermission()
                     }
                 }
-                .foregroundColor(.blue)
+                .foregroundStyle(.blue)
             }
             
             Button("Learn More About Data Storage") {
                 showingSettings = true
             }
             .font(.footnote)
-            .foregroundColor(.blue)
+            .foregroundStyle(.blue)
         }
         .padding()
         .background(Color(.systemBackground))

@@ -294,7 +294,7 @@ struct SettingsView: View {
     /// shipped since v1. Keeps `recoverySection` first so a corrupt-
     /// store notice catches the user's eye before routine settings.
     private var iPhoneBody: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 recoverySection
                 dataSyncSection
@@ -343,7 +343,7 @@ struct SettingsView: View {
                             Text(category.title)
                         } icon: {
                             Image(systemName: category.systemImage)
-                                .foregroundColor(category.tint)
+                                .foregroundStyle(category.tint)
                         }
                     }
                     .tag(category)
@@ -439,7 +439,7 @@ struct SettingsView: View {
             
             Text("When enabled, your data will sync across all your devices using iCloud")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
     }
     
@@ -451,7 +451,7 @@ struct SettingsView: View {
                         .font(.body)
                     Text(locationStatusText)
                         .font(.caption)
-                        .foregroundColor(locationStatusColor)
+                        .foregroundStyle(locationStatusColor)
                 }
                 Spacer()
                 Button(locationButtonText) {
@@ -482,7 +482,7 @@ struct SettingsView: View {
                 } else {
                     Text("Fetches historical weather data for all migraine entries that don't have it. This uses your current location or the location where you logged the migraine.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -496,17 +496,17 @@ struct SettingsView: View {
                 if isBackfilling {
                     Text("Processing \(backfillProgress) of \(backfillTotal)...")
                         .font(.caption)
-                        .foregroundColor(.blue)
+                        .foregroundStyle(.blue)
                 } else {
                     let count = viewModel.migraines.filter { !$0.hasWeatherData }.count
                     if count > 0 {
                         Text("\(count) entries without weather data")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     } else {
                         Text("All entries have weather data")
                             .font(.caption)
-                            .foregroundColor(.green)
+                            .foregroundStyle(.green)
                     }
                 }
             }
@@ -589,11 +589,11 @@ struct SettingsView: View {
                         Text("Migraine Risk Forecasts")
                         Text("Heads-up when upcoming weather matches your patterns.")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 } icon: {
                     Image(systemName: "cloud.bolt.fill")
-                        .foregroundColor(.orange)
+                        .foregroundStyle(.orange)
                 }
             }
             .accessibilityHint("When on, you'll get a push 1–2 hours before any high-risk weather window we detect.")
@@ -607,11 +607,11 @@ struct SettingsView: View {
                         Text("Catch-Up Reminders")
                         Text("Quiet nudge after \(notificationManager.reengagementDays) days without an entry.")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 } icon: {
                     Image(systemName: "bell.badge.fill")
-                        .foregroundColor(.indigo)
+                        .foregroundStyle(.indigo)
                 }
             }
             .accessibilityHint("When on, you'll be reminded once a day after a long gap so your trends stay accurate.")
@@ -713,11 +713,11 @@ struct SettingsView: View {
                                  ? "New entries are saved as Headache samples."
                                  : "Off — Apple Health does not receive your migraines.")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                     } icon: {
                         Image(systemName: "heart.text.square.fill")
-                            .foregroundColor(.pink)
+                            .foregroundStyle(.pink)
                     }
                 }
                 .accessibilityHint("When on, every migraine you save is also written to Apple Health as a Headache entry.")
@@ -731,7 +731,7 @@ struct SettingsView: View {
                                 Text("Sync All Migraines Now")
                             } icon: {
                                 Image(systemName: "arrow.triangle.2.circlepath")
-                                    .foregroundColor(.blue)
+                                    .foregroundStyle(.blue)
                             }
                             Spacer()
                             if isHealthBackfilling {
@@ -768,11 +768,11 @@ struct SettingsView: View {
                                 Text("Manage Apple Health Permissions")
                                 Text("Opens iOS Settings → Headway. Tap Health to change which categories Headway can read or write.")
                                     .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                             }
                         } icon: {
                             Image(systemName: "gear")
-                                .foregroundColor(.gray)
+                                .foregroundStyle(.gray)
                         }
                     }
                     .accessibilityHint("Opens iOS Settings. From there, tap Health to change individual Apple Health permissions for Headway.")
@@ -785,11 +785,11 @@ struct SettingsView: View {
                                 Text("Connect Apple Health")
                                 Text("Let Headway read sleep, HRV, and other context to improve predictions.")
                                     .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                             }
                         } icon: {
                             Image(systemName: "link")
-                                .foregroundColor(.blue)
+                                .foregroundStyle(.blue)
                         }
                     }
                 }
@@ -996,7 +996,7 @@ struct SettingsView: View {
                     .font(.body)
                 Text("\(viewModel.migraines.count) entries available")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
             Spacer()
             if isExporting {
@@ -1042,7 +1042,7 @@ struct SettingsView: View {
                 .accessibilityHint("Hide this section. The backup file remains on disk.")
             } header: {
                 Label("Database Recovered", systemImage: "exclamationmark.shield.fill")
-                    .foregroundColor(.orange)
+                    .foregroundStyle(.orange)
             } footer: {
                 Text("On a recent app launch, the local database file could not be opened and was preserved as a backup. A fresh database has taken its place. Send the backup to support if you need help recovering older entries.")
             }
@@ -1602,16 +1602,16 @@ struct iOS26LocationInfoView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-                    .font(.system(size: 14))
+                    .foregroundStyle(.green)
+                    .scaledFont(size: 14)
                 Text("Weather Tracking Enabled")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.primary)
+                    .scaledFont(size: 13, weight: .semibold)
+                    .foregroundStyle(.primary)
             }
             
             Text("iOS 26 uses 'When I Share' as the standard location permission. Weather tracking works perfectly - you'll see a quick permission prompt when saving new entries.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             
             Divider()
@@ -1632,15 +1632,15 @@ struct iOS26LocationInfoView: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 4) {
                     Image(systemName: "hand.raised.fill")
-                        .foregroundColor(.blue)
-                        .font(.system(size: 12))
+                        .foregroundStyle(.blue)
+                        .scaledFont(size: 12)
                     Text("Privacy First")
                         .font(.caption2)
                         .fontWeight(.semibold)
                 }
                 Text("This is Apple's new privacy-first approach in iOS 26. You stay in control - approve location access only when you need it.")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -1658,11 +1658,11 @@ struct LocationStepRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "\(step).circle.fill")
-                .foregroundColor(.green)
+                .foregroundStyle(.green)
                 .font(.caption)
             Text(text)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
     }
 }
@@ -1672,25 +1672,25 @@ struct WeatherTrackingInfoView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: "cloud.sun.fill")
-                    .foregroundColor(.blue)
-                    .font(.system(size: 14))
+                    .foregroundStyle(.blue)
+                    .scaledFont(size: 14)
                 Text("How Weather Tracking Works")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.primary)
+                    .scaledFont(size: 13, weight: .semibold)
+                    .foregroundStyle(.primary)
             }
             
             Text("Your location is used to fetch historical weather data (temperature, barometric pressure, precipitation) for each migraine entry. This helps identify weather-related triggers like pressure changes, which are a common migraine cause.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             
             HStack(spacing: 6) {
                 Image(systemName: "lock.shield.fill")
-                    .foregroundColor(.green)
-                    .font(.system(size: 12))
+                    .foregroundStyle(.green)
+                    .scaledFont(size: 12)
                 Text("Your location data is only used to fetch weather and is never shared with third parties.")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -1702,16 +1702,16 @@ struct iOS26BackfillInfoView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: "hand.tap.fill")
-                    .foregroundColor(.blue)
-                    .font(.system(size: 14))
+                    .foregroundStyle(.blue)
+                    .scaledFont(size: 14)
                 Text("Add Weather to Past Entries")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.primary)
+                    .scaledFont(size: 13, weight: .semibold)
+                    .foregroundStyle(.primary)
             }
             
             Text("With iOS 26's privacy-first approach, you can add weather data to past entries one at a time. This gives you full control over which entries get weather data.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             
             Divider()
@@ -1732,15 +1732,15 @@ struct iOS26BackfillInfoView: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 4) {
                     Image(systemName: "sparkles")
-                        .foregroundColor(.purple)
-                        .font(.system(size: 12))
+                        .foregroundStyle(.purple)
+                        .scaledFont(size: 12)
                     Text("Pro Tip")
                         .font(.caption2)
                         .fontWeight(.semibold)
                 }
                 Text("Focus on entries where you remember severe symptoms or unusual circumstances. Weather correlation analysis works best with quality data from significant migraine events.")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -1763,7 +1763,7 @@ struct BackfillStepRow: View {
                 .frame(width: 20, alignment: .leading)
             Text(text)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
     }
 }
@@ -1804,16 +1804,16 @@ struct RecoveryFileBanner: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: "externaldrive.badge.checkmark")
-                    .foregroundColor(.orange)
-                    .font(.system(size: 14))
+                    .foregroundStyle(.orange)
+                    .scaledFont(size: 14)
                 Text("Backup Available")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.primary)
+                    .scaledFont(size: 13, weight: .semibold)
+                    .foregroundStyle(.primary)
             }
 
             Text(fileName)
                 .font(.system(.caption, design: .monospaced))
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .lineLimit(2)
                 .truncationMode(.middle)
                 .accessibilityLabel("File name: \(fileName)")
@@ -1822,13 +1822,13 @@ struct RecoveryFileBanner: View {
                 if let formattedDate {
                     Label(formattedDate, systemImage: "clock")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .accessibilityLabel("Recovered \(formattedDate)")
                 }
                 if let formattedSize {
                     Label(formattedSize, systemImage: "doc")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .accessibilityLabel("Size \(formattedSize)")
                 }
             }
@@ -1843,16 +1843,16 @@ struct ExportPrivacyWarningView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.shield.fill")
-                    .foregroundColor(.orange)
-                    .font(.system(size: 14))
+                    .foregroundStyle(.orange)
+                    .scaledFont(size: 14)
                 Text("Privacy Notice")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.primary)
+                    .scaledFont(size: 13, weight: .semibold)
+                    .foregroundStyle(.primary)
             }
             
             Text("Exported data will be unencrypted and may contain sensitive health information including migraine dates, symptoms, medications, and location data.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.vertical, 10)

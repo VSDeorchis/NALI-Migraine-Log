@@ -147,7 +147,7 @@ struct MigraineListView: View {
                 // Entry count
                 Text("\(filteredMigraines.count) entries")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                 
                 Divider()
                 
@@ -193,7 +193,7 @@ struct MigraineListView: View {
                             .font(.system(.body, weight: .medium))
                         Text(startTime, style: .time)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .padding(.vertical, 3)
@@ -207,7 +207,7 @@ struct MigraineListView: View {
                         .frame(width: 10, height: 10)
                     Text("\(migraine.painLevel)")
                         .font(.body.weight(.semibold))
-                        .foregroundColor(painLevelColor(migraine.painLevel))
+                        .foregroundStyle(painLevelColor(migraine.painLevel))
                 }
             }
             .width(min: 50, ideal: 60)
@@ -222,11 +222,11 @@ struct MigraineListView: View {
                 if let text = formattedDuration(for: migraine) {
                     Label(text, systemImage: "clock")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 } else {
                     Text("—")
                         .font(.caption)
-                        .foregroundColor(.secondary.opacity(0.5))
+                        .foregroundStyle(.secondary.opacity(0.5))
                 }
             }
             .width(min: 80, ideal: 100)
@@ -236,11 +236,11 @@ struct MigraineListView: View {
                 if triggers.isEmpty {
                     Text("—")
                         .font(.caption)
-                        .foregroundColor(.secondary.opacity(0.5))
+                        .foregroundStyle(.secondary.opacity(0.5))
                 } else {
                     Text(triggers.joined(separator: ", "))
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
@@ -252,11 +252,11 @@ struct MigraineListView: View {
                 if count > 0 {
                     Text("\(count) symptom\(count == 1 ? "" : "s")")
                         .font(.caption)
-                        .foregroundColor(.purple)
+                        .foregroundStyle(.purple)
                 } else {
                     Text("—")
                         .font(.caption)
-                        .foregroundColor(.secondary.opacity(0.5))
+                        .foregroundStyle(.secondary.opacity(0.5))
                 }
             }
             .width(min: 80, ideal: 100)
@@ -307,35 +307,35 @@ struct MigraineListView: View {
         VStack(spacing: 16) {
             Image(systemName: activeFilter == .all ? "brain.head.profile" : "line.3.horizontal.decrease.circle")
                 .font(.system(size: 48))
-                .foregroundColor(.secondary.opacity(0.5))
+                .foregroundStyle(.secondary.opacity(0.5))
             
             if activeFilter == .all && searchText.isEmpty {
                 Text("No Migraines Logged")
                     .font(.title2.weight(.semibold))
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                 Text("Start tracking your migraines to see patterns\nand receive personalized predictions.")
                     .font(.body)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                 
                 Text("Press ⌘N to log your first entry")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .padding(.top, 8)
             } else if !searchText.isEmpty {
                 Text("No Results")
                     .font(.title2.weight(.semibold))
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                 Text("No migraines match \"\(searchText)\"")
                     .font(.body)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             } else {
                 Text("No Matching Entries")
                     .font(.title2.weight(.semibold))
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                 Text("No migraines match the \"\(activeFilter.rawValue)\" filter.")
                     .font(.body)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -616,13 +616,13 @@ struct MigraineInspectorView: View {
                             .font(.body.weight(.medium))
                         Text(start, style: .time)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     if let end = migraine.endTime {
                         HStack {
                             Text("Ended:")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                             Text(end, style: .time)
                                 .font(.caption)
                         }
@@ -631,7 +631,7 @@ struct MigraineInspectorView: View {
                         HStack {
                             Image(systemName: "clock")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                             Text(dur)
                                 .font(.caption.weight(.medium))
                         }
@@ -642,15 +642,15 @@ struct MigraineInspectorView: View {
                 InspectorSection(title: "Pain", icon: "thermometer") {
                     HStack(spacing: 8) {
                         Text("\(migraine.painLevel)")
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
-                            .foregroundColor(painColor)
+                            .scaledFont(size: 28, weight: .bold, design: .rounded)
+                            .foregroundStyle(painColor)
                         Text("/ 10")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         Spacer()
                         Text(migraine.location ?? "Unknown")
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     
                     // Pain bar
@@ -724,17 +724,17 @@ struct MigraineInspectorView: View {
                             if migraine.missedWork {
                                 Label("Missed Work", systemImage: "briefcase")
                                     .font(.caption)
-                                    .foregroundColor(.red)
+                                    .foregroundStyle(.red)
                             }
                             if migraine.missedSchool {
                                 Label("Missed School", systemImage: "graduationcap")
                                     .font(.caption)
-                                    .foregroundColor(.red)
+                                    .foregroundStyle(.red)
                             }
                             if migraine.missedEvents {
                                 Label("Missed Events", systemImage: "calendar.badge.minus")
                                     .font(.caption)
-                                    .foregroundColor(.red)
+                                    .foregroundStyle(.red)
                             }
                         }
                     }
@@ -745,7 +745,7 @@ struct MigraineInspectorView: View {
                     InspectorSection(title: "Notes", icon: "note.text") {
                         Text(notes)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -878,7 +878,7 @@ struct InspectorSection<Content: View>: View {
         VStack(alignment: .leading, spacing: 8) {
             Label(title, systemImage: icon)
                 .font(.caption.weight(.semibold))
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .textCase(.uppercase)
             content
         }
@@ -893,13 +893,13 @@ struct SearchBar: View {
     var body: some View {
         HStack {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             TextField("Search medications, triggers, or notes", text: $text)
                 .textFieldStyle(.roundedBorder)
             if !text.isEmpty {
                 Button(action: { text = "" }) {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
         }

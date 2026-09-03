@@ -59,11 +59,11 @@ struct MigraineRowView: View {
                     
                     VStack(spacing: 0) {
                         Text("\(migraine.painLevel)")
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
+                            .scaledFont(size: 18, weight: .bold, design: .rounded)
+                            .foregroundStyle(.white)
                         Text("pain")
-                            .font(.system(size: 8, weight: .medium, design: .rounded))
-                            .foregroundColor(.white.opacity(0.9))
+                            .scaledFont(size: 8, weight: .medium, design: .rounded)
+                            .foregroundStyle(.white.opacity(0.9))
                     }
                 }
                 .accessibilityLabel("Pain level \(migraine.painLevel) out of 10, \(painSeverityDescription)")
@@ -72,28 +72,28 @@ struct MigraineRowView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     if let startTime = migraine.startTime {
                         Text(dateFormatter.string(from: startTime))
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(.primary)
+                            .scaledFont(size: 15, weight: .semibold)
+                            .foregroundStyle(.primary)
                     }
                     
                     HStack(spacing: 6) {
                         Image(systemName: "brain.head.profile")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                            .scaledFont(size: 11)
+                            .foregroundStyle(.secondary)
                         Text(migraine.location ?? "Unknown")
-                            .font(.system(size: 13))
-                            .foregroundColor(.secondary)
+                            .scaledFont(size: 13)
+                            .foregroundStyle(.secondary)
                         
                         if let durationText = formattedDuration {
                             Text("·")
-                                .foregroundColor(.secondary)
-                                .font(.system(size: 13))
+                                .foregroundStyle(.secondary)
+                                .scaledFont(size: 13)
                             Image(systemName: "clock")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
+                                .scaledFont(size: 10)
+                                .foregroundStyle(.secondary)
                             Text(durationText)
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                .foregroundColor(.secondary)
+                                .scaledFont(size: 12, weight: .medium, design: .rounded)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -104,12 +104,12 @@ struct MigraineRowView: View {
                 if migraine.hasWeatherData {
                     VStack(spacing: 2) {
                         Image(systemName: weatherIconName)
-                            .font(.system(size: 22))
-                            .foregroundColor(weatherIconColor(for: migraine.weatherCode))
+                            .scaledFont(size: 22)
+                            .foregroundStyle(weatherIconColor(for: migraine.weatherCode))
                         
                         Text(settings.formatTemperature(migraine.weatherTemperature))
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundColor(.secondary)
+                            .scaledFont(size: 11, weight: .medium, design: .rounded)
+                            .foregroundStyle(.secondary)
                     }
                     .accessibilityLabel("Weather: \(WeatherService.weatherCondition(for: Int(migraine.weatherCode))), \(settings.formatTemperature(migraine.weatherTemperature))")
                     .accessibilityHint(weatherAccessibilityHint)
@@ -125,8 +125,8 @@ struct MigraineRowView: View {
                             HStack(spacing: 6) {
                                 ForEach(primarySymptoms, id: \.self) { symptom in
                                     Text(symptom)
-                                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                                        .foregroundColor(.purple)
+                                        .scaledFont(size: 11, weight: .medium, design: .rounded)
+                                        .foregroundStyle(.purple)
                                         .padding(.horizontal, 8)
                                         .padding(.vertical, 4)
                                         .background(Color.purple.opacity(0.12))
@@ -150,12 +150,12 @@ struct MigraineRowView: View {
             if !activeMedications.isEmpty {
                 HStack(spacing: 6) {
                     Image(systemName: "pill.fill")
-                        .font(.system(size: 10))
-                        .foregroundColor(.blue)
+                        .scaledFont(size: 10)
+                        .foregroundStyle(.blue)
                     
                     Text(activeMedications.joined(separator: ", "))
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(.blue)
+                        .scaledFont(size: 11, weight: .medium, design: .rounded)
+                        .foregroundStyle(.blue)
                         .lineLimit(2)
                     
                     Spacer()
@@ -167,8 +167,8 @@ struct MigraineRowView: View {
             if let userNotes = migraine.notes,
                !userNotes.isEmpty {
                 Text(userNotes)
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 12)
+                    .foregroundStyle(.secondary)
                     .lineLimit(2)
                     .padding(.top, 6)
             }
@@ -385,11 +385,11 @@ struct CompactBadge: View {
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
-                .font(.system(size: 10, weight: .semibold))
+                .scaledFont(size: 10, weight: .semibold)
             Text(text)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .scaledFont(size: 11, weight: .semibold, design: .rounded)
         }
-        .foregroundColor(color)
+        .foregroundStyle(color)
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(color.opacity(0.12))
@@ -409,7 +409,7 @@ struct SymptomTag: View {
                 .font(.system(.caption, design: .rounded))
         } icon: {
             Image(systemName: systemImage)
-                .foregroundColor(color)
+                .foregroundStyle(color)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
@@ -462,11 +462,11 @@ struct PressureChangeBadge: View {
     var body: some View {
         HStack(spacing: 3) {
             Image(systemName: pressureChangeHPa > 0 ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
-                .font(.system(size: 12))
+                .scaledFont(size: 12)
             Text(String(format: "%.1f %@", abs(pressureChangeValue), unitSymbol))
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .scaledFont(size: 11, weight: .semibold, design: .rounded)
         }
-        .foregroundColor(color)
+        .foregroundStyle(color)
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(color.opacity(0.15))
