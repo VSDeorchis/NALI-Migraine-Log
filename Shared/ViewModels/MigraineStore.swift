@@ -198,6 +198,7 @@ class MigraineStore: NSObject, ObservableObject {
 
         migrainesWereErased(ids: ids)
         MigrainePredictionService.shared.clearTrainedArtifacts()
+        MigraineDraftStore.clear()
 
         var outcome = DeleteAllOutcome(deletedCount: all.count, deletedIDs: ids)
         if #available(iOS 17.0, watchOS 10.0, *) {

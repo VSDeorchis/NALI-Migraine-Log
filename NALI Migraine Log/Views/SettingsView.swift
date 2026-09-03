@@ -155,6 +155,90 @@ struct SettingsView: View {
         }
     }
     
+    /// Top-level grouping shown on the Settings hub. Each group is a
+    /// fixed list of the existing `SettingsCategory` sections.
+    enum SettingsGroup: Hashable, CaseIterable, Identifiable {
+        case dataPrivacy
+        case integrations
+        case notifications
+        case appearance
+        case about
+
+        var id: Self { self }
+
+        var title: String {
+            switch self {
+            case .dataPrivacy:   return "Data & Privacy"
+            case .integrations:  return "Integrations"
+            case .notifications: return "Notifications"
+            case .appearance:    return "Appearance"
+            case .about:         return "About"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .dataPrivacy:   return "lock.shield"
+            case .integrations:  return "link"
+            case .notifications: return "bell.badge"
+            case .appearance:    return "paintbrush"
+            case .about:         return "info.circle"
+            }
+        }
+
+        var tint: Color {
+            switch self {
+            case .dataPrivacy:   return .blue
+            case .integrations:  return .pink
+            case .notifications: return .red
+            case .appearance:    return .purple
+            case .about:         return .gray
+            }
+        }
+
+        var categories: [SettingsCategory] {
+            switch self {
+            case .dataPrivacy:   return [.sync, .export, .privacy]
+            case .integrations:  return [.health, .weather]
+            case .notifications: return [.notifications]
+            case .appearance:    return [.appearance, .units]
+            case .about:         return [.feedback, .about]
+            }
+        }
+    }
+
+    /// Compact status shown beside a hub row ("On", "Denied", ...).
+    struct StatusChip: View {
+        enum Tone { case positive, neutral, warning }
+        let text: String
+        let tone: Tone
+
+        var body: some View {
+            Text(text)
+                .font(.caption2.weight(.semibold))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(background, in: Capsule())
+                .foregroundStyle(foreground)
+        }
+
+        private var background: Color {
+            switch tone {
+            case .positive: return Color.green.opacity(0.18)
+            case .neutral:  return Color.secondary.opacity(0.15)
+            case .warning:  return Color.orange.opacity(0.2)
+            }
+        }
+
+        private var foreground: Color {
+            switch tone {
+            case .positive: return .green
+            case .neutral:  return .secondary
+            case .warning:  return .orange
+            }
+        }
+    }
+
     enum ExportFormat: String, CaseIterable {
         case csv = "CSV"
         case pdf = "PDF"
@@ -279,12 +363,12 @@ struct SettingsView: View {
             }
             .onAppear {
                 AppLogger.ui.debug("SettingsView appeared; location status raw=\(locationManager.authorizationStatus.rawValue, privacy: .public)")
-                locationManager.refreshAuthorizationStatus()
+                refreshPermissionStatus()
                 refreshRecoveryFileMetadata()
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-                AppLogger.ui.debug("App entering foreground; refreshing location status")
-                locationManager.refreshAuthorizationStatus()
+                AppLogger.ui.debug("App entering foreground; refreshing permission status")
+                refreshPermissionStatus()
                 refreshRecoveryFileMetadata()
             }
     }
@@ -297,21 +381,33 @@ struct SettingsView: View {
     private var iPhoneBody: some View {
         NavigationStack {
             Form {
-                recoverySection
-                dataSyncSection
-                weatherTrackingSection
-                backfillSection
-                unitsSection
-                appearanceSection
-                notificationsSection
-                appleHealthSection
-                exportSection
-                privacySection
-                feedbackSection
-                aboutSection
+                if recoveryFileURL != nil {
+                    recoverySection
+                }
+                Section {
+                    ForEach(SettingsGroup.allCases) { group in
+                        NavigationLink(value: group) {
+                            groupRow(for: group)
+                        }
+                    }
+                } footer: {
+                    Text("Permission status reflects what iOS currently allows. Tap a group to change settings or open the Settings app.")
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: SettingsGroup.self) { group in
+                Form {
+                    if group == .integrations || group == .notifications {
+                        systemSettingsSection
+                    }
+                    ForEach(group.categories) { category in
+                        sectionContent(for: category)
+                    }
+                }
+                .navigationTitle(group.title)
+                .navigationBarTitleDisplayMode(.inline)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") {
@@ -319,6 +415,94 @@ struct SettingsView: View {
                     }
                 }
             }
+        }
+    }
+
+    private func refreshPermissionStatus() {
+        locationManager.refreshAuthorizationStatus()
+        healthKitManager.refreshAuthorizationStatus()
+        Task { await notificationManager.refreshAuthorizationStatus() }
+    }
+
+    private func groupRow(for group: SettingsGroup) -> some View {
+        HStack(spacing: 8) {
+            Label {
+                Text(group.title)
+            } icon: {
+                Image(systemName: group.systemImage)
+                    .foregroundStyle(group.tint)
+            }
+            Spacer()
+            ForEach(statusChips(for: group), id: \.text) { chip in
+                chip
+            }
+        }
+    }
+
+    private func statusChips(for group: SettingsGroup) -> [StatusChip] {
+        switch group {
+        case .dataPrivacy:
+            return [settings.useICloudSync
+                ? StatusChip(text: "iCloud On", tone: .positive)
+                : StatusChip(text: "On Device", tone: .neutral)]
+        case .integrations:
+            return [healthStatusChip, locationStatusChip].compactMap { $0 }
+        case .notifications:
+            switch notificationManager.authorizationStatus {
+            case .authorized, .provisional, .ephemeral:
+                let anyOn = notificationManager.forecastRiskEnabled || notificationManager.reengagementEnabled
+                return [StatusChip(text: anyOn ? "On" : "Allowed", tone: anyOn ? .positive : .neutral)]
+            case .denied:
+                return [StatusChip(text: "Denied", tone: .warning)]
+            case .notDetermined:
+                return [StatusChip(text: "Not Set", tone: .neutral)]
+            @unknown default:
+                return []
+            }
+        case .appearance:
+            return [StatusChip(text: settings.colorScheme.rawValue, tone: .neutral)]
+        case .about:
+            return []
+        }
+    }
+
+    private var healthStatusChip: StatusChip? {
+        guard healthKitManager.isAvailable else { return nil }
+        if healthKitManager.isWriteAccessRevoked {
+            return StatusChip(text: "Health Revoked", tone: .warning)
+        }
+        if healthKitManager.isHealthSyncEnabled {
+            return StatusChip(text: "Health On", tone: .positive)
+        }
+        return StatusChip(text: "Health Off", tone: .neutral)
+    }
+
+    private var locationStatusChip: StatusChip? {
+        switch locationManager.authorizationStatus {
+        case .authorizedAlways, .authorizedWhenInUse:
+            return StatusChip(text: "Location On", tone: .positive)
+        case .denied, .restricted:
+            return StatusChip(text: "Location Off", tone: .warning)
+        case .notDetermined:
+            return nil
+        @unknown default:
+            return nil
+        }
+    }
+
+    /// Deep link into this app's page in the Settings app, where iOS keeps
+    /// the permission switches we cannot flip ourselves.
+    private var systemSettingsSection: some View {
+        Section {
+            Button {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            } label: {
+                Label("Open Headway in Settings", systemImage: "gear")
+            }
+        } footer: {
+            Text("Location, notification and Health permissions are managed by iOS.")
         }
     }
     
@@ -338,16 +522,15 @@ struct SettingsView: View {
                     if let value = newValue { selectedCategory = value }
                 }
             )) {
-                ForEach(visibleCategories) { category in
-                    NavigationLink(value: category) {
-                        Label {
-                            Text(category.title)
-                        } icon: {
-                            Image(systemName: category.systemImage)
-                                .foregroundStyle(category.tint)
+                if recoveryFileURL != nil {
+                    sidebarRow(for: .recovery)
+                }
+                ForEach(SettingsGroup.allCases) { group in
+                    Section(group.title) {
+                        ForEach(group.categories) { category in
+                            sidebarRow(for: category)
                         }
                     }
-                    .tag(category)
                 }
             }
             .navigationTitle("Settings")
@@ -364,25 +547,16 @@ struct SettingsView: View {
         }
     }
     
-    /// The visible category list adapts to runtime state — `.recovery`
-    /// only appears when there's an active backup file on disk so users
-    /// without one don't get a confusing "Database Recovery" entry.
-    private var visibleCategories: [SettingsCategory] {
-        var cats: [SettingsCategory] = []
-        if recoveryFileURL != nil { cats.append(.recovery) }
-        cats.append(contentsOf: [
-            .sync,
-            .weather,
-            .notifications,
-            .health,
-            .appearance,
-            .units,
-            .export,
-            .privacy,
-            .feedback,
-            .about,
-        ])
-        return cats
+    private func sidebarRow(for category: SettingsCategory) -> some View {
+        NavigationLink(value: category) {
+            Label {
+                Text(category.title)
+            } icon: {
+                Image(systemName: category.systemImage)
+                    .foregroundStyle(category.tint)
+            }
+        }
+        .tag(category)
     }
     
     @ViewBuilder
@@ -392,31 +566,36 @@ struct SettingsView: View {
         // version. Forms inside a NavigationSplitView detail column
         // pick up the standard grouped style automatically.
         Form {
-            switch category {
-            case .recovery:
-                recoverySection
-            case .sync:
-                dataSyncSection
-            case .weather:
-                weatherTrackingSection
-                backfillSection
-            case .notifications:
-                notificationsSection
-            case .health:
-                appleHealthSection
-            case .appearance:
-                appearanceSection
-            case .units:
-                unitsSection
-            case .export:
-                exportSection
-            case .privacy:
-                privacySection
-            case .feedback:
-                feedbackSection
-            case .about:
-                aboutSection
-            }
+            sectionContent(for: category)
+        }
+    }
+
+    @ViewBuilder
+    private func sectionContent(for category: SettingsCategory) -> some View {
+        switch category {
+        case .recovery:
+            recoverySection
+        case .sync:
+            dataSyncSection
+        case .weather:
+            weatherTrackingSection
+            backfillSection
+        case .notifications:
+            notificationsSection
+        case .health:
+            appleHealthSection
+        case .appearance:
+            appearanceSection
+        case .units:
+            unitsSection
+        case .export:
+            exportSection
+        case .privacy:
+            privacySection
+        case .feedback:
+            feedbackSection
+        case .about:
+            aboutSection
         }
     }
     

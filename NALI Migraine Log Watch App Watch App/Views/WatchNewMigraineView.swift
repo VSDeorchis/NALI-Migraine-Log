@@ -1,197 +1,410 @@
 import SwiftUI
 import CoreData
 
+/// Three-page quick-log form: pain, the wearer's four most-used
+/// triggers/symptoms, save. Everything else lives behind "More".
 struct WatchNewMigraineView: View {
     @ObservedObject var viewModel: MigraineViewModel
     @Environment(\.dismiss) var dismiss
-    
-    @State private var startTime = Date()
-    @State private var endTime: Date?
-    @State private var painLevel: Int16 = 5
-    @State private var location = "Frontal"
-    @State private var selectedTriggers: Set<MigraineTrigger> = []
-    @State private var hasAura = false
-    @State private var hasPhotophobia = false
-    @State private var hasPhonophobia = false
-    @State private var hasNausea = false
-    @State private var hasVomiting = false
-    @State private var hasWakeUpHeadache = false
-    @State private var hasTinnitus = false
-    @State private var hasVertigo = false
-    @State private var missedWork = false
-    @State private var missedSchool = false
-    @State private var missedEvents = false
-    @State private var selectedMedications: Set<MigraineMedication> = []
+
+    @State private var draft = MigraineDraft(
+        startTime: Date(),
+        endTime: nil,
+        painLevel: 5,
+        location: "Frontal",
+        notes: nil
+    )
     @State private var currentSection = 0
-    @State private var notes = ""
+    @State private var quickPicks: [QuickPick] = QuickPick.defaults
+    @State private var showingMore = false
+    @State private var saveState: SaveState = .idle
 
-    private let locations = ["Frontal", "Temporal", "Occipital", "Orbital", "Whole Head"]
-
-    // Watch keeps the full list of triggers from the iOS form.
-    private let triggers: [MigraineTrigger] = MigraineTrigger.allCases
-
-    // Curated subset for the smaller Watch screen. Order matches the original
-    // Watch UI; "Advil" is preserved as a Watch-only label that maps to the
-    // shared `.ibuprofin` case (same underlying drug, same Core Data field).
-    private let medications: [MigraineMedication] = [
-        .sumatriptan, .rizatriptan, .frovatriptan, .naratriptan,
-        .ubrelvy, .nurtec, .symbravo,
-        .tylenol, .ibuprofin, .excedrin, .other
-    ]
-
-    private func watchLabel(for medication: MigraineMedication) -> String {
-        medication == .ibuprofin ? "Advil" : medication.displayName
+    enum SaveState: Equatable {
+        case idle, saving, failed, saved
     }
-    
-    private let totalSections = 7
-    
-    private var sectionTitle: String {
-        switch currentSection {
-        case 0: return "Pain & Location"
-        case 1: return "Triggers"
-        case 2: return "Symptoms"
-        case 3: return "Impact"
-        case 4: return "Medications"
-        case 5: return "Notes"
-        case 6: return "Save"
-        default: return ""
-        }
-    }
-    
+
+    private let totalSections = 3
+
     var body: some View {
         TabView(selection: $currentSection) {
-            // Pain Details Section
-            VStack(spacing: 8) {
-                StepIndicator(current: 0, total: totalSections)
-                
-                Text("Pain Level: \(painLevel)")
-                    .font(.headline)
-                
-                Picker("Pain Level", selection: $painLevel) {
-                    ForEach(1...10, id: \.self) { level in
-                        Text("\(level)")
-                            .tag(level)
-                    }
-                }
-                .labelsHidden()
-                
-                Picker("Location", selection: $location) {
-                    ForEach(locations, id: \.self) { location in
-                        Text(location)
-                            .tag(location)
-                    }
-                }
-                .labelsHidden()
-            }
-            .tag(0)
-            
-            // Triggers Section
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    StepIndicator(current: 1, total: totalSections)
-                    ForEach(triggers) { trigger in
-                        Toggle(trigger.displayName, isOn: Binding(
-                            get: { selectedTriggers.contains(trigger) },
-                            set: { isSelected in
-                                if isSelected {
-                                    selectedTriggers.insert(trigger)
-                                } else {
-                                    selectedTriggers.remove(trigger)
-                                }
-                            }
-                        ))
-                    }
-                }
-                .padding()
-            }
-            .tag(1)
-            
-            // Symptoms Section
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    StepIndicator(current: 2, total: totalSections)
-                    Toggle("Aura", isOn: $hasAura)
-                    Toggle("Light Sensitivity", isOn: $hasPhotophobia)
-                    Toggle("Sound Sensitivity", isOn: $hasPhonophobia)
-                    Toggle("Nausea", isOn: $hasNausea)
-                    Toggle("Vomiting", isOn: $hasVomiting)
-                    Toggle("Wake up Headache", isOn: $hasWakeUpHeadache)
-                    Toggle("Tinnitus", isOn: $hasTinnitus)
-                    Toggle("Vertigo/Dysequilibrium", isOn: $hasVertigo)
-                }
-                .padding()
-            }
-            .tag(2)
-            
-            // Quality of Life Section
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    StepIndicator(current: 3, total: totalSections)
-                    Toggle("Missed Work", isOn: $missedWork)
-                    Toggle("Missed School", isOn: $missedSchool)
-                    Toggle("Missed Events", isOn: $missedEvents)
-                }
-                .padding()
-            }
-            .tag(3)
-            
-            // Medications Section
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    StepIndicator(current: 4, total: totalSections)
-                    ForEach(medications) { medication in
-                        Toggle(watchLabel(for: medication), isOn: Binding(
-                            get: { selectedMedications.contains(medication) },
-                            set: { isSelected in
-                                if isSelected {
-                                    selectedMedications.insert(medication)
-                                } else {
-                                    selectedMedications.remove(medication)
-                                }
-                            }
-                        ))
-                    }
-                }
-                .padding()
-            }
-            .tag(4)
-            
-            // Notes Section
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    StepIndicator(current: 5, total: totalSections)
-                    Text("Notes")
-                        .font(.headline)
-                    TextField("Add notes here", text: $notes)
-                        .font(.body)
-                }
-                .padding()
-            }
-            .tag(5)
-            
-            // Save Button
-            VStack(spacing: 12) {
-                StepIndicator(current: 6, total: totalSections)
-                
-                Button("Save Entry") {
-                    saveMigraine()
-                }
-                .buttonStyle(.bordered)
-                .tint(.blue)
-                .font(.title3)
-            }
+            painPage.tag(0)
+            quickPicksPage.tag(1)
+            savePage.tag(2)
         }
         .tabViewStyle(.page)
         .navigationTitle("New Entry")
+        .interactiveDismissDisabled(saveState == .saving)
+        .sheet(isPresented: $showingMore) {
+            WatchMigraineDetailsForm(draft: $draft)
+        }
+        .sensoryFeedback(.success, trigger: saveState) { _, new in new == .saved }
+        .sensoryFeedback(.error, trigger: saveState) { _, new in new == .failed }
+        .onAppear {
+            quickPicks = QuickPick.personal(from: viewModel.migraines)
+        }
     }
-    
+
+    // MARK: Pages
+
+    private var painPage: some View {
+        VStack(spacing: 8) {
+            StepIndicator(current: 0, total: totalSections)
+
+            Text("Pain Level: \(draft.painLevel)")
+                .font(.headline)
+
+            Picker("Pain Level", selection: $draft.painLevel) {
+                ForEach(Int16(1)...Int16(10), id: \.self) { level in
+                    Text("\(level)").tag(level)
+                }
+            }
+            .labelsHidden()
+            .accessibilityLabel("Pain level")
+            .accessibilityValue("\(draft.painLevel) of 10")
+        }
+    }
+
+    private var quickPicksPage: some View {
+        ScrollView {
+            VStack(spacing: 8) {
+                StepIndicator(current: 1, total: totalSections)
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
+                    ForEach(quickPicks) { pick in
+                        QuickPickButton(
+                            title: pick.displayName,
+                            isOn: pick.isSelected(in: draft)
+                        ) {
+                            pick.toggle(in: &draft)
+                        }
+                    }
+                }
+
+                Button {
+                    showingMore = true
+                } label: {
+                    Label(moreLabel, systemImage: "ellipsis.circle")
+                        .font(.footnote)
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(.horizontal, 4)
+        }
+    }
+
+    private var moreLabel: String {
+        let extra = draft.detailCount(excluding: quickPicks)
+        return extra == 0 ? "More…" : "More… (\(extra))"
+    }
+
+    private var savePage: some View {
+        VStack(spacing: 10) {
+            StepIndicator(current: 2, total: totalSections)
+
+            switch saveState {
+            case .saving:
+                ProgressView("Saving…")
+
+            case .failed:
+                Label("Couldn't save", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .font(.footnote)
+                Text("Your entry is still here.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Button("Try Again") { saveMigraine() }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue)
+
+            case .idle, .saved:
+                Text(summary)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                Button("Save Entry") { saveMigraine() }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue)
+                    .font(.title3)
+                    .disabled(saveState == .saved)
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private var summary: String {
+        let count = draft.detailCount(excluding: [])
+        let details = count == 1 ? "1 detail" : "\(count) details"
+        return "Pain \(draft.painLevel)/10 · \(details)"
+    }
+
+    // MARK: Save
+
+    private func saveMigraine() {
+        guard saveState != .saving else { return }
+        saveState = .saving
+        let draft = draft
+        Task { @MainActor in
+            let saved = await viewModel.addMigraine(
+                startTime: draft.startTime,
+                endTime: draft.endTime,
+                painLevel: draft.painLevel,
+                location: draft.location,
+                triggers: draft.triggers,
+                hasAura: draft.hasAura,
+                hasPhotophobia: draft.hasPhotophobia,
+                hasPhonophobia: draft.hasPhonophobia,
+                hasNausea: draft.hasNausea,
+                hasVomiting: draft.hasVomiting,
+                hasWakeUpHeadache: draft.hasWakeUpHeadache,
+                hasTinnitus: draft.hasTinnitus,
+                hasVertigo: draft.hasVertigo,
+                missedWork: draft.missedWork,
+                missedSchool: draft.missedSchool,
+                missedEvents: draft.missedEvents,
+                medications: draft.medications,
+                notes: draft.notes?.isEmpty == false ? draft.notes : nil
+            )
+            guard saved != nil else {
+                saveState = .failed
+                return
+            }
+            saveState = .saved
+            try? await Task.sleep(for: .milliseconds(350))
+            dismiss()
+        }
+    }
+}
+
+// MARK: - Quick picks
+
+/// A trigger or symptom that can be toggled with one tap.
+enum QuickPick: Hashable, Identifiable {
+    case trigger(MigraineTrigger)
+    case symptom(WatchSymptom)
+
+    var id: String {
+        switch self {
+        case .trigger(let t): return "trigger.\(t.rawValue)"
+        case .symptom(let s): return "symptom.\(s.rawValue)"
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .trigger(let t): return t.displayName
+        case .symptom(let s): return s.displayName
+        }
+    }
+
+    func isSelected(in draft: MigraineDraft) -> Bool {
+        switch self {
+        case .trigger(let t): return draft.triggers.contains(t)
+        case .symptom(let s): return draft[keyPath: s.keyPath]
+        }
+    }
+
+    func toggle(in draft: inout MigraineDraft) {
+        switch self {
+        case .trigger(let t):
+            if draft.triggers.contains(t) { draft.triggers.remove(t) } else { draft.triggers.insert(t) }
+        case .symptom(let s):
+            draft[keyPath: s.keyPath].toggle()
+        }
+    }
+
+    static let defaults: [QuickPick] = [
+        .trigger(.stress), .trigger(.lackOfSleep),
+        .symptom(.photophobia), .symptom(.nausea)
+    ]
+
+    /// The four picks the wearer has logged most often, falling back to
+    /// `defaults` when history is thin.
+    static func personal(from migraines: [MigraineEvent], count: Int = 4) -> [QuickPick] {
+        var tally: [QuickPick: Int] = [:]
+        for migraine in migraines {
+            for trigger in migraine.triggers { tally[.trigger(trigger), default: 0] += 1 }
+            for symptom in WatchSymptom.allCases where migraine[keyPath: symptom.eventKeyPath] {
+                tally[.symptom(symptom), default: 0] += 1
+            }
+        }
+        let ranked = tally
+            .filter { $0.value > 0 }
+            .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key.id < $1.key.id }
+            .map(\.key)
+        var picks = Array(ranked.prefix(count))
+        for fallback in defaults where picks.count < count && !picks.contains(fallback) {
+            picks.append(fallback)
+        }
+        return picks
+    }
+}
+
+enum WatchSymptom: String, CaseIterable, Hashable {
+    case aura, photophobia, phonophobia, nausea, vomiting, wakeUpHeadache, tinnitus, vertigo
+
+    var displayName: String {
+        switch self {
+        case .aura: return "Aura"
+        case .photophobia: return "Light Sensitivity"
+        case .phonophobia: return "Sound Sensitivity"
+        case .nausea: return "Nausea"
+        case .vomiting: return "Vomiting"
+        case .wakeUpHeadache: return "Wake-up Headache"
+        case .tinnitus: return "Tinnitus"
+        case .vertigo: return "Vertigo"
+        }
+    }
+
+    var keyPath: WritableKeyPath<MigraineDraft, Bool> {
+        switch self {
+        case .aura: return \.hasAura
+        case .photophobia: return \.hasPhotophobia
+        case .phonophobia: return \.hasPhonophobia
+        case .nausea: return \.hasNausea
+        case .vomiting: return \.hasVomiting
+        case .wakeUpHeadache: return \.hasWakeUpHeadache
+        case .tinnitus: return \.hasTinnitus
+        case .vertigo: return \.hasVertigo
+        }
+    }
+
+    var eventKeyPath: KeyPath<MigraineEvent, Bool> {
+        switch self {
+        case .aura: return \.hasAura
+        case .photophobia: return \.hasPhotophobia
+        case .phonophobia: return \.hasPhonophobia
+        case .nausea: return \.hasNausea
+        case .vomiting: return \.hasVomiting
+        case .wakeUpHeadache: return \.hasWakeUpHeadache
+        case .tinnitus: return \.hasTinnitus
+        case .vertigo: return \.hasVertigo
+        }
+    }
+}
+
+extension MigraineDraft {
+    /// Number of non-default details set, ignoring `excluded` quick picks
+    /// so the "More…" badge only counts what isn't visible on the grid.
+    func detailCount(excluding excluded: [QuickPick]) -> Int {
+        var count = 0
+        for trigger in triggers where !excluded.contains(.trigger(trigger)) { count += 1 }
+        for symptom in WatchSymptom.allCases where self[keyPath: symptom.keyPath] && !excluded.contains(.symptom(symptom)) {
+            count += 1
+        }
+        count += medications.count
+        count += [missedWork, missedSchool, missedEvents].filter { $0 }.count
+        if notes?.isEmpty == false { count += 1 }
+        return count
+    }
+}
+
+private struct QuickPickButton: View {
+    let title: String
+    let isOn: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.caption2)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, minHeight: 36)
+        }
+        .buttonStyle(.bordered)
+        .tint(isOn ? .blue : .gray)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+}
+
+// MARK: - Full form ("More…")
+
+struct WatchMigraineDetailsForm: View {
+    @Binding var draft: MigraineDraft
+    @Environment(\.dismiss) private var dismiss
+
+    private let locations = ["Frontal", "Temporal", "Occipital", "Orbital", "Whole Head"]
+
+    @State private var favorites = MedicationFavorites.shared
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Location") {
+                    Picker("Location", selection: $draft.location) {
+                        ForEach(locations, id: \.self) { Text($0).tag($0) }
+                    }
+                }
+
+                Section("Triggers") {
+                    ForEach(MigraineTrigger.allCases) { trigger in
+                        Toggle(trigger.displayName, isOn: setBinding($draft.triggers, trigger))
+                    }
+                }
+
+                Section("Symptoms") {
+                    ForEach(WatchSymptom.allCases, id: \.self) { symptom in
+                        Toggle(symptom.displayName, isOn: $draft[dynamicMember: symptom.keyPath])
+                    }
+                }
+
+                Section("Impact") {
+                    Toggle("Missed Work", isOn: $draft.missedWork)
+                    Toggle("Missed School", isOn: $draft.missedSchool)
+                    Toggle("Missed Events", isOn: $draft.missedEvents)
+                }
+
+                Section("Medications") {
+                    ForEach(favorites.orderedMedications) { medication in
+                        Toggle(isOn: setBinding($draft.medications, medication)) {
+                            VStack(alignment: .leading) {
+                                Text(medication.genericName)
+                                if let brand = medication.brandNames.first {
+                                    Text(brand)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Section("Notes") {
+                    TextField("Add notes", text: notesBinding)
+                }
+            }
+            .navigationTitle("Details")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private var notesBinding: Binding<String> {
+        Binding(
+            get: { draft.notes ?? "" },
+            set: { draft.notes = $0.isEmpty ? nil : $0 }
+        )
+    }
+
+    private func setBinding<T: Hashable>(_ set: Binding<Set<T>>, _ element: T) -> Binding<Bool> {
+        Binding(
+            get: { set.wrappedValue.contains(element) },
+            set: { isOn in
+                if isOn { set.wrappedValue.insert(element) } else { set.wrappedValue.remove(element) }
+            }
+        )
+    }
 }
 
 // MARK: - Step Indicator for Watch
 struct StepIndicator: View {
     let current: Int
     let total: Int
-    
+
     var body: some View {
         HStack(spacing: 4) {
             ForEach(0..<total, id: \.self) { index in
@@ -204,32 +417,3 @@ struct StepIndicator: View {
         .padding(.bottom, 2)
     }
 }
-
-// MARK: - Save Logic
-extension WatchNewMigraineView {
-    func saveMigraine() {
-        Task {
-            await viewModel.addMigraine(
-                startTime: startTime,
-                endTime: endTime,
-                painLevel: painLevel,
-                location: location,
-                triggers: selectedTriggers,
-                hasAura: hasAura,
-                hasPhotophobia: hasPhotophobia,
-                hasPhonophobia: hasPhonophobia,
-                hasNausea: hasNausea,
-                hasVomiting: hasVomiting,
-                hasWakeUpHeadache: hasWakeUpHeadache,
-                hasTinnitus: hasTinnitus,
-                hasVertigo: hasVertigo,
-                missedWork: missedWork,
-                missedSchool: missedSchool,
-                missedEvents: missedEvents,
-                medications: selectedMedications,
-                notes: notes.isEmpty ? nil : notes
-            )
-            dismiss()
-        }
-    }
-} 
