@@ -32,7 +32,8 @@
 //  CALL SITES
 //  ──────────────────────────────────────────────────────────────────────
 //  The primer is currently presented from:
-//      • `NewMigraineView` (the first migraine the user logs)
+//      • `NALI_Migraine_LogApp` (first launch, once the main UI is up)
+//      • `NewMigraineView` (first entry, if Health was never asked)
 //      • `SettingsView` → Apple Health → "Connect Apple Health"
 //
 //  It is intentionally NOT presented from `MigraineRiskView`, which has

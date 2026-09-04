@@ -42,6 +42,10 @@ struct NALI_Migraine_LogApp: App {
     /// by `WhatsNew` so it shows once per release and never to a
     /// brand-new install.
     @State private var showingWhatsNew = false
+    /// First-launch "Connect Apple Health" primer. Shown once the main UI
+    /// is visible and only while Health has never been asked; skipping
+    /// stamps the request flag so the user is routed via Settings after.
+    @State private var showingHealthKitPrimer = false
     @Environment(\.scenePhase) private var scenePhase
     let persistenceController = PersistenceController.shared
     
@@ -144,10 +148,31 @@ struct NALI_Migraine_LogApp: App {
                             showingWhatsNew = false
                         })
                     }
+                    // Location's system alert waits until the Health flow
+                    // (primer + Apple's sheet) is finished so the two
+                    // prompts never stack on top of each other.
+                    .sheet(isPresented: $showingHealthKitPrimer) {
+                        HealthKitPermissionPrimerView(
+                            onContinue: {
+                                Task { @MainActor in
+                                    await HealthKitManager.shared.requestAuthorization()
+                                    locationManager.requestPermission()
+                                }
+                            },
+                            onSkip: {
+                                HealthKitManager.shared.markAuthorizationRequested()
+                                locationManager.requestPermission()
+                            }
+                        )
+                        .interactiveDismissDisabled()
+                    }
+                    .onChange(of: showingWhatsNew) { _, isShowing in
+                        if !isShowing {
+                            presentHealthKitPrimerIfNeeded()
+                        }
+                    }
                     .onAppear {
                         AppLogger.ui.debug("Main TabView appeared")
-                        // Request location permission on first launch
-                        locationManager.requestPermission()
                         // Surface the What's New sheet to upgrading users
                         // once the main UI is visible (post-splash).
                         // `launchCount` is @MainActor; onAppear already runs
@@ -156,6 +181,8 @@ struct NALI_Migraine_LogApp: App {
                         MainActor.assumeIsolated {
                             if WhatsNew.shouldPresentOnLaunch(launchCount: ReviewPromptCoordinator.launchCount) {
                                 showingWhatsNew = true
+                            } else {
+                                presentHealthKitPrimerIfNeeded()
                             }
                         }
                     }
@@ -170,6 +197,18 @@ struct NALI_Migraine_LogApp: App {
         }
         .onChange(of: scenePhase) { _, newPhase in
             handleScenePhaseChange(newPhase)
+        }
+    }
+
+    /// Shows the Health primer to anyone who has never been asked (new
+    /// installs, and upgraders who never opened a new entry). Otherwise
+    /// falls straight through to the location permission request.
+    private func presentHealthKitPrimerIfNeeded() {
+        let healthKit = HealthKitManager.shared
+        if healthKit.isAvailable && !healthKit.hasRequestedAuthorization {
+            showingHealthKitPrimer = true
+        } else {
+            locationManager.requestPermission()
         }
     }
 
