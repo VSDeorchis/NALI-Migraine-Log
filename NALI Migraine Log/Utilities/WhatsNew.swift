@@ -20,7 +20,7 @@ import Foundation
 enum WhatsNew {
     /// Bump this whenever there's a new announcement to show. The string
     /// is opaque — only equality matters.
-    static let currentRelease = "siri-and-watch-2026.06"
+    static let currentRelease = "watch-cycle-settings-2026.09"
 
     /// Injectable for tests; production uses `.standard`.
     static var defaults: UserDefaults = .standard

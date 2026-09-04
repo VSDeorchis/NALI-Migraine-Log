@@ -17,28 +17,53 @@ struct WhatsNewView: View {
     /// presentation.
     let onDismiss: () -> Void
 
+    @ObservedObject private var healthKit = HealthKitManager.shared
+
     private struct Feature: Identifiable {
         let id = UUID()
         let symbol: String
         let title: String
         let detail: String
+        var cycleRelated = false
     }
 
-    private let features: [Feature] = [
-        Feature(
-            symbol: "mic.fill",
-            title: "Hands-free logging",
-            detail: "Just say \u{201C}Hey Siri, log a migraine in Headway\u{201D} \u{2014} optionally with a pain level \u{2014} and it\u{2019}s saved instantly, no tapping."
-        ),
-        Feature(
-            symbol: "square.and.pencil",
-            title: "Open straight to a new entry",
-            detail: "Say \u{201C}Open a new migraine entry in Headway\u{201D} to jump right to the full form when you want to add details."
-        ),
+    /// Cycle-aware insights are never offered when Health lists the user
+    /// as male, so the announcement omits that row for them as well.
+    private var features: [Feature] {
+        Self.allFeatures.filter { !$0.cycleRelated || healthKit.cycleEligibility != .excluded }
+    }
+
+    private static let allFeatures: [Feature] = [
         Feature(
             symbol: "applewatch",
-            title: "Now on Apple Watch",
-            detail: "Log a migraine or open a new entry with Siri right from your wrist \u{2014} even when your phone isn\u{2019}t handy."
+            title: "Three-tap logging on Apple Watch",
+            detail: "Pain level, your usual triggers and symptoms, save. Entries appear on your iPhone right away, and edits on either device stay in sync."
+        ),
+        Feature(
+            symbol: "drop.fill",
+            title: "Cycle-aware insights (optional)",
+            detail: "If you track your cycle in Apple Health, entries near the start of a period are tagged and your risk forecast accounts for it. Turn it on in Settings \u{203A} Apple Health \u{2014} cycle data never leaves your iPhone.",
+            cycleRelated: true
+        ),
+        Feature(
+            symbol: "slider.horizontal.3",
+            title: "Settings, reorganized",
+            detail: "Data & Privacy, Integrations, Notifications, Appearance, and About \u{2014} with the status of each permission and a one-tap link to fix it."
+        ),
+        Feature(
+            symbol: "pills.fill",
+            title: "Clearer medications",
+            detail: "Listed as generic (Brand), with the ones you use most pinned to the top. A gentle tap confirms every save, and half-finished entries are kept as drafts."
+        ),
+        Feature(
+            symbol: "chart.bar.xaxis",
+            title: "Statistics you can hear",
+            detail: "Every chart supports VoiceOver Audio Graphs, empty screens explain what\u{2019}s coming, and the whole app respects your preferred text size."
+        ),
+        Feature(
+            symbol: "lock.shield.fill",
+            title: "Privacy and reliability",
+            detail: "Sturdier weather and location lookups, stronger on-device protection for exports and prediction data, and \u{201C}Delete All Data\u{201D} now clears everything Headway created."
         )
     ]
 
@@ -100,7 +125,9 @@ struct WhatsNewView: View {
                 .font(.custom("Optima-Bold", size: 32, relativeTo: .largeTitle))
                 .foregroundStyle(.white)
 
-            Text("Now with Siri & Apple Watch")
+            Text(healthKit.cycleEligibility == .excluded
+                 ? "Faster Watch logging, a new Settings hub & more"
+                 : "Faster Watch logging, cycle-aware insights & more")
                 .font(.custom("Optima-Regular", size: 18, relativeTo: .title3))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.white.opacity(0.9))
