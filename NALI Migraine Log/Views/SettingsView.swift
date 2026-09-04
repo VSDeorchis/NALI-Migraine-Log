@@ -946,6 +946,20 @@ struct SettingsView: View {
                         }
                     }
                     .accessibilityHint("When on, Headway uses your Cycle Tracking data from Apple Health to tag migraines that occur around the start of a period and to factor that window into your risk score. Nothing is written to Health or shared.")
+                } else if healthKitManager.hasRequestedAuthorization,
+                          healthKitManager.cycleEligibility == .undetermined {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Cycle-Aware Insights (not available yet)")
+                            Text("To turn these on later, open Health → profile → Apps → Headway and allow Sex and Cycle Tracking, or add your sex under Health Details. The toggle appears here once Headway can read it.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "drop")
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityElement(children: .combine)
                 }
 
                 if healthKitManager.isHealthSyncEnabled {
@@ -1022,7 +1036,7 @@ struct SettingsView: View {
             } header: {
                 Text("Apple Health")
             } footer: {
-                Text("Headway reads sleep, heart-rate variability, resting heart rate, step count, and (optionally) menstrual cycle samples to enrich each migraine entry and improve risk predictions. Cycle-aware features are only offered when Apple Health lists your sex as female or you already track cycles in Health; they stay on this device and are never synced to Apple Watch or included in exports. With the mirror toggle above on, Headway also writes your logged migraines back as Headache samples (pain 1–3 → Mild, 4–6 → Moderate, 7–10 → Severe). Everything stays on your device. Change permissions anytime via Manage Apple Health Permissions above, or via Health → Sharing → Apps → Headway.")
+                Text("Headway reads sleep, heart-rate variability, resting heart rate, step count, and (optionally) menstrual cycle samples to enrich each migraine entry and improve risk predictions. Cycle-aware features are only offered when Apple Health lists your sex as female or you already track cycles in Health (if you skipped sharing Sex, allow it later in Health → Apps → Headway); they stay on this device and are never synced to Apple Watch or included in exports. With the mirror toggle above on, Headway also writes your logged migraines back as Headache samples (pain 1–3 → Mild, 4–6 → Moderate, 7–10 → Severe). Everything stays on your device. Change permissions anytime via Manage Apple Health Permissions above, or via Health → Sharing → Apps → Headway.")
             }
             .alert("Apple Health Sync", isPresented: $showingHealthBackfillAlert) {
                 Button("OK", role: .cancel) {}
