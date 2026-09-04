@@ -487,10 +487,16 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         }
     }
 
-    /// Handles a counterpart's request for fresh data.
+    /// Handles a counterpart's request for fresh data. On iOS this also
+    /// recomputes and pushes the current risk score, so a Watch that has
+    /// just launched gets the phone's weather/Health-aware number without
+    /// the user opening the Predict tab.
     func handleSyncRequest() {
         flushPendingChanges(forceTombstones: true)
         sendSnapshot()
+        #if os(iOS)
+        Task { await RiskSyncCoordinator.refreshFromStore() }
+        #endif
     }
 }
 

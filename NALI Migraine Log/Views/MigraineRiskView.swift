@@ -695,50 +695,7 @@ struct MigraineRiskView: View {
             lastRefresh = Date()
         }
         
-        // 1. Fetch weather forecast
-        var weatherSnapshot: WeatherSnapshot?
-        if let coords = locationManager.currentCoordinates {
-            do {
-                let forecast = try await forecastService.fetchForecast(
-                    latitude: coords.latitude,
-                    longitude: coords.longitude
-                )
-                weatherSnapshot = forecastService.currentWeatherSnapshot()
-                
-                // Generate 24h forecast
-                _ = predictionService.generate24HourForecast(
-                    migraines: viewModel.migraines,
-                    forecastHours: forecast,
-                    healthData: healthKit.latestSnapshot,
-                    dailyCheckIn: DailyCheckInData.loadToday()
-                )
-            } catch {
-                AppLogger.prediction.error("Forecast fetch failed: \(error.localizedDescription, privacy: .private)")
-            }
-        }
-        
-        // 2. Fetch HealthKit data. `isAuthorized` is in-memory only and
-        // resets on cold launch, so for users who previously granted we
-        // first rehydrate (no UI; Apple no-ops the call once the user
-        // has decided) before deciding to skip the fetch.
-        var healthData: HealthKitSnapshot?
-        if !healthKit.isAuthorized && healthKit.hasRequestedAuthorization {
-            await healthKit.rehydrateAuthorizationStatus()
-        }
-        if healthKit.isAuthorized {
-            healthData = await healthKit.fetchSnapshot()
-        }
-        
-        // 3. Calculate risk
-        let riskScore = await predictionService.calculateRiskScore(
-            migraines: viewModel.migraines,
-            currentWeather: weatherSnapshot,
-            healthData: healthData,
-            dailyCheckIn: DailyCheckInData.loadToday()
-        )
-        
-        // 4. Send computed risk to Apple Watch so both show the same value
-        WatchConnectivityManager.shared.sendRiskScore(riskScore)
+        await RiskSyncCoordinator.refresh(migraines: viewModel.migraines, force: true)
     }
     
     private func formatHour(_ hour: Int) -> String {
