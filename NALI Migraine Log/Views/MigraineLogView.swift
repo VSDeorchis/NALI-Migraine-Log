@@ -69,11 +69,15 @@ struct MigraineLogView: View {
             refreshRecoveryBannerVisibility()
             considerShowingReviewPrompt()
         }
+        .task {
+            await refreshCycleContext()
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             // A recovery may have happened while we were backgrounded
             // (e.g. CloudKit pull triggered a store reload that failed).
             refreshRecoveryBannerVisibility()
             considerShowingReviewPrompt()
+            Task { await refreshCycleContext() }
         }
         // Clear the inline detail when the underlying entry is deleted
         // out from under us (only meaningful on iPad — `.sheet(item:)`
@@ -435,6 +439,15 @@ struct MigraineLogView: View {
         // queued the prompt (or decided to suppress it because it's
         // already shown its annual quota). Either way our work is done.
         requestReview()
+    }
+
+    /// Refreshes the (in-memory) cycle-start cache that drives the
+    /// perimenstrual badges. No-ops entirely for excluded/ineligible users.
+    private func refreshCycleContext() async {
+        let healthKit = HealthKitManager.shared
+        guard healthKit.isAuthorized else { return }
+        await healthKit.refreshCycleEligibility()
+        await healthKit.refreshCycleStarts()
     }
 
     /// Reads `PersistenceController.lastRecoveryFileDefaultsKey` from

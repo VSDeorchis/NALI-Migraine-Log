@@ -22,12 +22,11 @@
 //  + `isAuthorized`, so the store happily produces empty stats on
 //  devices without HealthKit (Mac, Simulator without permission, etc).
 //
-//  Cycle gating: we *never* ask the user "are you female?". Instead we
-//  probe HealthKit for any menstrual-flow history in the past 365 days
-//  on the first load — if none exists, `cycleAvailability` becomes
-//  `.notTracked` and the cycle card hides entirely. This mirrors how
-//  Apple's Cycle Tracking surfaces work and avoids a clinically
-//  inaccurate, exclusionary identity gate.
+//  Cycle gating is delegated to `HealthKitManager.isCycleInsightsActive`:
+//  the HealthKit biological-sex characteristic must not be male, users
+//  without a recorded sex must actually log menstrual flow, and the
+//  Settings toggle must be on. When any of those fail the cycle card
+//  hides entirely and no menstrual samples are fetched.
 //
 
 import Foundation
@@ -90,13 +89,12 @@ enum HealthCorrelationStatus: Equatable {
     case empty            // authorized but no samples in the window
 }
 
-/// Whether the user appears to track menstrual data. Determined by
-/// probing `menstrualFlow` history once on first load — never by
-/// asking the user about sex or gender.
+/// Whether cycle analytics can be shown, mirroring
+/// `HealthKitManager.isCycleInsightsActive` at the time of the last load.
 enum CycleAvailability: Equatable {
     case unknown      // haven't probed yet
-    case notTracked   // no menstrual samples logged in HealthKit at all
-    case available    // user logs flow in HealthKit
+    case notTracked   // excluded by sex, no flow history, or toggle off
+    case available    // eligible, tracks flow, and toggle on
 }
 
 /// Clinical phase a given cycle day falls into. Boundaries follow the
@@ -148,9 +146,12 @@ struct CycleAnchoredMigraine: Identifiable, Hashable {
     let cycleDay: Int
     var phase: CyclePhase { CyclePhase.phase(forCycleDay: cycleDay) }
     /// `true` when this migraine fell in the perimenstrual window —
-    /// days 26+ of the prior cycle or days 1-3 of the current cycle —
-    /// the band most associated with estrogen-withdrawal migraine.
-    var isPerimenstrual: Bool { cycleDay >= 26 || cycleDay <= 3 }
+    /// the two days before a flow start through the two days after
+    /// (see `PerimenstrualWindow`). Because `cycleDay` is anchored to
+    /// the *most recent* start, the "two days before" side is only
+    /// known when the following start has been logged.
+    let perimenstrualOffset: Int?
+    var isPerimenstrual: Bool { perimenstrualOffset != nil }
 }
 
 /// Aggregated cycle-phase distribution for the migraines that fell on
@@ -198,9 +199,8 @@ final class HealthCorrelationStore: ObservableObject {
     /// the chart annotations stay in sync with the loaded sample window.
     @Published private(set) var migraineOnsets: [Date] = []
     
-    /// Whether the user appears to track menstrual flow in Apple
-    /// Health. Probed once (lazily) and cached — drives whether the
-    /// cycle card surfaces at all on the dashboard.
+    /// Whether cycle analytics may be shown (see file header). Drives
+    /// whether the cycle card surfaces at all on the dashboard.
     @Published private(set) var cycleAvailability: CycleAvailability = .unknown
     
     /// Per-phase distribution of migraine onsets in the current window,
@@ -279,12 +279,10 @@ final class HealthCorrelationStore: ObservableObject {
         
         status = .loading
         
-        // Probe menstrual history once per app launch. Subsequent
-        // loads in the same session reuse the answer.
-        if cycleAvailability == .unknown {
-            let hasHistory = await manager.hasAnyMenstrualHistory()
-            cycleAvailability = hasHistory ? .available : .notTracked
-        }
+        // Sex/history gate + Settings toggle live on the manager; it
+        // throttles its own HealthKit reads so this is cheap to repeat.
+        await manager.refreshCycleEligibility()
+        cycleAvailability = manager.isCycleInsightsActive ? .available : .notTracked
         
         // Capture before kicking off concurrent fetches so the closures
         // don't reach back into the actor-isolated state.
@@ -348,7 +346,8 @@ final class HealthCorrelationStore: ObservableObject {
         // fingerprint — good enough since migraines are append-mostly.
         let count = migraines.count
         let latest = migraines.compactMap { $0.startTime?.timeIntervalSince1970 }.max() ?? 0
-        return "\(start)-\(end)-\(count)-\(Int(latest))"
+        let cycle = HealthKitManager.shared.isCycleInsightsActive ? 1 : 0
+        return "\(start)-\(end)-\(count)-\(Int(latest))-\(cycle)"
     }
     
     // MARK: - Pure computations (testable, no HealthKit dependency)
@@ -463,7 +462,15 @@ final class HealthCorrelationStore: ObservableObject {
             let dayOffset = cal.dateComponents([.day], from: priorStart, to: onsetDay).day ?? -1
             guard dayOffset >= 0, dayOffset < maxAnchorGap else { continue }
             anchored.append(
-                CycleAnchoredMigraine(onset: onset, cycleDay: dayOffset + 1)
+                CycleAnchoredMigraine(
+                    onset: onset,
+                    cycleDay: dayOffset + 1,
+                    perimenstrualOffset: PerimenstrualWindow.dayOffset(
+                        for: onsetDay,
+                        cycleStarts: cycleStarts,
+                        calendar: cal
+                    )
+                )
             )
         }
         return anchored

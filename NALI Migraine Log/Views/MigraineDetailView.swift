@@ -4,8 +4,16 @@ import CoreData
 struct MigraineDetailView: View {
     let migraine: MigraineEvent
     @ObservedObject var viewModel: MigraineViewModel
+    @ObservedObject private var healthKit = HealthKitManager.shared
     private let settings = SettingsManager.shared
     let dismiss: () -> Void
+    
+    /// Perimenstrual offset for the entry as originally logged (uses the
+    /// stored start time, not the in-progress edit).
+    private var perimenstrualOffset: Int? {
+        guard let start = migraine.startTime else { return nil }
+        return healthKit.perimenstrualDayOffset(for: start)
+    }
     
     /// Drives the iPad-friendly notes-editor height. Apple Pencil
     /// Scribble works automatically inside `TextEditor`; the only
@@ -170,6 +178,27 @@ struct MigraineDetailView: View {
                 }
             }
             .listRowBackground(Color(.systemGray6).opacity(0.5))
+            
+            if let offset = perimenstrualOffset {
+                Section(header:
+                    Label("MENSTRUAL CYCLE", systemImage: "drop.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.pink)
+                ) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            PerimenstrualBadge(offset: offset)
+                            Spacer()
+                        }
+                        Text("Based on your Cycle Tracking data in Apple Health, this entry fell within two days of the start of a period — a window in which migraines are more common for many people. This is context, not a diagnosis; discuss patterns with your clinician.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, 4)
+                }
+                .listRowBackground(Color(.systemGray6).opacity(0.5))
+            }
             
             // Pain Details Section
             Section(header: 

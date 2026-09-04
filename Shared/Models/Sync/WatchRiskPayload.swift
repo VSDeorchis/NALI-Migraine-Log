@@ -33,15 +33,24 @@ struct WatchRiskPayload: Codable, Equatable, Sendable {
     init(riskScore: MigraineRiskScore, now: Date = Date()) {
         riskPercentage = riskScore.riskPercentage
         riskLevel = riskScore.riskLevel.rawValue
-        factors = riskScore.topFactors.prefix(Self.maxFactors).map {
-            Factor(
-                name: $0.name,
-                contribution: $0.contribution,
-                icon: $0.icon,
-                detail: String($0.detail.prefix(Self.maxDetailLength))
-            )
-        }
-        recommendations = Array(riskScore.recommendations.prefix(Self.maxRecommendations))
+        // Reproductive-health context never leaves the phone; the
+        // overall percentage still reflects it.
+        factors = riskScore.topFactors
+            .filter { !$0.isSensitive }
+            .prefix(Self.maxFactors)
+            .map {
+                Factor(
+                    name: $0.name,
+                    contribution: $0.contribution,
+                    icon: $0.icon,
+                    detail: String($0.detail.prefix(Self.maxDetailLength))
+                )
+            }
+        recommendations = Array(
+            riskScore.recommendations
+                .filter { !PerimenstrualWindow.sensitiveRecommendations.contains($0) }
+                .prefix(Self.maxRecommendations)
+        )
         confidence = riskScore.confidence
         timestamp = now
     }

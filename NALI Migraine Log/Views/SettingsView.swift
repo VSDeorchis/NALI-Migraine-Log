@@ -917,6 +917,37 @@ struct SettingsView: View {
                     .accessibilityElement(children: .combine)
                 }
 
+                // Offered only when Health says the user is not male and
+                // (if sex is unrecorded) cycle history actually exists.
+                if healthKitManager.isCycleInsightsAvailable {
+                    Toggle(isOn: Binding(
+                        get: { healthKitManager.isCycleInsightsEnabled },
+                        set: { newValue in
+                            healthKitManager.isCycleInsightsEnabled = newValue
+                            if newValue {
+                                Task { @MainActor in
+                                    await healthKitManager.refreshCycleStarts(force: true)
+                                }
+                            }
+                        }
+                    )) {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Cycle-Aware Insights")
+                                Text(healthKitManager.isCycleInsightsEnabled
+                                     ? "Entries near the start of a period are tagged, and the risk score notes the days around menses."
+                                     : "Off — cycle data from Health is not used.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "drop.fill")
+                                .foregroundStyle(.pink)
+                        }
+                    }
+                    .accessibilityHint("When on, Headway uses your Cycle Tracking data from Apple Health to tag migraines that occur around the start of a period and to factor that window into your risk score. Nothing is written to Health or shared.")
+                }
+
                 if healthKitManager.isHealthSyncEnabled {
                     Button {
                         Task { await performHealthBackfill() }
@@ -991,7 +1022,7 @@ struct SettingsView: View {
             } header: {
                 Text("Apple Health")
             } footer: {
-                Text("Headway reads sleep, heart-rate variability, resting heart rate, step count, and (optionally) menstrual cycle samples to enrich each migraine entry and improve risk predictions. With the toggle above on, Headway also writes your logged migraines back as Headache samples (pain 1–3 → Mild, 4–6 → Moderate, 7–10 → Severe). Everything stays on your device. Change permissions anytime via Manage Apple Health Permissions above, or via Health → Sharing → Apps → Headway.")
+                Text("Headway reads sleep, heart-rate variability, resting heart rate, step count, and (optionally) menstrual cycle samples to enrich each migraine entry and improve risk predictions. Cycle-aware features are only offered when Apple Health lists your sex as female or you already track cycles in Health; they stay on this device and are never synced to Apple Watch or included in exports. With the mirror toggle above on, Headway also writes your logged migraines back as Headache samples (pain 1–3 → Mild, 4–6 → Moderate, 7–10 → Severe). Everything stays on your device. Change permissions anytime via Manage Apple Health Permissions above, or via Health → Sharing → Apps → Headway.")
             }
             .alert("Apple Health Sync", isPresented: $showingHealthBackfillAlert) {
                 Button("OK", role: .cancel) {}
@@ -1012,6 +1043,11 @@ struct SettingsView: View {
             }
             .onAppear {
                 healthKitManager.refreshAuthorizationStatus()
+            }
+            .task {
+                if healthKitManager.isAuthorized {
+                    await healthKitManager.refreshCycleEligibility()
+                }
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
