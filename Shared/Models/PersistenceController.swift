@@ -143,6 +143,18 @@ public final class PersistenceController: ObservableObject {
             for (key, value) in storeOptions {
                 description.setOption(value, forKey: key)
             }
+
+            #if os(iOS) || os(watchOS)
+            // Store + WAL/SHM are encrypted at rest and inaccessible until the
+            // first unlock after boot. Stronger classes would make the store
+            // unopenable when background refresh or CloudKit relaunch the app
+            // on a locked device, and a failed open here ends in the
+            // move-aside recovery below.
+            description.setOption(
+                FileProtectionType.completeUntilFirstUserAuthentication.rawValue as NSString,
+                forKey: NSPersistentStoreFileProtectionKey
+            )
+            #endif
             
             // Enable CloudKit sync unless the user has explicitly opted out
             // (see `headwayICloudSyncEnabled`, which defaults ON) so the app

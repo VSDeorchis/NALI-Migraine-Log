@@ -1291,7 +1291,7 @@ struct AnalyticsMetricDetailView: View {
         var counts: [Date: Int] = [:]
         for migraine in migraines {
             guard let start = migraine.startTime else { continue }
-            let monthStart = cal.date(from: cal.dateComponents([.year, .month], from: start))!
+            guard let monthStart = cal.date(from: cal.dateComponents([.year, .month], from: start)) else { continue }
             counts[monthStart, default: 0] += 1
         }
         return counts.map { MonthlyPoint(month: $0.key, count: $0.value) }

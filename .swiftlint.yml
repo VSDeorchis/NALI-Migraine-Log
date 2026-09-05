@@ -1,0 +1,74 @@
+# SwiftLint policy for Headway. Deliberately narrow: this exists to stop
+# the classes of defect the review passes kept finding (crash-on-nil,
+# crash-on-throw, health data in stdout), not to enforce a house style.
+# Run locally with `swiftlint` from the repo root; CI runs the same config.
+
+included:
+  - NALI Migraine Log
+  - NALI Migraine Log Watch App Watch App
+  - NALI Migraine Log macOS
+  - Shared
+
+excluded:
+  - "**/Preview Content"
+
+disabled_rules:
+  - line_length
+  - file_length
+  - type_body_length
+  - function_body_length
+  - function_parameter_count
+  - cyclomatic_complexity
+  - identifier_name
+  - type_name
+  - nesting
+  - todo
+  - trailing_whitespace
+  - trailing_comma
+  - opening_brace
+  - large_tuple
+  - multiple_closures_with_trailing_closure
+  - for_where
+  - redundant_string_enum_value
+  - shorthand_operator
+  - vertical_whitespace
+  - statement_position
+  - comment_spacing
+  - unused_closure_parameter
+  - closure_parameter_position
+  - void_function_in_ternary
+  - non_optional_string_data_conversion
+  - inclusive_language
+  - implicit_optional_initialization
+  - orphaned_doc_comment
+  - blanket_disable_command
+  - superfluous_disable_command
+  - comma
+  - trailing_newline
+
+opt_in_rules:
+  - force_unwrapping
+
+# Crashes and data leaks are errors; everything else stays a warning.
+force_unwrapping:
+  severity: error
+force_try:
+  severity: error
+force_cast:
+  severity: error
+
+custom_rules:
+  no_print:
+    name: "No print()"
+    regex: '(^|[^\w.])print\('
+    match_kinds:
+      - identifier
+    message: "Use AppLogger (os.Logger with privacy annotations) instead of print(); stdout is not redacted."
+    severity: error
+  no_nslog:
+    name: "No NSLog()"
+    regex: '(^|[^\w.])NSLog\('
+    match_kinds:
+      - identifier
+    message: "Use AppLogger instead of NSLog(); it is not redacted."
+    severity: error

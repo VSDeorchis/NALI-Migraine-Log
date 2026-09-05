@@ -104,7 +104,9 @@ struct MigraineDetailView: View {
                         // Time Details
                         Group {
                             DetailSection(title: "Time") {
-                                Text("Start: \(migraine.startTime!, style: .date) \(migraine.startTime!, style: .time)")
+                                if let startTime = migraine.startTime {
+                                    Text("Start: \(startTime, style: .date) \(startTime, style: .time)")
+                                }
                                 if let endTime = migraine.endTime {
                                     Text("End: \(endTime, style: .date) \(endTime, style: .time)")
                                     if let dur = duration {

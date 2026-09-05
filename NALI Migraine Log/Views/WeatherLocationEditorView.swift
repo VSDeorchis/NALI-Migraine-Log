@@ -21,12 +21,12 @@ struct WeatherLocationEditorView: View {
         
         // Initialize with existing location or current location
         if migraine.hasWeatherData {
-            _latitude = State(initialValue: String(format: "%.4f", migraine.weatherLatitude))
-            _longitude = State(initialValue: String(format: "%.4f", migraine.weatherLongitude))
+            _latitude = State(initialValue: String(format: "%.2f", migraine.weatherLatitude))
+            _longitude = State(initialValue: String(format: "%.2f", migraine.weatherLongitude))
             _useCurrentLocation = State(initialValue: false)
         } else if let coords = LocationManager.shared.currentCoordinates {
-            _latitude = State(initialValue: String(format: "%.4f", coords.latitude))
-            _longitude = State(initialValue: String(format: "%.4f", coords.longitude))
+            _latitude = State(initialValue: String(format: "%.2f", coords.latitude))
+            _longitude = State(initialValue: String(format: "%.2f", coords.longitude))
         } else {
             _latitude = State(initialValue: "")
             _longitude = State(initialValue: "")
@@ -54,7 +54,7 @@ struct WeatherLocationEditorView: View {
                             Text("Location")
                                 .foregroundStyle(.secondary)
                             Spacer()
-                            Text(String(format: "%.4f, %.4f", migraine.weatherLatitude, migraine.weatherLongitude))
+                            Text(String(format: "%.2f, %.2f", migraine.weatherLatitude, migraine.weatherLongitude))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -68,22 +68,22 @@ struct WeatherLocationEditorView: View {
                     Toggle("Use Current Location", isOn: $useCurrentLocation)
                         .onChange(of: useCurrentLocation) { _, newValue in
                             if newValue, let coords = locationManager.currentCoordinates {
-                                latitude = String(format: "%.4f", coords.latitude)
-                                longitude = String(format: "%.4f", coords.longitude)
+                                latitude = String(format: "%.2f", coords.latitude)
+                                longitude = String(format: "%.2f", coords.longitude)
                             }
                         }
                     
                     if !useCurrentLocation {
                         HStack {
                             Text("Latitude")
-                            TextField("e.g., 40.7128", text: $latitude)
+                            TextField("e.g., 40.71", text: $latitude)
                                 .keyboardType(.decimalPad)
                                 .multilineTextAlignment(.trailing)
                         }
                         
                         HStack {
                             Text("Longitude")
-                            TextField("e.g., -74.0060", text: $longitude)
+                            TextField("e.g., -74.01", text: $longitude)
                                 .keyboardType(.decimalPad)
                                 .multilineTextAlignment(.trailing)
                         }

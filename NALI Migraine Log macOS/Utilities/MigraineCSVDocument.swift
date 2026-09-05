@@ -43,13 +43,9 @@ struct MigraineCSVDocument: FileDocument {
                 m.symptomNames.joined(separator: "; "),
                 m.notes ?? ""
             ]
-            csv += fields.map(quote).joined(separator: ",") + "\n"
+            csv += CSVField.row(fields)
         }
         return csv
-    }
-
-    private static func quote(_ field: String) -> String {
-        "\"" + field.replacingOccurrences(of: "\"", with: "\"\"") + "\""
     }
 }
 

@@ -45,8 +45,8 @@ class FeatureExtractor {
                 max(0, now.timeIntervalSince(lastDate) / 86_400)
         }
         
-        let sevenDaysAgo  = calendar.date(byAdding: .day, value: -7, to: now)!
-        let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: now)!
+        let sevenDaysAgo  = calendar.date(byAdding: .day, value: -7, to: now) ?? now
+        let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: now) ?? now
         
         features.migrainesInLast7Days  = sorted.filter { $0 >= sevenDaysAgo }.count
         features.migrainesInLast30Days = sorted.filter { $0 >= thirtyDaysAgo }.count

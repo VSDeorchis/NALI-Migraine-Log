@@ -7,7 +7,7 @@
 //  registered upgrade steps for the transition.
 //
 //  ──────────────────────────────────────────────────────────────────────
-//  WHY THIS EXISTS (the registry is intentionally empty today)
+//  WHY THIS EXISTS
 //  ──────────────────────────────────────────────────────────────────────
 //  Core Data lightweight migration handles SCHEMA changes for free, but
 //  there is a separate class of release that needs a one-time DATA pass:
@@ -17,10 +17,7 @@
 //      • Re-bucket old enum values that have been split or renamed.
 //      • Wipe a UserDefaults flag that's no longer meaningful.
 //
-//  None of those are needed for the current release. We're shipping the
-//  hook anyway so the FIRST release that needs one can land it as a
-//  one-line edit to `upgradeSteps` instead of having to wire up version
-//  detection under deadline pressure.
+//  Each of those lands as one entry in `upgradeSteps`.
 //
 //  ──────────────────────────────────────────────────────────────────────
 //  CONTRACT
@@ -71,10 +68,7 @@ struct UpgradeStep {
 enum MigrationCoordinator {
     // MARK: - Tunable surface
 
-    /// Append to this list to register a new data backfill.
-    ///
-    /// Example template (deliberately commented out — there are no
-    /// upgrade steps for the next release):
+    /// Append to this list to register a new data backfill, e.g.
     ///
     /// ```swift
     /// UpgradeStep(
@@ -90,7 +84,35 @@ enum MigrationCoordinator {
     ///     }
     /// )
     /// ```
-    private static let upgradeSteps: [UpgradeStep] = []
+    private static let upgradeSteps: [UpgradeStep] = [
+        UpgradeStep(
+            id: "v3.01-coarsen-weather-coordinates",
+            appliesWhen: { from, _ in
+                from.compare("3.01", options: .numeric) == .orderedAscending
+            },
+            perform: coarsenStoredWeatherCoordinates
+        )
+    ]
+
+    static func upgradeStep(id: String) -> UpgradeStep? {
+        upgradeSteps.first { $0.id == id }
+    }
+
+    /// Entries saved before 3.01 carry the raw GPS fix (~1 m). Rounds them
+    /// to the two decimals the weather lookup actually uses so the store,
+    /// iCloud and exports no longer hold street-level positions.
+    static func coarsenStoredWeatherCoordinates(in context: NSManagedObjectContext) throws {
+        let request: NSFetchRequest<MigraineEvent> = MigraineEvent.fetchRequest()
+        request.predicate = NSPredicate(format: "weatherLatitude != 0 OR weatherLongitude != 0")
+        for event in try context.fetch(request) {
+            let latitude = OpenMeteo.coarseCoordinate(event.weatherLatitude)
+            let longitude = OpenMeteo.coarseCoordinate(event.weatherLongitude)
+            if latitude != event.weatherLatitude || longitude != event.weatherLongitude {
+                event.weatherLatitude = latitude
+                event.weatherLongitude = longitude
+            }
+        }
+    }
 
     // MARK: - Persisted launch state
 

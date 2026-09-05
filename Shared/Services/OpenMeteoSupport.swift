@@ -10,10 +10,17 @@
 import Foundation
 
 enum OpenMeteo {
-    /// Rounds to ~1 km so URLs (and cache keys) never carry more precision
-    /// than the weather model resolves.
+    /// Weather models resolve ~1 km at best, so two decimals is all the
+    /// precision the app ever needs. Rounding here (rather than at the URL
+    /// only) keeps street-level coordinates out of the store, iCloud and
+    /// anything derived from them.
+    static func coarseCoordinate(_ value: Double) -> Double {
+        guard value.isFinite else { return value }
+        return (value * 100).rounded() / 100
+    }
+
     static func coordinateString(_ value: Double) -> String {
-        String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), value)
+        String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), coarseCoordinate(value))
     }
 
     static func validate(latitude: Double, longitude: Double) throws {

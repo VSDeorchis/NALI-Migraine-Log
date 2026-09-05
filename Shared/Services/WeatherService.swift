@@ -144,7 +144,7 @@ class WeatherService: ObservableObject {
     
     // MARK: - Private Methods
     
-    nonisolated private static func createSnapshot(from weatherData: WeatherData, targetDate: Date) throws -> WeatherSnapshot {
+    nonisolated static func createSnapshot(from weatherData: WeatherData, targetDate: Date) throws -> WeatherSnapshot {
         let hourly = weatherData.hourly
 
         try OpenMeteo.requireAlignedSeries(timeCount: hourly.time.count, series: [

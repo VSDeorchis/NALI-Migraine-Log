@@ -343,8 +343,10 @@ struct CalendarView: View {
     }
     
     private func daysInMonth() -> [Date?] {
-        let range = calendar.range(of: .day, in: .month, for: selectedDate)!
-        let firstDayOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: selectedDate))!
+        guard let range = calendar.range(of: .day, in: .month, for: selectedDate),
+              let firstDayOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: selectedDate)) else {
+            return []
+        }
         let firstWeekday = calendar.component(.weekday, from: firstDayOfMonth)
         
         var days: [Date?] = []
@@ -577,7 +579,7 @@ struct MigraineSummaryCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(migraine.startTime!, style: .time)
+                Text(migraine.startTime ?? .distantPast, style: .time)
                     .font(.headline)
                 if let duration = migraine.duration {
                     Text("(\(Int(duration/3600))h \(Int((duration.truncatingRemainder(dividingBy: 3600))/60))m)")

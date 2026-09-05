@@ -276,7 +276,7 @@ struct WatchMigraineRiskView: View {
     // MARK: - Helpers
     
     private func initialLoad() async {
-        if lastRefresh == nil || Date().timeIntervalSince(lastRefresh!) > 300 {
+        if lastRefresh.map({ Date().timeIntervalSince($0) > 300 }) ?? true {
             await refreshPrediction()
         }
     }

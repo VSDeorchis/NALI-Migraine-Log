@@ -114,7 +114,7 @@ class MigrainePredictionService: ObservableObject {
         if migraines.count >= mlMinimumEntries {
             if let mlScore = computeMLScore(features: features, migraines: migraines) {
                 // Hybrid: blend rule-based and ML scores
-                let blended = blendScores(rule: ruleScore, ml: mlScore)
+                let blended = Self.blendScores(rule: ruleScore, ml: mlScore)
                 finalScore = blended
             } else {
                 finalScore = ruleScore
@@ -601,14 +601,15 @@ class MigrainePredictionService: ObservableObject {
             let clampedRisk = min(max(riskValue, 0.0), 1.0)
             let level = RiskLevel.from(risk: clampedRisk)
 
-            modelStatus = .mlActive(confidence: 0.75)
+            let confidence = Self.storedValidation?.confidence ?? MLModelValidation.unvalidated
+            modelStatus = .mlActive(confidence: confidence)
 
             return MigraineRiskScore(
                 overallRisk: clampedRisk,
                 riskLevel: level,
                 topFactors: [],   // ML doesn't provide explainability by default
                 recommendations: [],
-                confidence: 0.75,
+                confidence: confidence,
                 predictionSource: .machineLearning,
                 timestamp: Date()
             )
@@ -621,7 +622,7 @@ class MigrainePredictionService: ObservableObject {
     }
     
     /// Blends rule-based and ML scores.
-    private func blendScores(rule: MigraineRiskScore, ml: MigraineRiskScore) -> MigraineRiskScore {
+    nonisolated static func blendScores(rule: MigraineRiskScore, ml: MigraineRiskScore) -> MigraineRiskScore {
         // Weight the ML score more as confidence grows
         let mlWeight = ml.confidence * 0.6
         let ruleWeight = 1.0 - mlWeight
@@ -650,10 +651,13 @@ class MigrainePredictionService: ObservableObject {
         #if canImport(CreateML)
         guard migraines.count >= mlMinimumEntries else { return }
         
-        // Check if we already trained recently
+        // Once per week, except that a model without a hold-out record
+        // (trained before validation existed) is re-trained right away so
+        // its confidence stops being a placeholder.
         let lastTrainKey = Self.lastTrainKey
-        if let lastTrain = UserDefaults.standard.object(forKey: lastTrainKey) as? Date,
-           Date().timeIntervalSince(lastTrain) < 7 * 86_400 { // once per week
+        if Self.storedValidation != nil,
+           let lastTrain = UserDefaults.standard.object(forKey: lastTrainKey) as? Date,
+           Date().timeIntervalSince(lastTrain) < 7 * 86_400 {
             return
         }
         
@@ -663,14 +667,17 @@ class MigrainePredictionService: ObservableObject {
             // Build training data: for each migraine, look at conditions 24h before
             let trainingData = buildTrainingData(from: migraines)
             
-            guard trainingData.count >= mlMinimumEntries else {
+            guard trainingData.count >= mlMinimumEntries,
+                  let split = MLModelValidation.chronologicalSplit(trainingData, minimumTraining: mlMinimumEntries) else {
                 modelStatus = .ruleBased
                 return
             }
             
-            // Write CSV for CreateML
+            // Write CSVs for CreateML
             let csvURL = try getTrainingDataURL()
-            try writeCSV(trainingData, to: csvURL)
+            try writeCSV(split.training, to: csvURL)
+            let holdOutURL = try getHoldOutDataURL()
+            try writeCSV(split.holdOut, to: holdOutURL)
             
             modelStatus = .trainingML(progress: 0.5)
             
@@ -678,11 +685,15 @@ class MigrainePredictionService: ObservableObject {
             // MLDataTable was deprecated in iOS 16 / macOS 13 in favor of
             // DataFrame; this initializer overload is the supported path
             // on every deployment target this app supports (iOS 18.2+,
-            // macOS 15.2+).
+            // macOS 15.2+). The most recent days are held out so the
+            // reported confidence reflects how the model does on days it
+            // has never seen.
             let dataSource = try DataFrame(contentsOfCSVFile: csvURL)
+            let holdOutSource = try DataFrame(contentsOfCSVFile: holdOutURL)
             let classifier = try MLBoostedTreeClassifier(
                 trainingData: dataSource,
-                targetColumn: "hadMigraine"
+                targetColumn: "hadMigraine",
+                parameters: MLBoostedTreeClassifier.ModelParameters(validation: .dataFrame(holdOutSource))
             )
             
             modelStatus = .trainingML(progress: 0.9)
@@ -693,10 +704,21 @@ class MigrainePredictionService: ObservableObject {
             try classifier.write(to: modelURL)
             Self.excludeFromBackup(modelURL)
             
-            UserDefaults.standard.set(Date(), forKey: lastTrainKey)
-            modelStatus = .mlActive(confidence: 0.70)
+            let holdOutLabels = split.holdOut.map { ($0["hadMigraine"] as? Int) ?? 0 }
+            let baseline = MLModelValidation.majorityBaseline(labels: holdOutLabels)
+            let classificationError = classifier.validationMetrics.classificationError
+            let validation = MLModelValidation(
+                accuracy: classificationError.isFinite ? 1 - classificationError : baseline,
+                baseline: baseline,
+                sampleCount: holdOutLabels.count,
+                evaluatedAt: Date()
+            )
+            Self.storedValidation = validation
             
-            AppLogger.prediction.info("ML model trained successfully with \(trainingData.count, privacy: .public) samples")
+            UserDefaults.standard.set(Date(), forKey: lastTrainKey)
+            modelStatus = .mlActive(confidence: validation.confidence)
+            
+            AppLogger.prediction.info("ML model trained on \(split.training.count, privacy: .public) days; hold-out accuracy \(Int(validation.accuracy * 100), privacy: .public)% vs baseline \(Int(validation.baseline * 100), privacy: .public)% over \(validation.sampleCount, privacy: .public) days")
         } catch {
             AppLogger.prediction.error("ML training failed: \(error.localizedDescription, privacy: .private)")
             modelStatus = .mlFailed
@@ -755,7 +777,8 @@ class MigrainePredictionService: ObservableObject {
             row["hadMigraine"] = hadMigraine ? 1 : 0
             rows.append(row)
             
-            currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate)!
+            guard let nextDate = calendar.date(byAdding: .day, value: 1, to: currentDate) else { break }
+            currentDate = nextDate
         }
         
         return rows
@@ -777,6 +800,26 @@ class MigrainePredictionService: ObservableObject {
     }
 
     private static let lastTrainKey = "lastMLTrainDate"
+    private static let validationKey = "mlModelValidation"
+
+    /// Hold-out result for the model currently on disk, for display.
+    var modelValidation: MLModelValidation? { Self.storedValidation }
+
+    /// Hold-out result recorded when the current model was trained; `nil`
+    /// for a model written before hold-out evaluation existed.
+    private static var storedValidation: MLModelValidation? {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: validationKey) else { return nil }
+            return try? JSONDecoder().decode(MLModelValidation.self, from: data)
+        }
+        set {
+            if let newValue, let data = try? JSONEncoder().encode(newValue) {
+                UserDefaults.standard.set(data, forKey: validationKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: validationKey)
+            }
+        }
+    }
 
     /// Training rows are derived from health data, so they get the same
     /// at-rest protection class as the Core Data store on platforms that
@@ -797,6 +840,7 @@ class MigrainePredictionService: ObservableObject {
         var urls: [URL] = []
         if let modelURL = getTrainedModelURL() { urls.append(modelURL) }
         if let csvURL = try? getTrainingDataURL() { urls.append(csvURL) }
+        if let holdOutURL = try? getHoldOutDataURL() { urls.append(holdOutURL) }
         for url in urls where fm.fileExists(atPath: url.path) {
             do {
                 try fm.removeItem(at: url)
@@ -805,6 +849,7 @@ class MigrainePredictionService: ObservableObject {
             }
         }
         UserDefaults.standard.removeObject(forKey: Self.lastTrainKey)
+        Self.storedValidation = nil
         modelStatus = .ruleBased
         currentRisk = nil
         hourlyForecast = []
@@ -841,6 +886,13 @@ class MigrainePredictionService: ObservableObject {
             throw FilePathError.documentsDirectoryUnavailable
         }
         return docs.appendingPathComponent("training_data.csv")
+    }
+
+    private func getHoldOutDataURL() throws -> URL {
+        guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            throw FilePathError.documentsDirectoryUnavailable
+        }
+        return docs.appendingPathComponent("validation_data.csv")
     }
     
     // MARK: - Confidence Calculation

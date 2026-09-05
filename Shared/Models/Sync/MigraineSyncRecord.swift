@@ -117,6 +117,33 @@ struct WatchSyncEnvelope: Codable, Sendable {
         try Self.encoder.encode(self)
     }
 
+    enum Resolution: Equatable, Sendable {
+        case apply
+        case skipTombstoned
+        case skipOlderThanLocal
+        case skipPendingLocalEdit
+    }
+
+    /// Last-writer-wins on the persisted `modifiedAt`. Snapshots
+    /// additionally must not clobber an edit the counterpart hasn't
+    /// acknowledged yet.
+    static func resolve(
+        incoming: MigraineSyncRecord,
+        kind: Kind,
+        localRevision: Date?,
+        isTombstoned: Bool,
+        hasPendingLocalEdit: Bool
+    ) -> Resolution {
+        if isTombstoned { return .skipTombstoned }
+        if let localRevision, incoming.modifiedAt < localRevision {
+            return .skipOlderThanLocal
+        }
+        if kind == .snapshot, hasPendingLocalEdit {
+            return .skipPendingLocalEdit
+        }
+        return .apply
+    }
+
     /// Decodes and validates an envelope. Returns `nil` for foreign or
     /// incompatible payloads; individual invalid records are dropped.
     static func decode(from payload: [String: Any]) -> WatchSyncEnvelope? {

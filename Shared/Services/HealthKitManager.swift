@@ -451,8 +451,8 @@ class HealthKitManager: ObservableObject {
         
         let now = Date()
         let startOfToday = calendar.startOfDay(for: now)
-        let sleepWindowStart = calendar.date(byAdding: .hour, value: -6, to: startOfToday)! // 6 PM yesterday
-        let sleepWindowEnd = calendar.date(byAdding: .hour, value: 12, to: startOfToday)!  // noon today
+        let sleepWindowStart = calendar.date(byAdding: .hour, value: -6, to: startOfToday) ?? startOfToday // 6 PM yesterday
+        let sleepWindowEnd = calendar.date(byAdding: .hour, value: 12, to: startOfToday) ?? Date()  // noon today
         
         let predicate = HKQuery.predicateForSamples(
             withStart: sleepWindowStart,
@@ -483,7 +483,7 @@ class HealthKitManager: ObservableObject {
             return nil
         }
         
-        let yesterday = calendar.date(byAdding: .day, value: -1, to: Date())!
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: Date()) ?? Date()
         let predicate = HKQuery.predicateForSamples(
             withStart: yesterday,
             end: Date(),
@@ -512,7 +512,7 @@ class HealthKitManager: ObservableObject {
             return nil
         }
         
-        let twoDaysAgo = calendar.date(byAdding: .day, value: -2, to: Date())!
+        let twoDaysAgo = calendar.date(byAdding: .day, value: -2, to: Date()) ?? Date()
         let predicate = HKQuery.predicateForSamples(
             withStart: twoDaysAgo,
             end: Date(),
@@ -544,7 +544,7 @@ class HealthKitManager: ObservableObject {
         
         let now = Date()
         let startOfToday = calendar.startOfDay(for: now)
-        let startOfYesterday = calendar.date(byAdding: .day, value: -1, to: startOfToday)!
+        let startOfYesterday = calendar.date(byAdding: .day, value: -1, to: startOfToday) ?? startOfToday
         
         let predicate = HKQuery.predicateForSamples(
             withStart: startOfYesterday,
@@ -582,7 +582,7 @@ class HealthKitManager: ObservableObject {
             return nil
         }
         
-        let sixtyDaysAgo = calendar.date(byAdding: .day, value: -60, to: Date())!
+        let sixtyDaysAgo = calendar.date(byAdding: .day, value: -60, to: Date()) ?? Date()
         let predicate = HKQuery.predicateForSamples(
             withStart: sixtyDaysAgo,
             end: Date(),
