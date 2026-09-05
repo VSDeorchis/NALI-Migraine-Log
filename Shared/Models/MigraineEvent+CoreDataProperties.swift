@@ -136,8 +136,8 @@ extension MigraineEvent {
     
     // Weather helper methods
     func updateWeatherLocation(latitude: Double, longitude: Double) {
-        weatherLatitude = latitude
-        weatherLongitude = longitude
+        weatherLatitude = OpenMeteo.coarseCoordinate(latitude)
+        weatherLongitude = OpenMeteo.coarseCoordinate(longitude)
     }
     
     var weatherSummary: String {

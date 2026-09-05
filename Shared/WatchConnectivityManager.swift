@@ -397,18 +397,14 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         }
 
         for record in envelope.records {
-            if tombstones[record.id] != nil {
-                skipped += 1
-                continue
-            }
-            // Last-writer-wins on the persisted `modifiedAt`. Snapshots
-            // additionally must not clobber an edit the counterpart hasn't
-            // acknowledged yet.
-            if let local = existing[record.id], record.modifiedAt < local.revision {
-                skipped += 1
-                continue
-            }
-            if envelope.kind == .snapshot, pendingChangeIDs.contains(record.id) {
+            let resolution = WatchSyncEnvelope.resolve(
+                incoming: record,
+                kind: envelope.kind,
+                localRevision: existing[record.id]?.revision,
+                isTombstoned: tombstones[record.id] != nil,
+                hasPendingLocalEdit: pendingChangeIDs.contains(record.id)
+            )
+            guard resolution == .apply else {
                 skipped += 1
                 continue
             }

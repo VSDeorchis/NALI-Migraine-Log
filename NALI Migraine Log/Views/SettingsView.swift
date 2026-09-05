@@ -1502,7 +1502,7 @@ struct SettingsView: View {
             row.append(migraine.startTime.map { dateFormatter.string(from: $0) } ?? "")
             row.append(migraine.endTime.map { dateFormatter.string(from: $0) } ?? "")
             row.append("\(migraine.painLevel)")
-            row.append(escapeCSV(migraine.location ?? ""))
+            row.append(migraine.location ?? "")
             
             // Duration
             if let start = migraine.startTime, let end = migraine.endTime {
@@ -1556,9 +1556,9 @@ struct SettingsView: View {
             }
             
             // Notes
-            row.append(escapeCSV(migraine.notes ?? ""))
+            row.append(migraine.notes ?? "")
             
-            csvContent += row.joined(separator: ",") + "\n"
+            csvContent += CSVField.row(row)
         }
         
         let fileName = "\(MigraineViewModel.exportFilePrefix)Export_\(fileDateFormatter.string(from: Date())).csv"
@@ -1822,18 +1822,6 @@ struct SettingsView: View {
         return try writeProtectedExport(data, named: fileName)
     }
     
-    private func escapeCSV(_ string: String) -> String {
-        var result = string
-        // Replace newlines with spaces
-        result = result.replacingOccurrences(of: "\n", with: " ")
-        result = result.replacingOccurrences(of: "\r", with: " ")
-        // If contains comma, quote, or special chars, wrap in quotes
-        if result.contains(",") || result.contains("\"") || result.contains("\n") {
-            result = result.replacingOccurrences(of: "\"", with: "\"\"")
-            result = "\"\(result)\""
-        }
-        return result
-    }
 }
 
 // MARK: - Share Sheet

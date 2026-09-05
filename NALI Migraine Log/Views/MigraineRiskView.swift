@@ -683,7 +683,7 @@ struct MigraineRiskView: View {
     
     private func initialLoad() async {
         // Only auto-refresh if we haven't done so recently
-        if lastRefresh == nil || Date().timeIntervalSince(lastRefresh!) > 300 {
+        if lastRefresh.map({ Date().timeIntervalSince($0) > 300 }) ?? true {
             await refreshPrediction()
         }
     }
@@ -756,6 +756,9 @@ struct MigraineRiskView: View {
         case .trainingML:
             return "Learning from your \(count) migraine entries..."
         case .mlActive:
+            if let validation = predictionService.modelValidation {
+                return "Personalized predictions based on \(count) entries. Confidence reflects how the model did on the \(validation.sampleCount) most recent days it was not trained on."
+            }
             return "Personalized predictions based on \(count) entries."
         case .mlFailed:
             return "Falling back to pattern analysis. ML will retry automatically."

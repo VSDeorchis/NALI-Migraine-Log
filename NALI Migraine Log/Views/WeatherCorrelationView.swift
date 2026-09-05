@@ -40,10 +40,10 @@ struct WeatherCorrelationView: View {
             
             switch timeFilter {
             case .week:
-                let weekAgo = calendar.date(byAdding: .day, value: -7, to: now)!
+                let weekAgo = calendar.date(byAdding: .day, value: -7, to: now) ?? now
                 return startTime >= weekAgo
             case .month:
-                let monthAgo = calendar.date(byAdding: .month, value: -1, to: now)!
+                let monthAgo = calendar.date(byAdding: .month, value: -1, to: now) ?? now
                 return startTime >= monthAgo
             case .year:
                 return calendar.component(.year, from: startTime) == selectedYear

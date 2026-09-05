@@ -68,8 +68,14 @@
 		AAFE000300000000000A000D /* MigraineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A000D /* MigraineStore.swift */; };
 		AAFE000400000000000A000D /* MigraineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A000D /* MigraineStore.swift */; };
 		AAFE000200000000000A000E /* MenstrualCycleInsights.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A000E /* MenstrualCycleInsights.swift */; };
+		AAFE000200000000000A000F /* MLModelConfidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A000F /* MLModelConfidence.swift */; };
+		AAFE000200000000000A0010 /* CSVField.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0010 /* CSVField.swift */; };
 		AAFE000300000000000A000E /* MenstrualCycleInsights.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A000E /* MenstrualCycleInsights.swift */; };
+		AAFE000300000000000A000F /* MLModelConfidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A000F /* MLModelConfidence.swift */; };
+		AAFE000300000000000A0010 /* CSVField.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0010 /* CSVField.swift */; };
 		AAFE000400000000000A000E /* MenstrualCycleInsights.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A000E /* MenstrualCycleInsights.swift */; };
+		AAFE000400000000000A000F /* MLModelConfidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A000F /* MLModelConfidence.swift */; };
+		AAFE000400000000000A0010 /* CSVField.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFE000100000000000A0010 /* CSVField.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -171,6 +177,8 @@
 		AAFE000100000000000A000C /* ScaledFont.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaledFont.swift; sourceTree = "<group>"; };
 		AAFE000100000000000A000D /* MigraineStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigraineStore.swift; sourceTree = "<group>"; };
 		AAFE000100000000000A000E /* MenstrualCycleInsights.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenstrualCycleInsights.swift; sourceTree = "<group>"; };
+		AAFE000100000000000A000F /* MLModelConfidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MLModelConfidence.swift; sourceTree = "<group>"; };
+		AAFE000100000000000A0010 /* CSVField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVField.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -404,6 +412,8 @@
 				AAFE000100000000000A000A /* BackgroundTaskScheduler.swift */,
 				AAFE000100000000000A000B /* OpenMeteoSupport.swift */,
 				AAFE000100000000000A000E /* MenstrualCycleInsights.swift */,
+				AAFE000100000000000A000F /* MLModelConfidence.swift */,
+				AAFE000100000000000A0010 /* CSVField.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -790,6 +800,8 @@
 				AAFE000200000000000A000C /* ScaledFont.swift in Sources */,
 				AAFE000200000000000A000D /* MigraineStore.swift in Sources */,
 				AAFE000200000000000A000E /* MenstrualCycleInsights.swift in Sources */,
+				AAFE000200000000000A000F /* MLModelConfidence.swift in Sources */,
+				AAFE000200000000000A0010 /* CSVField.swift in Sources */,
 				69C15B1F2D59B28E002BAA7E /* NALI_Migraine_Log.xcdatamodeld in Sources */,
 				69A6B47C2D59BA2500AD2CFA /* WatchConnectivityManager.swift in Sources */,
 			);
@@ -834,6 +846,8 @@
 				AAFE000300000000000A000C /* ScaledFont.swift in Sources */,
 				AAFE000300000000000A000D /* MigraineStore.swift in Sources */,
 				AAFE000300000000000A000E /* MenstrualCycleInsights.swift in Sources */,
+				AAFE000300000000000A000F /* MLModelConfidence.swift in Sources */,
+				AAFE000300000000000A0010 /* CSVField.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -875,6 +889,8 @@
 				AAFE000400000000000A000C /* ScaledFont.swift in Sources */,
 				AAFE000400000000000A000D /* MigraineStore.swift in Sources */,
 				AAFE000400000000000A000E /* MenstrualCycleInsights.swift in Sources */,
+				AAFE000400000000000A000F /* MLModelConfidence.swift in Sources */,
+				AAFE000400000000000A0010 /* CSVField.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

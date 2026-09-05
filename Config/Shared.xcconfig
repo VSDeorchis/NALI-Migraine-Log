@@ -5,8 +5,8 @@
 // App Store requires the WatchKit app's CFBundleVersion/CFBundleShortVersionString
 // to match the companion iOS app, so both versions live here only.
 
-MARKETING_VERSION = 2.83
-CURRENT_PROJECT_VERSION = 14
+MARKETING_VERSION = 3.01
+CURRENT_PROJECT_VERSION = 15
 
 IPHONEOS_DEPLOYMENT_TARGET = 18.2
 WATCHOS_DEPLOYMENT_TARGET = 11.2

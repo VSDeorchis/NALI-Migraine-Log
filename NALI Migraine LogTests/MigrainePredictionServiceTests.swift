@@ -201,6 +201,72 @@ struct MigrainePredictionServiceTests {
                 "Sub-threshold runs must report rule-based source, got \(score.predictionSource)")
     }
 
+    @Test("Below the ML minimum the model status stays rule-based and confidence is in range")
+    func belowMLThresholdNeverReportsMLActive() async {
+        wipeEvents()
+        for daysAgo in 1...12 {
+            makeEvent(startDaysAgo: daysAgo)
+        }
+        let events = (try? context.fetch(MigraineEvent.fetchRequest())) ?? []
+        let service = MigrainePredictionService.shared
+
+        let score = await service.calculateRiskScore(migraines: events, currentWeather: makeWeather())
+
+        #expect(score.predictionSource == .ruleBased)
+        #expect(score.confidence > 0 && score.confidence <= 0.95)
+        if case .mlActive = service.modelStatus {
+            Issue.record("ML must not be reported active with \(events.count) entries")
+        }
+    }
+
+    // MARK: - Blending
+
+    private func score(risk: Double, confidence: Double, source: PredictionSource) -> MigraineRiskScore {
+        MigraineRiskScore(
+            overallRisk: risk,
+            riskLevel: RiskLevel.from(risk: risk),
+            topFactors: [],
+            recommendations: ["r"],
+            confidence: confidence,
+            predictionSource: source,
+            timestamp: referenceDate
+        )
+    }
+
+    @Test("ML weight in the blend grows with hold-out confidence and never exceeds 60%")
+    func blendWeightTracksConfidence() {
+        let rule = score(risk: 0.2, confidence: 0.5, source: .ruleBased)
+
+        let floorML = score(risk: 1.0, confidence: MLModelValidation.floor, source: .machineLearning)
+        let ceilingML = score(risk: 1.0, confidence: MLModelValidation.ceiling, source: .machineLearning)
+        let maxML = score(risk: 1.0, confidence: 1.0, source: .machineLearning)
+
+        let low = MigrainePredictionService.blendScores(rule: rule, ml: floorML)
+        let high = MigrainePredictionService.blendScores(rule: rule, ml: ceilingML)
+        let capped = MigrainePredictionService.blendScores(rule: rule, ml: maxML)
+
+        // rule 0.2 * (1 - 0.6c) + 1.0 * 0.6c
+        #expect(abs(low.overallRisk - (0.2 * (1 - 0.18) + 0.18)) < 1e-9)
+        #expect(abs(high.overallRisk - (0.2 * (1 - 0.54) + 0.54)) < 1e-9)
+        #expect(abs(capped.overallRisk - (0.2 * 0.4 + 0.6)) < 1e-9)
+        #expect(low.overallRisk < high.overallRisk)
+        #expect(high.overallRisk < capped.overallRisk)
+    }
+
+    @Test("Blended score is hybrid, clamped, keeps rule explanations and the higher confidence")
+    func blendContract() {
+        let rule = score(risk: 0.9, confidence: 0.4, source: .ruleBased)
+        let ml = score(risk: 1.0, confidence: 0.8, source: .machineLearning)
+
+        let blended = MigrainePredictionService.blendScores(rule: rule, ml: ml)
+
+        #expect(blended.predictionSource == .hybrid)
+        #expect(blended.overallRisk <= 1.0 && blended.overallRisk >= 0.0)
+        #expect(blended.confidence == 0.8)
+        #expect(blended.recommendations == rule.recommendations)
+        #expect(blended.riskLevel == RiskLevel.from(risk: blended.overallRisk))
+    }
+
     // MARK: - Top factors / recommendations contract
 
     @Test("Top factors are sorted by contribution descending and capped at 6")

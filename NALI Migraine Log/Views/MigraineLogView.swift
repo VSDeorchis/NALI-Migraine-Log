@@ -474,14 +474,14 @@ struct MigraineLogView: View {
         
         switch filterOption {
         case .lastWeek:
-            let oneWeekAgo = calendar.date(byAdding: .day, value: -7, to: now)!
-            migraines = migraines.filter { $0.startTime! >= oneWeekAgo }
+            let oneWeekAgo = calendar.date(byAdding: .day, value: -7, to: now) ?? now
+            migraines = migraines.filter { ($0.startTime ?? .distantPast) >= oneWeekAgo }
         case .lastMonth:
-            let oneMonthAgo = calendar.date(byAdding: .month, value: -1, to: now)!
-            migraines = migraines.filter { $0.startTime! >= oneMonthAgo }
+            let oneMonthAgo = calendar.date(byAdding: .month, value: -1, to: now) ?? now
+            migraines = migraines.filter { ($0.startTime ?? .distantPast) >= oneMonthAgo }
         case .lastYear:
-            let oneYearAgo = calendar.date(byAdding: .year, value: -1, to: now)!
-            migraines = migraines.filter { $0.startTime! >= oneYearAgo }
+            let oneYearAgo = calendar.date(byAdding: .year, value: -1, to: now) ?? now
+            migraines = migraines.filter { ($0.startTime ?? .distantPast) >= oneYearAgo }
         case .all:
             break
         case .highPain:

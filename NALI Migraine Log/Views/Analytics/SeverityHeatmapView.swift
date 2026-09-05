@@ -244,12 +244,12 @@ struct SeverityHeatmapView: View {
 #Preview {
     let cal = Calendar.current
     let now = Date()
-    let start = cal.date(byAdding: .day, value: -41, to: now)!
+    let start = cal.date(byAdding: .day, value: -41, to: now) ?? now
     let interval = DateInterval(start: cal.startOfDay(for: start),
                                 end: cal.startOfDay(for: now))
     
     let cells: [DailyPainCell] = (0...41).map { offset in
-        let date = cal.date(byAdding: .day, value: offset, to: interval.start)!
+        let date = cal.date(byAdding: .day, value: offset, to: interval.start) ?? interval.start
         let pain = (offset % 5 == 0) ? 8 : (offset % 7 == 0 ? 4 : 0)
         return DailyPainCell(date: date,
                              worstPain: pain,

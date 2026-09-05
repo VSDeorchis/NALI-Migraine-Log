@@ -39,13 +39,14 @@ enum AppContactInfo {
     /// `requestReview` action, which shows the in-app sheet but is
     /// rate-limited by the system to ~3 prompts per 365 days per user.
     static var appStoreWriteReviewURL: URL {
-        URL(string: "https://apps.apple.com/app/id\(appStoreID)?action=write-review")!
+        URL(string: "https://apps.apple.com/app/id\(appStoreID)?action=write-review") ?? appStoreProductURL
     }
 
     /// Plain product page on the App Store. Useful for "Share Headway
     /// with a friend" links and any other surface that wants the app's
     /// listing rather than the review prompt.
     static var appStoreProductURL: URL {
+        // swiftlint:disable:next force_unwrapping
         URL(string: "https://apps.apple.com/app/id\(appStoreID)")!
     }
 

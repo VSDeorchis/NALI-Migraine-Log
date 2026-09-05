@@ -6,7 +6,7 @@ struct StatisticsView: View {
     @State private var selectedTimeFrame: TimeFrame = .month
     @State private var selectedYear: Int
     // Custom range dates
-    @State private var customStartDate: Date = Calendar.current.date(byAdding: .month, value: -1, to: Date())!
+    @State private var customStartDate: Date = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
     @State private var customEndDate: Date = Date()
     
     init(viewModel: MigraineViewModel) {
@@ -117,13 +117,13 @@ struct StatisticsView: View {
         
         switch selectedTimeFrame {
         case .week:
-            startDate = calendar.date(byAdding: .day, value: -7, to: now)!
+            startDate = calendar.date(byAdding: .day, value: -7, to: now) ?? now
             return viewModel.migraines.filter { migraine in
                 guard let startTime = migraine.startTime else { return false }
                 return startTime >= startDate
             }
         case .month:
-            startDate = calendar.date(byAdding: .month, value: -1, to: now)!
+            startDate = calendar.date(byAdding: .month, value: -1, to: now) ?? now
             return viewModel.migraines.filter { migraine in
                 guard let startTime = migraine.startTime else { return false }
                 return startTime >= startDate
@@ -267,7 +267,7 @@ struct StatisticsView: View {
         let calendar = Calendar.current
         let currentYear = calendar.component(.year, from: Date())
         let oldestYear = viewModel.migraines
-            .map { calendar.component(.year, from: $0.startTime!) }
+            .compactMap { $0.startTime.map { calendar.component(.year, from: $0) } }
             .min() ?? currentYear
         return Array(oldestYear...currentYear).reversed()
     }
