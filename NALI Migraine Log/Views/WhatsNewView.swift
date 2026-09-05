@@ -42,8 +42,13 @@ struct WhatsNewView: View {
         Feature(
             symbol: "drop.fill",
             title: "Cycle-aware insights (optional)",
-            detail: "If you track your cycle in Apple Health, entries near the start of a period are tagged and your risk forecast accounts for it. Turn it on in Settings \u{203A} Apple Health \u{2014} cycle data never leaves your iPhone.",
+            detail: "If you track your cycle in Apple Health, entries near the start of a period are tagged, your risk forecast accounts for it, and Statistics shows how much more likely migraines are around your period. Turn it on in Settings \u{203A} Apple Health \u{2014} cycle data never leaves your iPhone.",
             cycleRelated: true
+        ),
+        Feature(
+            symbol: "chart.xyaxis.line",
+            title: "A redesigned Statistics dashboard",
+            detail: "Migraine days up front, with trends against your previous period, median duration, acute-medication days, symptom and weekday patterns, and a scrollable 12-month chart you can tap to explore."
         ),
         Feature(
             symbol: "slider.horizontal.3",
@@ -57,7 +62,7 @@ struct WhatsNewView: View {
         ),
         Feature(
             symbol: "chart.bar.xaxis",
-            title: "Statistics you can hear",
+            title: "Charts you can hear",
             detail: "Every chart supports VoiceOver Audio Graphs, empty screens explain what\u{2019}s coming, and the whole app respects your preferred text size."
         ),
         Feature(
@@ -126,8 +131,8 @@ struct WhatsNewView: View {
                 .foregroundStyle(.white)
 
             Text(healthKit.cycleEligibility == .excluded
-                 ? "Faster Watch logging, a new Settings hub & more"
-                 : "Faster Watch logging, cycle-aware insights & more")
+                 ? "Faster Watch logging, redesigned Statistics & more"
+                 : "Faster Watch logging, cycle-aware insights, redesigned Statistics & more")
                 .font(.custom("Optima-Regular", size: 18, relativeTo: .title3))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.white.opacity(0.9))
