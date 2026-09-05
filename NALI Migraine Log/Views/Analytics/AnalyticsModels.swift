@@ -89,6 +89,8 @@ struct DailyPainCell: Identifiable, Hashable {
 /// Top-level KPI tiles in the dashboard. Each case is its own drill-down
 /// destination via `AnalyticsMetricDetailView`.
 enum AnalyticsMetric: String, CaseIterable, Identifiable, Hashable {
+    case migraineDays
+    case medicationDays
     case total
     case averagePain
     case severeDays
@@ -105,6 +107,8 @@ enum AnalyticsMetric: String, CaseIterable, Identifiable, Hashable {
 
     var title: String {
         switch self {
+        case .migraineDays:      return "Migraine Days"
+        case .medicationDays:    return "Acute Medication Days"
         case .total:             return "Total"
         case .averagePain:       return "Avg Pain"
         case .severeDays:        return "Severe Days"
@@ -122,6 +126,8 @@ enum AnalyticsMetric: String, CaseIterable, Identifiable, Hashable {
     /// SF Symbol shown in the tile header.
     var systemImage: String {
         switch self {
+        case .migraineDays:      return "calendar"
+        case .medicationDays:    return "pills.fill"
         case .total:             return "number.square.fill"
         case .averagePain:       return "waveform.path.ecg"
         case .severeDays:        return "exclamationmark.triangle.fill"
@@ -138,6 +144,8 @@ enum AnalyticsMetric: String, CaseIterable, Identifiable, Hashable {
 
     var accent: Color {
         switch self {
+        case .migraineDays:      return AnalyticsDomain.frequency.accent
+        case .medicationDays:    return AnalyticsDomain.medication.accent
         case .total:             return Color(red: 68/255, green: 130/255, blue: 180/255)
         case .averagePain:       return .pink
         case .severeDays:        return .red

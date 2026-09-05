@@ -217,6 +217,14 @@ final class HealthCorrelationStore: ObservableObject {
     /// detail view to overlay flow-start markers on the timeline.
     @Published private(set) var menstrualEvents: [MenstrualEvent] = []
     
+    /// Rate-ratio comparison of migraine days inside vs. outside the
+    /// perimenstrual window, or `nil` when no cycle start is known.
+    @Published private(set) var cycleAssociation: CycleAssociation?
+    
+    /// Start-of-day dates of logged flow starts in the window, for the
+    /// heatmap overlay. Derived; never persisted.
+    @Published private(set) var cycleStartDays: [Date] = []
+    
     /// Cache key (window + migraine fingerprint) so we don't re-fetch
     /// when the dashboard re-renders for an unrelated reason.
     private var lastLoadedKey: String?
@@ -319,6 +327,17 @@ final class HealthCorrelationStore: ObservableObject {
             anchored: anchored,
             totalMigraines: onsets.count
         )
+        let starts = menses.filter(\.isCycleStart).map { Calendar.current.startOfDay(for: $0.date) }
+        cycleStartDays = Array(Set(starts)).sorted()
+        cycleAssociation = CycleAssociationAnalysis.compute(
+            samples: migraines.compactMap { migraine in
+                migraine.startTime.map {
+                    CycleMigraineSample(onset: $0, painLevel: Int(migraine.painLevel))
+                }
+            },
+            cycleStarts: starts,
+            window: window
+        )
         
         if nights.isEmpty && hrv.isEmpty && menses.isEmpty {
             status = .empty
@@ -332,6 +351,8 @@ final class HealthCorrelationStore: ObservableObject {
         sleepSummary = nil
         hrvSummary = nil
         cyclePhaseSummary = nil
+        cycleAssociation = nil
+        cycleStartDays = []
         sleepNights = []
         hrvSamples = []
         menstrualEvents = []

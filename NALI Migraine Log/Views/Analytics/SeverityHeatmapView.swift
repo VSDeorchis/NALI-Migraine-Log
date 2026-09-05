@@ -13,6 +13,10 @@ import SwiftUI
 struct SeverityHeatmapView: View {
     /// Pre-computed via `[MigraineEvent].dailyPainCells(in:)`.
     let cells: [DailyPainCell]
+    /// Start-of-day dates of logged cycle starts to mark on the grid.
+    /// Empty for users without cycle insights; never persisted here.
+    var cycleStartDays: Set<Date> = []
+    var cycleAccent: Color = AnalyticsDomain.cycle.accent
     
     /// When non-nil, the selected cell is highlighted and the legend shows
     /// the date + pain detail. Reset on outside tap.
@@ -106,9 +110,7 @@ struct SeverityHeatmapView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
-                Label("Severity Heatmap", systemImage: "calendar.badge.clock")
-                    .font(.headline)
-                    .foregroundStyle(.purple)
+                AnalyticsSectionHeader("Severity Heatmap", systemImage: "calendar.badge.clock", accent: AnalyticsDomain.severity.accent)
                 Spacer()
                 if let selected = selected {
                     Text(selectedSummary(for: selected))
@@ -129,7 +131,7 @@ struct SeverityHeatmapView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Severity heatmap")
-        .accessibilityValue(periodSummary)
+        .accessibilityValue(accessibilitySummary)
     }
     
     // MARK: - Grid
@@ -227,6 +229,7 @@ struct SeverityHeatmapView: View {
                           size: CGFloat,
                           cornerRadius: CGFloat) -> some View {
         let isSelected = cell != nil && cell?.date == selected?.date
+        let isCycleStart = cell.map { cycleStartDays.contains($0.date) } ?? false
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .fill(fillColor(for: cell))
             .frame(width: size, height: size)
@@ -235,6 +238,15 @@ struct SeverityHeatmapView: View {
                     .strokeBorder(isSelected ? Color.primary.opacity(0.6) : Color.clear,
                                   lineWidth: 1.5)
             )
+            .overlay(alignment: .bottomTrailing) {
+                if isCycleStart {
+                    Circle()
+                        .fill(cycleAccent)
+                        .frame(width: max(4, size * 0.28), height: max(4, size * 0.28))
+                        .overlay(Circle().strokeBorder(Color(.secondarySystemGroupedBackground), lineWidth: 1))
+                        .offset(x: 1, y: 1)
+                }
+            }
             .onTapGesture {
                 guard let cell = cell else { return }
                 if selected?.date == cell.date {
@@ -268,6 +280,16 @@ struct SeverityHeatmapView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            if !cycleStartDays.isEmpty {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(cycleAccent)
+                        .frame(width: 8, height: 8)
+                    Text("Period start")
+                        .scaledFont(size: 10, weight: .medium, design: .rounded)
+                        .foregroundStyle(.secondary)
+                }
+            }
             Spacer()
         }
     }
@@ -281,13 +303,20 @@ struct SeverityHeatmapView: View {
         return "\(migraineDays) of \(total) days"
     }
     
+    private var accessibilitySummary: String {
+        let marked = cells.filter { cycleStartDays.contains($0.date) }.count
+        guard marked > 0 else { return periodSummary }
+        return "\(periodSummary); \(marked) period start\(marked == 1 ? "" : "s") marked"
+    }
+    
     private func selectedSummary(for cell: DailyPainCell) -> String {
         let dateText = cell.date.formatted(.dateTime.month(.abbreviated).day())
+        let cycleSuffix = cycleStartDays.contains(cell.date) ? " · period start" : ""
         if cell.worstPain == 0 {
-            return "\(dateText) · migraine-free"
+            return "\(dateText) · migraine-free\(cycleSuffix)"
         }
         let suffix = cell.migraineCount > 1 ? " (\(cell.migraineCount))" : ""
-        return "\(dateText) · pain \(cell.worstPain)\(suffix)"
+        return "\(dateText) · pain \(cell.worstPain)\(suffix)\(cycleSuffix)"
     }
 }
 
