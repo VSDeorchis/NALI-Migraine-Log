@@ -66,8 +66,8 @@ env:
 on:
   push:
     branches: [main]
+  # Every PR, whatever its base, so stacked PRs compile before they retarget main.
   pull_request:
-    branches: [main]
   workflow_dispatch:
 
 # Cancel an in-flight run for this branch when a newer push lands so we
