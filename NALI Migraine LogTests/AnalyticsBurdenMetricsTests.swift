@@ -145,10 +145,10 @@ struct AnalyticsBurdenMetricsTests {
         ]
         let spread = events.durationSpread
         #expect(spread?.sampleCount == 5)
-        #expect(spread?.median == 3 * 3600)
-        #expect(spread?.lowerQuartile == 2 * 3600)
-        #expect(spread?.upperQuartile == 4 * 3600)
-        #expect(spread?.interquartileRange == 2 * 3600)
+        #expect(spread?.median == 10_800.0)
+        #expect(spread?.lowerQuartile == 7_200.0)
+        #expect(spread?.upperQuartile == 14_400.0)
+        #expect(spread?.interquartileRange == 7_200.0)
     }
 
     @Test("Even sample counts interpolate the median between the middle two values")
@@ -158,7 +158,7 @@ struct AnalyticsBurdenMetricsTests {
             event(in: ctx, start: date(2026, 1, 1), durationHours: 2),
             event(in: ctx, start: date(2026, 1, 2), durationHours: 4),
         ]
-        #expect(events.durationSpread?.median == 3 * 3600)
+        #expect(events.durationSpread?.median == 10_800.0)
     }
 
     @Test("End times before the start are discarded")
