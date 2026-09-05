@@ -62,6 +62,10 @@ struct AnalyticsMetricDetailView: View {
     @ViewBuilder
     private var content: some View {
         switch metric {
+        case .migraineDays:
+            migraineDaysContent
+        case .medicationDays:
+            medicationDaysContent
         case .total:
             totalContent
         case .averagePain:
@@ -103,16 +107,126 @@ struct AnalyticsMetricDetailView: View {
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Color(.secondarySystemGroupedBackground))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(Color(.systemGray5), lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
+            .analyticsSurface()
             .padding(.horizontal, 16)
+        }
+    }
+    
+    // MARK: - Metric: Migraine days
+    
+    /// Unique days with at least one attack — the burden measure clinicians
+    /// track (monthly headache days) rather than the raw attack count.
+    private var migraineDaysContent: some View {
+        let days = migraines.headacheDays()
+        let attacks = migraines.count
+        let multiAttackDays = attacks - days
+        let monthly = viewModel.migraines.monthlyHeadacheDays(monthsBack: 11)
+        let recentAverage = Array(monthly.suffix(3)).averageCount
+        
+        return VStack(spacing: 16) {
+            Card(title: "This period") {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(String(days))
+                        .scaledFont(size: 36, weight: .bold, design: .rounded)
+                        .foregroundStyle(metric.accent)
+                    Text(days == 1 ? "migraine day" : "migraine days")
+                        .scaledFont(size: 15, weight: .medium, design: .rounded)
+                        .foregroundStyle(.secondary)
+                }
+                Text(multiAttackDays > 0
+                     ? "\(attacks) attacks, \(multiAttackDays) of them on a day that already had one. Days are what most headache diaries and clinicians count."
+                     : "\(attacks) \(attacks == 1 ? "attack" : "attacks"), each on a separate day.")
+                    .scaledFont(size: 13)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            
+            Card(title: "Migraine days per month") {
+                if monthly.allSatisfy({ $0.count == 0 }) {
+                    emptyState
+                } else {
+                    MonthlyTrendChart(points: monthly, unit: "day", accent: metric.accent, height: 220)
+                    Text(monthlyDaysCopy(recentAverage: recentAverage))
+                        .scaledFont(size: 12)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            
+            Card(title: "") {
+                NavigationLink {
+                    FilteredMigraineListView(
+                        viewModel: viewModel,
+                        title: "All Migraines",
+                        migraines: migraines.sorted {
+                            ($0.startTime ?? .distantPast) > ($1.startTime ?? .distantPast)
+                        }
+                    )
+                } label: {
+                    listLink(text: "See \(attacks) entries")
+                }
+            }
+        }
+    }
+    
+    private func monthlyDaysCopy(recentAverage: Double) -> String {
+        let rounded = (recentAverage * 10).rounded() / 10
+        let value = rounded == rounded.rounded() ? String(Int(rounded)) : String(format: "%.1f", rounded)
+        return "Past 3 months: about \(value) migraine days a month. Headache diaries often note whether this sits above or below 15 days a month; that context is worth discussing with your clinician, not a diagnosis."
+    }
+    
+    // MARK: - Metric: Acute medication days
+    
+    private var medicationDaysContent: some View {
+        let days = migraines.acuteMedicationDays()
+        let doses = migraines.totalMedicationUses
+        let monthly = viewModel.migraines.monthlyAcuteMedicationDays(monthsBack: 11)
+        let medData = migraines.medicationDistribution
+        
+        return VStack(spacing: 16) {
+            Card(title: "This period") {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(String(days))
+                        .scaledFont(size: 36, weight: .bold, design: .rounded)
+                        .foregroundStyle(metric.accent)
+                    Text(days == 1 ? "day with acute medication" : "days with acute medication")
+                        .scaledFont(size: 15, weight: .medium, design: .rounded)
+                        .foregroundStyle(.secondary)
+                }
+                Text("\(doses) \(doses == 1 ? "dose" : "doses") logged. Guidance about acute medication is usually framed in days per month — taking two medications on one day counts as one day.")
+                    .scaledFont(size: 13)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            
+            Card(title: "Medication days per month") {
+                if monthly.allSatisfy({ $0.count == 0 }) {
+                    emptyState
+                } else {
+                    MonthlyTrendChart(points: monthly, unit: "day", accent: metric.accent, height: 220)
+                    Text("Reference points many clinicians use: \(AcuteMedicationBand.moderateThreshold) or more days a month for simple pain relievers, \(AcuteMedicationBand.frequentThreshold) or more for triptans and combination products. Months at or above those levels are worth raising at your next visit — this app reports them, it does not diagnose medication overuse.")
+                        .scaledFont(size: 12)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            
+            Card(title: "Which medications") {
+                if medData.isEmpty {
+                    ChartEmptyState(title: "No Medications Logged", systemImage: "pills",
+                                    message: "Add medications when logging an entry to see usage here.", height: 160)
+                } else {
+                    Chart(medData) { point in
+                        BarMark(
+                            x: .value("Count", point.count),
+                            y: .value("Medication", point.medication)
+                        )
+                        .foregroundStyle(metric.accent.gradient)
+                        .cornerRadius(6)
+                    }
+                    .frame(height: max(160, CGFloat(medData.count) * 32))
+                }
+            }
         }
     }
     
@@ -691,11 +805,11 @@ struct AnalyticsMetricDetailView: View {
     }
     
     private func cyclePhaseLayout(store: HealthCorrelationStore) -> some View {
-        let distribution = store.cyclePhaseSummary
+        let association = store.cycleAssociation
         let anchored = store.cycleAnchoredMigraines
         
         return VStack(spacing: 16) {
-            Card(title: "Migraines by cycle phase") {
+            Card(title: "Around your period") {
                 if store.cycleAvailability != .available {
                     // Also reached when Cycle-Aware Insights is off in
                     // Settings or the sex gate excludes the user; the
@@ -705,121 +819,145 @@ struct AnalyticsMetricDetailView: View {
                         category: "menstrual cycle",
                         capturedBy: "Apple Health's Cycle Tracking, your iPhone Health app, or a third-party app like Flo"
                     )
-                } else if let distribution, distribution.totalAnchored > 0 {
-                    cycleHeadline(distribution)
+                } else if let association {
+                    cycleAssociationHeadline(association)
                 } else {
-                    Text("No migraines in this window could be anchored to a recent flow start. Try widening the time filter or logging cycles closer to migraine days.")
+                    Text("No logged period starts fall inside this window. Try widening the time filter, or log cycles in Apple Health closer to your migraine days.")
                         .scaledFont(size: 13)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            
+            if let association, association.confidence != .insufficient {
+                Card(title: "Migraine days by day of cycle") {
+                    CycleAlignedChart(points: association.aligned, height: 200)
+                    Text("Each bar is the share of observed days at that distance from a logged period start on which you had a migraine. Day 0 is the first day of flow; the window is \(PerimenstrualWindow.daysBefore) days before to \(PerimenstrualWindow.daysAfter) days after.")
+                        .scaledFont(size: 11)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                
+                Card(title: "Rate comparison") {
+                    rateComparison(association)
+                }
+                
+                if association.hasSeverityComparison {
+                    Card(title: "Severity") {
+                        severityComparison(association)
+                    }
                 }
             }
             
             if !anchored.isEmpty {
-                Card(title: "Perimenstrual vs. other days") {
-                    perimenstrualSplit(anchored: anchored)
-                }
-
-                Card(title: "Distribution by cycle day") {
-                    cycleDayHistogram(anchored: anchored)
-                    HStack(spacing: 14) {
-                        legendDot(perimenstrualBand, "Perimenstrual (2 days before to 2 after a start)")
-                        legendDot(metric.accent, "Other days")
-                    }
-                    .scaledFont(size: 11, weight: .medium, design: .rounded)
-                    .foregroundStyle(.secondary)
-                }
-                
                 Card(title: "Phase breakdown") {
                     phaseBreakdownTable(anchored: anchored)
-                }
-            }
-            
-            if let distribution, distribution.unanchoredCount > 0 {
-                Card(title: "About missing days") {
-                    Text("\(distribution.unanchoredCount) migraine\(distribution.unanchoredCount == 1 ? "" : "s") in this period couldn't be matched to a recent flow start (more than 45 days since the last logged cycle). Logging cycles consistently in Apple Health improves this view's accuracy.")
-                        .scaledFont(size: 13)
+                    Text("Phases use typical day ranges after each logged start and are approximate; the comparison above relies only on logged starts.")
+                        .scaledFont(size: 11)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             
-            Card(title: "Why this matters") {
-                Text("Estrogen withdrawal in the days surrounding menstruation is one of the most studied migraine triggers. Many people see their attacks cluster in the two days before a period starts through the two days after — the perimenstrual window. This view is context, not a diagnosis; a pattern here is often worth discussing with your physician (e.g. mini-prophylaxis, hormonal strategies).")
+            Card(title: "About this view") {
+                Text("Based on your logged entries and the period starts recorded in Apple Health. Hormone changes around menstruation are a well-studied migraine trigger, and many people see attacks cluster in the days around the start of a period. What you see here is an observed pattern, not a diagnosis — the app cannot tell whether a migraine is menstrually related. Discuss patterns with your clinician; a consistent pattern can inform options such as short-term preventive treatment around your period.")
                     .scaledFont(size: 13)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Cycle data stays on this iPhone: it is never stored in the log, synced to iCloud or your Watch, or included in exports.")
+                    .scaledFont(size: 11)
+                    .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
     
-    private func cycleHeadline(_ distribution: CyclePhaseDistribution) -> some View {
-        let topPhase = distribution.counts.max(by: { $0.value < $1.value })
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("\(distribution.totalAnchored)")
-                    .scaledFont(size: 32, weight: .bold, design: .rounded)
-                    .foregroundStyle(.primary)
-                Text("migraines anchored to a cycle")
-                    .scaledFont(size: 13, weight: .medium, design: .rounded)
+    private func cycleAssociationHeadline(_ association: CycleAssociation) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                CycleConfidenceBadge(confidence: association.confidence)
+                Spacer()
+            }
+            Text(association.headline)
+                .scaledFont(size: 18, weight: .semibold, design: .rounded)
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            if association.confidence != .insufficient, let recent = association.recentCyclesSummary {
+                Text(recent)
+                    .scaledFont(size: 13)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            if let topPhase {
-                let pct = Int((Double(topPhase.value) / Double(max(1, distribution.totalAnchored)) * 100).rounded())
-                Text("\(pct)% in your \(topPhase.key.title.lowercased()) phase (\(topPhase.key.dayRange))")
-                    .scaledFont(size: 14, weight: .semibold, design: .rounded)
-                    .foregroundStyle(.primary)
+            if association.confidence == .insufficient {
+                Text(cycleInsufficientCopy(association))
+                    .scaledFont(size: 13)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            if let perimenPct = distribution.perimenstrualPercentage {
-                let pct = Int((perimenPct * 100).rounded())
-                Text("\(pct)% in the perimenstrual window (−2 to +2 days from a period start)")
-                    .scaledFont(size: 13, weight: .medium, design: .rounded)
-                    .foregroundStyle(.pink)
-            }
-            Text("Based on \(distribution.totalAnchored) anchored migraine\(distribution.totalAnchored == 1 ? "" : "s") in this period.")
-                .scaledFont(size: 11)
-                .foregroundStyle(.secondary)
-        }
-    }
-    
-    /// Two-column count comparison: migraines that fell within two days
-    /// of a period start vs. everything else that could be anchored.
-    private func perimenstrualSplit(anchored: [CycleAnchoredMigraine]) -> some View {
-        let peri = anchored.filter(\.isPerimenstrual).count
-        let other = anchored.count - peri
-        let total = max(1, anchored.count)
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                splitColumn(
-                    title: "Perimenstrual",
-                    count: peri,
-                    percent: Double(peri) / Double(total),
-                    tint: perimenstrualBand
-                )
-                splitColumn(
-                    title: "Other days",
-                    count: other,
-                    percent: Double(other) / Double(total),
-                    tint: metric.accent
-                )
-            }
-            Text("The perimenstrual window (2 days before to 2 days after a period start) covers roughly 5 of every 28 days, so a share well above ~18% suggests your migraines cluster around menses.")
+            Text("Based on \(association.migraineDayCount) migraine day\(association.migraineDayCount == 1 ? "" : "s") across \(association.cycleCount) logged cycle\(association.cycleCount == 1 ? "" : "s") in this period. Observed pattern, not a diagnosis.")
                 .scaledFont(size: 11)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
     }
-
-    private func splitColumn(title: String, count: Int, percent: Double, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+    
+    private func cycleInsufficientCopy(_ association: CycleAssociation) -> String {
+        let cyclesNeeded = max(0, CycleAssociationAnalysis.minimumCycles - association.cycleCount)
+        let daysNeeded = max(0, CycleAssociationAnalysis.minimumMigraineDays - association.migraineDayCount)
+        var parts: [String] = []
+        if cyclesNeeded > 0 {
+            parts.append("\(cyclesNeeded) more logged cycle\(cyclesNeeded == 1 ? "" : "s")")
+        }
+        if daysNeeded > 0 {
+            parts.append("\(daysNeeded) more migraine day\(daysNeeded == 1 ? "" : "s")")
+        }
+        guard !parts.isEmpty else {
+            return "A comparison needs migraine days both inside and outside the perimenstrual window."
+        }
+        return "A comparison needs at least \(CycleAssociationAnalysis.minimumCycles) logged cycles and \(CycleAssociationAnalysis.minimumMigraineDays) migraine days in the selected period — about \(parts.joined(separator: " and ")) to go. Widening the time filter often helps."
+    }
+    
+    /// Migraine-day rate inside vs. outside the perimenstrual window,
+    /// each shown with its own denominator so the ratio is auditable.
+    private func rateComparison(_ association: CycleAssociation) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                rateColumn(
+                    title: "Perimenstrual days",
+                    migraineDays: association.perimenstrualMigraineDays,
+                    observedDays: association.perimenstrualDaysObserved,
+                    tint: metric.accent
+                )
+                rateColumn(
+                    title: "Other days",
+                    migraineDays: association.otherMigraineDays,
+                    observedDays: association.otherDaysObserved,
+                    tint: .secondary
+                )
+            }
+            if let ratio = association.rateRatio {
+                let rounded = (ratio * 10).rounded() / 10
+                let text = rounded == rounded.rounded() ? String(Int(rounded)) : String(format: "%.1f", rounded)
+                Text("Rate ratio \(text)×. A ratio near 1 means migraines were about as likely around your period as at other times.")
+                    .scaledFont(size: 11)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+    
+    private func rateColumn(title: String, migraineDays: Int, observedDays: Int, tint: Color) -> some View {
+        let rate = observedDays > 0 ? Double(migraineDays) / Double(observedDays) : nil
+        return VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .scaledFont(size: 12, weight: .medium, design: .rounded)
                 .foregroundStyle(.secondary)
-            Text("\(count)")
+            Text(rate.map { "\(Int(($0 * 100).rounded()))%" } ?? "—")
                 .scaledFont(size: 26, weight: .bold, design: .rounded)
                 .foregroundStyle(tint)
-            Text("\(Int((percent * 100).rounded()))% of anchored")
+            Text("\(migraineDays) of \(observedDays) days")
                 .scaledFont(size: 11)
                 .foregroundStyle(.secondary)
         }
@@ -827,65 +965,53 @@ struct AnalyticsMetricDetailView: View {
         .padding(12)
         .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
-
-    /// Datapoint for the per-cycle-day histogram. Owning a real type
-    /// (rather than a tuple) keeps `Chart(_:)` and `id:` stable across
-    /// Swift versions.
-    private struct CycleDayBucket: Identifiable {
-        let id: Int
-        var day: Int { id }
-        let count: Int
-        let isPerimenstrual: Bool
-    }
     
-    /// Bar chart of migraine counts per cycle day (1-35). A bar is
-    /// tinted pink when the migraines on that day were perimenstrual
-    /// (days 1-3, or the last two days before the *next* logged start —
-    /// which varies with cycle length, so it is derived per migraine
-    /// rather than from a fixed day number).
-    private func cycleDayHistogram(anchored: [CycleAnchoredMigraine]) -> some View {
-        let maxDay = max(28, anchored.map(\.cycleDay).max() ?? 28)
-        var counts: [Int: Int] = [:]
-        var perimenstrualCounts: [Int: Int] = [:]
-        for m in anchored {
-            counts[m.cycleDay, default: 0] += 1
-            if m.isPerimenstrual { perimenstrualCounts[m.cycleDay, default: 0] += 1 }
-        }
-        let series: [CycleDayBucket] = (1...maxDay).map { day in
-            let total = counts[day] ?? 0
-            let peri = perimenstrualCounts[day] ?? 0
-            return CycleDayBucket(
-                id: day,
-                count: total,
-                isPerimenstrual: day <= PerimenstrualWindow.daysAfter + 1 || (total > 0 && peri * 2 >= total)
-            )
-        }
-        
-        return Chart(series) { row in
-            BarMark(
-                x: .value("Cycle day", row.day),
-                y: .value("Migraines", row.count)
-            )
-            .foregroundStyle(row.isPerimenstrual ? perimenstrualBand : metric.accent)
-            .cornerRadius(2)
-        }
-        .chartXAxis {
-            AxisMarks(values: Array(stride(from: 1, through: maxDay, by: 5))) { value in
-                AxisGridLine()
-                AxisTick()
-                AxisValueLabel {
-                    if let day = value.as(Int.self) {
-                        Text("\(day)").scaledFont(size: 10)
-                    }
-                }
+    /// Mean pain of attacks inside vs. outside the window; only shown
+    /// when both groups have enough attacks to compare.
+    private func severityComparison(_ association: CycleAssociation) -> some View {
+        let peri = association.perimenstrualMeanPain ?? 0
+        let other = association.otherMeanPain ?? 0
+        let delta = peri - other
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                painColumn(title: "Perimenstrual", mean: peri, count: association.perimenstrualAttackCount, tint: metric.accent)
+                painColumn(title: "Other days", mean: other, count: association.otherAttackCount, tint: .secondary)
             }
+            Text(severityCopy(delta: delta))
+                .scaledFont(size: 11)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .chartYAxis {
-            AxisMarks(position: .leading)
-        }
-        .frame(height: 200)
+        .accessibilityElement(children: .combine)
     }
     
+    private func painColumn(title: String, mean: Double, count: Int, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .scaledFont(size: 12, weight: .medium, design: .rounded)
+                .foregroundStyle(.secondary)
+            Text(String(format: "%.1f", mean))
+                .scaledFont(size: 26, weight: .bold, design: .rounded)
+                .foregroundStyle(tint)
+            Text("mean pain · \(count) \(count == 1 ? "attack" : "attacks")")
+                .scaledFont(size: 11)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+    
+    private func severityCopy(delta: Double) -> String {
+        if abs(delta) < 0.5 {
+            return "Attacks around your period were about as intense as at other times."
+        }
+        let amount = String(format: "%.1f", abs(delta))
+        return delta > 0
+            ? "Attacks around your period averaged \(amount) points higher on the pain scale."
+            : "Attacks around your period averaged \(amount) points lower on the pain scale."
+    }
+
     private func phaseBreakdownTable(anchored: [CycleAnchoredMigraine]) -> some View {
         let total = max(1, anchored.count)
         var counts: [CyclePhase: Int] = [:]
@@ -917,12 +1043,6 @@ struct AnalyticsMetricDetailView: View {
                 }
             }
         }
-    }
-    
-    /// Colour shared between the cycle-day histogram band and the
-    /// "perimenstrual" headline copy.
-    private var perimenstrualBand: Color {
-        Color(red: 220/255, green: 80/255, blue: 100/255)
     }
     
     private func phaseColor(_ phase: CyclePhase) -> Color {

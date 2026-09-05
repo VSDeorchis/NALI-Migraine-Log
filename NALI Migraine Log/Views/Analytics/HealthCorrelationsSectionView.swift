@@ -5,7 +5,8 @@
 //  Dashboard section that surfaces the headline numbers from
 //  `HealthCorrelationStore`. Two compact cards (Sleep + HRV) live
 //  side-by-side; each is a `NavigationLink(value: AnalyticsMetric)`
-//  into the full drill-down chart.
+//  into the full drill-down chart. Cycle association has its own
+//  card (`CycleAssociationCard`) higher up the dashboard.
 //
 //  The whole section hides on devices without HealthKit, and degrades
 //  gracefully when:
@@ -50,16 +51,7 @@ struct HealthCorrelationsSectionView: View {
                         sleepCard
                         hrvCard
                     }
-                    // Cycle card lives below the sleep/HRV pair and only
-                    // appears for users who actually log menstrual flow
-                    // in Apple Health (data-driven gate, not gender-gated).
-                    if store.cycleAvailability == .available {
-                        cycleCard
-                    }
-                    Text("Tap a card for the full chart and clinical-grade comparison.")
-                        .scaledFont(size: 11)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    AnalyticsFooter(text: "Source: Apple Health. Tap a card for the full comparison.")
                 }
             }
         }
@@ -130,43 +122,23 @@ struct HealthCorrelationsSectionView: View {
         )
     }
     
-    // MARK: - Cycle card
-    
-    /// Full-width card showing the per-phase distribution of migraines
-    /// for users who track menstrual flow in HealthKit. Hidden entirely
-    /// on devices/users without that data.
-    private var cycleCard: some View {
-        NavigationLink(value: AnalyticsMetric.cyclePhase) {
-            CycleCorrelationCard(distribution: store.cyclePhaseSummary)
-        }
-        .buttonStyle(.plain)
-        .hoverEffect(.lift)
-        .accessibilityHint("Opens cycle correlation details")
-    }
-    
     // MARK: - Wrapper container so all states share the same chrome
     
     @ViewBuilder
     private func sectionContainer<Content: View>(
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Health Correlations", systemImage: "heart.text.square.fill")
-                .scaledFont(size: 17, weight: .semibold, design: .rounded)
-                .foregroundStyle(.teal)
-                .padding(.horizontal, 4)
+        VStack(alignment: .leading, spacing: 14) {
+            AnalyticsSectionHeader(
+                "Health Correlations",
+                systemImage: "heart.text.square.fill",
+                accent: AnalyticsDomain.health.accent
+            )
             content()
         }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color(.secondarySystemGroupedBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(Color(.systemGray5), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .analyticsSurface()
         .padding(.horizontal, 16)
     }
     
@@ -325,10 +297,6 @@ private struct CorrelationCard: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color(.tertiarySystemGroupedBackground))
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(metric.accent.opacity(0.25), lineWidth: 1)
-        )
     }
     
     // MARK: - Card copy helpers
@@ -400,126 +368,5 @@ private struct CorrelationCard: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .foregroundStyle(color)
-    }
-}
-
-// MARK: - Cycle correlation card
-
-/// Full-width card summarizing how this window's migraines were
-/// distributed across the cycle. Stacked phase bar visualises
-/// proportion at-a-glance; a perimenstrual headline numbers the days
-/// most associated with estrogen-withdrawal migraine.
-private struct CycleCorrelationCard: View {
-    let distribution: CyclePhaseDistribution?
-    
-    private static let phaseColors: [CyclePhase: Color] = [
-        .menses:     Color(red: 220/255, green: 80/255, blue: 100/255),
-        .follicular: Color(red: 110/255, green: 180/255, blue: 130/255),
-        .ovulatory:  Color(red: 240/255, green: 190/255, blue: 90/255),
-        .luteal:     Color(red: 110/255, green: 130/255, blue: 200/255)
-    ]
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                Image(systemName: AnalyticsMetric.cyclePhase.systemImage)
-                    .scaledFont(size: 13, weight: .semibold)
-                    .foregroundStyle(AnalyticsMetric.cyclePhase.accent)
-                Text("Cycle phase distribution")
-                    .scaledFont(size: 12, weight: .semibold, design: .rounded)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .scaledFont(size: 11, weight: .semibold)
-                    .foregroundStyle(.secondary)
-            }
-            
-            Text(headline)
-                .scaledFont(size: 18, weight: .bold, design: .rounded)
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-            
-            if let distribution, distribution.totalAnchored > 0 {
-                phaseBar(distribution: distribution)
-                phaseLegend(distribution: distribution)
-            } else {
-                Text("Log a few cycles in Apple Health to see how migraines line up with your phases.")
-                    .scaledFont(size: 11)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(.tertiarySystemGroupedBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(AnalyticsMetric.cyclePhase.accent.opacity(0.25), lineWidth: 1)
-        )
-    }
-    
-    private var headline: String {
-        guard let distribution, distribution.totalAnchored > 0 else {
-            return "Cycle data is being collected"
-        }
-        if distribution.isReliable, let pct = distribution.perimenstrualPercentage {
-            let percentString = "\(Int((pct * 100).rounded()))%"
-            if pct >= 0.5 {
-                return "\(percentString) of migraines fell in the perimenstrual window"
-            } else if pct >= 0.3 {
-                return "\(percentString) of migraines were perimenstrual"
-            } else if let topPhase = topPhase(distribution) {
-                return "Most migraines occurred in your \(topPhase.title.lowercased()) phase"
-            }
-        }
-        return "Tracking migraines across your cycle"
-    }
-    
-    private func topPhase(_ distribution: CyclePhaseDistribution) -> CyclePhase? {
-        distribution.counts.max(by: { $0.value < $1.value })?.key
-    }
-    
-    /// Horizontal stacked bar with one segment per phase, sized in
-    /// proportion to that phase's share of the migraines.
-    private func phaseBar(distribution: CyclePhaseDistribution) -> some View {
-        let total = max(1, distribution.totalAnchored)
-        return GeometryReader { geo in
-            HStack(spacing: 1) {
-                ForEach(CyclePhase.allCases) { phase in
-                    let count = distribution.counts[phase] ?? 0
-                    if count > 0 {
-                        let width = geo.size.width * CGFloat(count) / CGFloat(total)
-                        Rectangle()
-                            .fill(Self.phaseColors[phase] ?? .gray)
-                            .frame(width: max(2, width))
-                    }
-                }
-            }
-        }
-        .frame(height: 14)
-        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-    }
-    
-    private func phaseLegend(distribution: CyclePhaseDistribution) -> some View {
-        let total = max(1, distribution.totalAnchored)
-        return HStack(spacing: 10) {
-            ForEach(CyclePhase.allCases) { phase in
-                let count = distribution.counts[phase] ?? 0
-                let pct = Int((Double(count) / Double(total) * 100).rounded())
-                HStack(spacing: 4) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Self.phaseColors[phase] ?? .gray)
-                        .frame(width: 8, height: 8)
-                    Text("\(phase.title) \(pct)%")
-                        .scaledFont(size: 10, weight: .medium, design: .rounded)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-            }
-        }
     }
 }

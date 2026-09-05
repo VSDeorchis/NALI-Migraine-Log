@@ -5,17 +5,9 @@ struct StatisticsView: View {
     @ObservedObject var viewModel: MigraineViewModel
     @State private var timeFilter: TimeFilter = .month
     @State private var selectedYear: Int = Calendar.current.component(.year, from: Date())
-    @State private var selectedMonth: Date?
-    @State private var showingMonthDetail = false
-    @State private var lastUpdateTime: Date = Date()
-    @State private var selectedMedication: String?
-    @State private var selectedTrigger: String?
-    @State private var selectedTimeOfDay: String?
     @State private var selectedImpactType: String?
-    @State private var selectedPainLevel: Int?
-    
-    @State private var isNavigating = false
-    @State private var customStartDate: Date = Calendar.current.date(byAdding: .month, value: -1, to: Date())!
+    @State private var patternDrillDown: PatternDrillDown?
+    @State private var customStartDate: Date = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
     @State private var customEndDate: Date = Date()
     
     /// Owns the cached HealthKit-derived correlation stats. The dashboard
@@ -29,17 +21,13 @@ struct StatisticsView: View {
     @State private var showingHealthKitPrimer = false
     
     /// `.regular` ≈ iPad in any orientation + iPhone Plus/Pro Max in
-    /// landscape. Drives the adaptive KPI grid below: 2 columns on
-    /// compact iPhone, 4 on iPad so the dashboard reads at-a-glance
-    /// rather than as a single tall scrolling stack.
+    /// landscape. Drives the KPI grid column count and the dashboard's
+    /// maximum content width.
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     
-    /// Column descriptor for the KPI tile grid. `adaptive(minimum:)`
-    /// would also work but tile widths look more balanced when we hand
-    /// SwiftUI a fixed column count per size class.
     private var kpiGridColumns: [GridItem] {
-        let count = horizontalSizeClass == .regular ? 4 : 2
-        return Array(repeating: GridItem(.flexible(), spacing: 16), count: count)
+        let count = horizontalSizeClass == .regular ? 6 : 3
+        return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
     }
     
     enum TimeFilter: String, CaseIterable {
@@ -49,320 +37,392 @@ struct StatisticsView: View {
         case range = "Range"
     }
     
-    @ViewBuilder
-    private func medicationNavigationView() -> some View {
-        if let medicationName = selectedMedication,
-           let medication = MigraineMedication(displayName: medicationName) {
-            FilteredMigraineListView(
-                viewModel: viewModel,
-                title: "Migraines with \(medicationName)",
-                migraines: filteredMigraines.filter { $0.medications.contains(medication) }
-            )
-        } else {
-            EmptyView()
-        }
-    }
-
-    @ViewBuilder
-    private func triggerNavigationView() -> some View {
-        if let triggerName = selectedTrigger,
-           let trigger = MigraineTrigger(displayName: triggerName) {
-            FilteredMigraineListView(
-                viewModel: viewModel,
-                title: "Migraines with \(triggerName)",
-                migraines: filteredMigraines.filter { $0.triggers.contains(trigger) }
-            )
-        } else {
-            EmptyView()
+    // MARK: - Body
+    
+    var body: some View {
+        NavigationStack {
+            statisticsContent
+                .navigationTitle("Overview")
+                .toolbar { filterMenu }
+                .navigationDestination(for: AnalyticsMetric.self) { metric in
+                    AnalyticsMetricDetailView(
+                        viewModel: viewModel,
+                        healthStore: healthCorrelationStore,
+                        metric: metric,
+                        migraines: filteredMigraines,
+                        periodLabel: periodLabel
+                    )
+                }
+                .navigationDestination(item: $patternDrillDown) { drillDown in
+                    patternDrillDownView(drillDown)
+                }
+                .navigationDestination(isPresented: impactBinding) {
+                    impactNavigationView()
+                }
+                .onAppear {
+                    viewModel.fetchMigraines()
+                    refreshHealthCorrelations()
+                }
+                .onChange(of: viewModel.migraines) { refreshHealthCorrelations() }
+                .onChange(of: timeFilter) { refreshHealthCorrelations() }
+                .onChange(of: selectedYear) { refreshHealthCorrelations() }
+                .onChange(of: customStartDate) { refreshHealthCorrelations() }
+                .onChange(of: customEndDate) { refreshHealthCorrelations() }
         }
     }
     
-    @ViewBuilder
-    private func timeOfDayNavigationView() -> some View {
-        if let timeSlot = selectedTimeOfDay {
-            FilteredMigraineListView(
-                viewModel: viewModel,
-                title: "Migraines in \(timeSlot)",
-                migraines: filteredMigraines.filter { migraine in
-                    guard let date = migraine.startTime else { return false }
-                    let hour = Calendar.current.component(.hour, from: date)
-                    switch timeSlot {
-                    case "Morning": return (5..<12).contains(hour)
-                    case "Afternoon": return (12..<17).contains(hour)
-                    case "Evening": return (17..<22).contains(hour)
-                    case "Night": return hour < 5 || hour >= 22
-                    default: return false
-                    }
-                }
-            )
-        }
-    }
-    
-    @ViewBuilder
-    private func impactNavigationView() -> some View {
-        if let impactType = selectedImpactType {
-            FilteredMigraineListView(
-                viewModel: viewModel,
-                title: impactType,
-                migraines: filteredMigraines.filter { migraine in
-                    switch impactType {
-                    case "Missed Work": return migraine.missedWork
-                    case "Missed School": return migraine.missedSchool
-                    case "Missed Events": return migraine.missedEvents
-                    default: return false
-                    }
-                }
-            )
-        }
-    }
-    
-    @ViewBuilder
-    private func painLevelNavigationView() -> some View {
-        if let level = selectedPainLevel {
-            FilteredMigraineListView(
-                viewModel: viewModel,
-                title: "Pain Level \(level)",
-                migraines: filteredMigraines.filter { migraine in
-                    migraine.painLevel == level
-                }
-            )
-        }
-    }
-    
-    private var timeFilterView: some View {
-        VStack {
-            Picker("Time Filter", selection: $timeFilter) {
-                ForEach(TimeFilter.allCases, id: \.self) { filter in
-                    Text(filter.rawValue).tag(filter)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
+    private var statisticsContent: some View {
+        ZStack {
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
             
-            if timeFilter == .year {
-                Picker("Year", selection: $selectedYear) {
-                    ForEach(availableYears, id: \.self) { year in
-                        Text(String(year)).tag(year)
+            ScrollView {
+                VStack(spacing: 16) {
+                    periodHeader
+                    if filteredMigraines.isEmpty {
+                        emptyState
+                    } else {
+                        heroSection
+                        kpiStrip
+                        trendsSection
+                        medicationSection
+                        patternsSection
+                        insightsSection
+                        cycleSection
+                        healthCorrelationsSection
+                        impactSummaryView
+                        weatherCorrelationButton
+                        completenessFooter
                     }
                 }
-                .pickerStyle(.menu)
-            } else if timeFilter == .range {
-                VStack {
-                    DatePicker("Start", selection: $customStartDate, displayedComponents: .date)
-                        .datePickerStyle(.compact)
+                .padding(.vertical)
+                .frame(maxWidth: horizontalSizeClass == .regular ? 1100 : .infinity)
+                .frame(maxWidth: .infinity)
+                .animation(.snappy(duration: 0.3), value: timeFilter)
+            }
+        }
+    }
+    
+    // MARK: - Filter
+    
+    private var filterMenu: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                Picker("Period", selection: $timeFilter) {
+                    ForEach(TimeFilter.allCases, id: \.self) { filter in
+                        Text(filter.menuTitle).tag(filter)
+                    }
+                }
+                if timeFilter == .year {
+                    Picker("Year", selection: $selectedYear) {
+                        ForEach(availableYears, id: \.self) { year in
+                            Text(String(year)).tag(year)
+                        }
+                    }
+                }
+            } label: {
+                Label(timeFilter.rawValue, systemImage: "line.3.horizontal.decrease.circle")
+                    .labelStyle(.titleAndIcon)
+            }
+            .accessibilityLabel("Filter period, currently \(periodLabel)")
+        }
+    }
+    
+    /// Period label + sample size under the title; date pickers appear
+    /// inline only for the custom range.
+    private var periodHeader: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(periodLabel)
+                    .scaledFont(size: 15, weight: .semibold, design: .rounded)
+                    .foregroundStyle(.primary)
+                Spacer()
+                Text("\(filteredMigraines.count) \(filteredMigraines.count == 1 ? "entry" : "entries")")
+                    .scaledFont(size: 13, weight: .medium, design: .rounded)
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.numericText())
+            }
+            if timeFilter == .range {
+                HStack(spacing: 12) {
+                    DatePicker("Start", selection: $customStartDate, in: ...customEndDate, displayedComponents: .date)
+                        .labelsHidden()
+                    Image(systemName: "arrow.right")
+                        .foregroundStyle(.secondary)
                     DatePicker("End", selection: $customEndDate, in: customStartDate...Date(), displayedComponents: .date)
-                        .datePickerStyle(.compact)
+                        .labelsHidden()
+                    Spacer(minLength: 0)
                 }
             }
         }
+        .padding(.horizontal, 20)
     }
     
-    private var summaryStatsView: some View {
-        VStack(spacing: 20) {
-            LazyVGrid(columns: kpiGridColumns, spacing: 16) {
-                tileLink(
-                    metric: .total,
-                    StatBox(
-                        title: "\(timeFilter.rawValue) Total",
-                        value: String(totalMigraines),
-                        trend: totalTrend
-                    )
-                )
-                tileLink(
-                    metric: .averagePain,
-                    StatBox(
-                        title: "Avg Pain",
-                        value: String(format: "%.1f", averagePain),
-                        trend: painTrend
-                    )
-                )
-                tileLink(
-                    metric: .severeDays,
-                    StatBox(
-                        title: "Severe Days",
-                        value: String(severePainDays),
-                        subtitle: severePainDays > 0 ? "Pain ≥ 7" : nil
-                    )
-                )
-                tileLink(
-                    metric: .streak,
-                    StatBox(
-                        title: "Migraine-free",
-                        value: streakDisplayValue,
-                        subtitle: streakDisplaySubtitle
-                    )
-                )
-                tileLink(
-                    metric: .averageDuration,
-                    StatBox(title: "Avg Duration", value: formatDuration(averageDuration))
-                )
-                tileLink(
-                    metric: .topTrigger,
-                    StatBox(
-                        title: "Top Trigger",
-                        value: topTriggerDisplayValue,
-                        subtitle: topTriggerDisplaySubtitle
-                    )
-                )
-                tileLink(
-                    metric: .missedDays,
-                    StatBox(
-                        title: "Days Missed",
-                        value: String(totalImpactDays),
-                        subtitle: totalImpactDays > 0 ? "work / school / events" : nil
-                    )
-                )
-                tileLink(
-                    metric: .topMedication,
-                    StatBox(title: "Abortives Used", value: String(abortivesUsed))
-                )
+    private var emptyState: some View {
+        ContentUnavailableView {
+            Label("No Data for This Period", systemImage: "chart.bar.xaxis")
+                .scaledFont(size: 20, weight: .semibold, design: .rounded)
+        } description: {
+            Text("Try a different period from the filter, or log a migraine to start seeing statistics.")
+                .scaledFont(size: 14)
+        } actions: {
+            if viewModel.migraines.isEmpty == false, timeFilter != .year {
+                Button("Show This Year") {
+                    timeFilter = .year
+                    selectedYear = Calendar.current.component(.year, from: Date())
+                }
+                .buttonStyle(.bordered)
             }
-            .padding(.horizontal)
         }
+        .padding(.top, 40)
     }
     
-    /// Wraps a `StatBox` in a `NavigationLink` whose value drives the
+    // MARK: - Hero + KPIs
+    
+    private var heroSection: some View {
+        NavigationLink(value: AnalyticsMetric.migraineDays) {
+            HeroMetricCard(
+                title: "Migraine days",
+                value: String(headacheDays),
+                unit: headacheDays == 1 ? "day" : "days",
+                context: heroContext,
+                trend: headacheDaysTrend,
+                trendSentiment: sentiment(for: headacheDaysTrend, higherIsWorse: true),
+                accent: AnalyticsDomain.frequency.accent
+            )
+        }
+        .buttonStyle(.plain)
+        .hoverEffect(.lift)
+        .padding(.horizontal, 16)
+        .accessibilityHint("Opens migraine days details")
+    }
+    
+    private var heroContext: String {
+        if let days = periodDayCount {
+            return "of \(days) days · \(totalMigraines) \(totalMigraines == 1 ? "attack" : "attacks")"
+        }
+        return "\(totalMigraines) \(totalMigraines == 1 ? "attack" : "attacks")"
+    }
+    
+    private var kpiStrip: some View {
+        LazyVGrid(columns: kpiGridColumns, spacing: 10) {
+            tileLink(
+                metric: .total,
+                KPIChip(
+                    title: "Attacks",
+                    value: String(totalMigraines),
+                    trend: totalTrend,
+                    trendSentiment: sentiment(for: totalTrend, higherIsWorse: true)
+                )
+            )
+            tileLink(
+                metric: .averagePain,
+                KPIChip(
+                    title: "Avg pain",
+                    value: String(format: "%.1f", averagePain),
+                    detail: "of 10",
+                    trend: painTrend,
+                    trendSentiment: sentiment(for: painTrend, higherIsWorse: true),
+                    accent: AnalyticsDomain.severity.accent
+                )
+            )
+            tileLink(
+                metric: .averageDuration,
+                KPIChip(
+                    title: "Median duration",
+                    value: durationSpread.map { formatDuration($0.median) } ?? "—",
+                    detail: durationDetail
+                )
+            )
+            tileLink(
+                metric: .severeDays,
+                KPIChip(
+                    title: "Severe days",
+                    value: String(severePainDays),
+                    detail: "pain 7+",
+                    accent: severePainDays > 0 ? AnalyticsDomain.severity.accent : .primary
+                )
+            )
+            tileLink(
+                metric: .streak,
+                KPIChip(
+                    title: "Migraine-free",
+                    value: streakDisplayValue,
+                    detail: streakDisplaySubtitle,
+                    accent: .green
+                )
+            )
+            tileLink(
+                metric: .topTrigger,
+                KPIChip(
+                    title: "Top trigger",
+                    value: topTriggerDisplayValue,
+                    detail: topTriggerDisplaySubtitle
+                )
+            )
+        }
+        .padding(.horizontal, 16)
+    }
+    
+    /// Wraps a tile in a `NavigationLink` whose value drives the
     /// per-metric drill-down handled by `AnalyticsMetricDetailView`.
     private func tileLink<Content: View>(metric: AnalyticsMetric, _ content: Content) -> some View {
         NavigationLink(value: metric) {
             content
         }
         .buttonStyle(.plain)
-        // `.lift` is the card-style hover (slight scale + shadow)
-        // appropriate for tappable tiles. Trackpad-only — no-op on
-        // iPhone touch.
         .hoverEffect(.lift)
         .accessibilityHint("Opens \(metric.title) details")
     }
     
-    // MARK: - Impact Summary
+    // MARK: - Trends
     
-    private var impactSummaryView: some View {
-        let missedWorkCount = filteredMigraines.filter { $0.missedWork }.count
-        let missedSchoolCount = filteredMigraines.filter { $0.missedSchool }.count
-        let missedEventsCount = filteredMigraines.filter { $0.missedEvents }.count
-        let totalImpact = missedWorkCount + missedSchoolCount + missedEventsCount
-        
-        return Group {
-            if totalImpact > 0 {
-                VStack(alignment: .leading, spacing: 12) {
-                    Label("Life Impact", systemImage: "heart.slash.fill")
-                        .scaledFont(size: 17, weight: .semibold, design: .rounded)
-                        .foregroundStyle(.red)
-                        .padding(.horizontal, 4)
-                    
-                    HStack(spacing: 12) {
-                        if missedWorkCount > 0 {
-                            ImpactBadge(
-                                icon: "briefcase.fill",
-                                count: missedWorkCount,
-                                label: "Work",
-                                color: .red
-                            ) {
-                                selectedImpactType = "Missed Work"
-                            }
-                        }
-                        if missedSchoolCount > 0 {
-                            ImpactBadge(
-                                icon: "graduationcap.fill",
-                                count: missedSchoolCount,
-                                label: "School",
-                                color: .orange
-                            ) {
-                                selectedImpactType = "Missed School"
-                            }
-                        }
-                        if missedEventsCount > 0 {
-                            ImpactBadge(
-                                icon: "calendar.badge.exclamationmark",
-                                count: missedEventsCount,
-                                label: "Events",
-                                color: .purple
-                            ) {
-                                selectedImpactType = "Missed Events"
-                            }
-                        }
+    /// Heatmap (with period-start dots for eligible users) and the
+    /// scrollable 12-month headache-day trend.
+    private var trendsSection: some View {
+        ChartSection(title: "Trends", systemImage: "chart.bar.fill", accent: AnalyticsDomain.frequency.accent) {
+            VStack(alignment: .leading, spacing: 20) {
+                SeverityHeatmapView(
+                    cells: heatmapCells,
+                    cycleStartDays: Set(healthCorrelationStore.cycleStartDays)
+                )
+                Divider()
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Migraine days per month")
+                        .scaledFont(size: 14, weight: .semibold, design: .rounded)
+                    if monthlyHeadacheDays.allSatisfy({ $0.count == 0 }) {
+                        Text("No migraine days in the past 12 months.")
+                            .scaledFont(size: 13)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        MonthlyTrendChart(points: monthlyHeadacheDays, unit: "day")
                     }
                 }
-                .padding(20)
-                .background(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(Color(.secondarySystemGroupedBackground))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .strokeBorder(Color(.systemGray5), lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
-                .padding(.horizontal, 16)
+                AnalyticsFooter(text: "Past 12 months, all entries. Swipe the chart to scroll; tap a bar for that month.")
             }
         }
     }
     
-    // MARK: - Trend Calculations
-    
-    private var totalTrend: StatBox.TrendDirection? {
-        guard timeFilter != .range else { return nil }
-        let current = currentPeriodMigraines
-        let previous = previousPeriodMigraines
-        if current > previous {
-            return .up("\(current - previous) more")
-        } else if current < previous {
-            return .down("\(previous - current) fewer")
-        } else {
-            return .same
-        }
-    }
-    
-    private var painTrend: StatBox.TrendDirection? {
-        guard timeFilter != .range else { return nil }
-        let currentPain = averagePain
-        let previousPain = previousPeriodAveragePain
-        guard previousPain > 0 else { return nil }
-        let diff = currentPain - previousPain
-        if abs(diff) < 0.2 { return .same }
-        if diff > 0 {
-            return .up(String(format: "+%.1f", diff))
-        } else {
-            return .down(String(format: "%.1f", diff))
-        }
-    }
-    
-    private var previousPeriodAveragePain: Double {
-        let calendar = Calendar.current
-        let now = Date()
-        
-        let prevMigraines = viewModel.migraines.filter { migraine in
-            guard let startTime = migraine.startTime else { return false }
+    /// Subset of `dailyPainCells` covering the heatmap window. Computed
+    /// off the unfiltered `viewModel.migraines` so multi-month time filters
+    /// (year/range) still see migraine-free days outside the filter.
+    private var heatmapCells: [DailyPainCell] {
+        let cal = Calendar.current
+        let end = cal.startOfDay(for: Date())
+        let start: Date = {
             switch timeFilter {
             case .week:
-                let lastWeekStart = calendar.date(byAdding: .day, value: -14, to: now)!
-                let lastWeekEnd = calendar.date(byAdding: .day, value: -7, to: now)!
-                return startTime >= lastWeekStart && startTime < lastWeekEnd
+                return cal.date(byAdding: .day, value: -27, to: end) ?? end
             case .month:
-                let lastMonthStart = calendar.date(byAdding: .month, value: -2, to: now)!
-                let lastMonthEnd = calendar.date(byAdding: .month, value: -1, to: now)!
-                return startTime >= lastMonthStart && startTime < lastMonthEnd
+                return cal.date(byAdding: .day, value: -41, to: end) ?? end
             case .year:
-                return calendar.component(.year, from: startTime) == selectedYear - 1
+                return cal.date(byAdding: .day, value: -89, to: end) ?? end
             case .range:
-                return false
+                let clampedStart = cal.startOfDay(for: customStartDate)
+                let clampedEnd   = cal.startOfDay(for: customEndDate)
+                let span = cal.dateComponents([.day], from: clampedStart, to: clampedEnd).day ?? 0
+                if span > 90 {
+                    return cal.date(byAdding: .day, value: -89, to: clampedEnd) ?? clampedStart
+                }
+                return clampedStart
             }
-        }
-        guard !prevMigraines.isEmpty else { return 0 }
-        return prevMigraines.reduce(0.0) { $0 + Double($1.painLevel) } / Double(prevMigraines.count)
+        }()
+        let interval = DateInterval(start: start, end: end)
+        return viewModel.migraines.dailyPainCells(in: interval)
     }
     
-    private var chartsView: some View {
-        LazyVStack(spacing: 20) {
-            painLevelDistributionChart
-            trendsSection
-            insightsSection
-            healthCorrelationsSection
-            impactSummaryView
-            weatherCorrelationButton
+    /// Rolling 12-month series from the *full* history so months in a
+    /// prior calendar year still appear when the year filter is active.
+    private var monthlyHeadacheDays: [MonthlyPoint] {
+        viewModel.migraines.monthlyHeadacheDays(monthsBack: 11)
+    }
+    
+    // MARK: - Medication
+    
+    private var medicationSection: some View {
+        NavigationLink(value: AnalyticsMetric.medicationDays) {
+            ChartSection(
+                title: "Acute medication",
+                systemImage: "pills.fill",
+                accent: AnalyticsDomain.medication.accent
+            ) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(String(acuteMedicationDays))
+                            .scaledFont(size: 30, weight: .bold, design: .rounded)
+                            .foregroundStyle(AnalyticsDomain.medication.accent)
+                            .contentTransition(.numericText())
+                        Text(acuteMedicationDays == 1 ? "day with acute medication" : "days with acute medication")
+                            .scaledFont(size: 14, weight: .medium, design: .rounded)
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
+                        if let trend = medicationDaysTrend {
+                            TrendChip(direction: trend, sentiment: sentiment(for: trend, higherIsWorse: true))
+                        }
+                    }
+                    if let perMonth = acuteMedicationDaysPerMonth {
+                        MedicationDaysGauge(daysPerMonth: perMonth)
+                        Text(medicationBandCopy(perMonth: perMonth))
+                            .scaledFont(size: 12)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    AnalyticsFooter(text: "\(abortivesUsed) \(abortivesUsed == 1 ? "dose" : "doses") logged across \(totalMigraines) \(totalMigraines == 1 ? "entry" : "entries"). Counts days, not tablets.")
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens acute medication days details")
+    }
+    
+    private func medicationBandCopy(perMonth: Double) -> String {
+        let rate = perMonth == perMonth.rounded() ? String(Int(perMonth)) : String(format: "%.1f", perMonth)
+        switch AcuteMedicationBand.band(daysPerMonth: perMonth) {
+        case .low:
+            return "About \(rate) days per 30 — below the \(AcuteMedicationBand.moderateThreshold)-day mark clinicians often use as a reference."
+        case .moderate:
+            return "About \(rate) days per 30. Frequent acute-medication use (\(AcuteMedicationBand.moderateThreshold)+ days a month) is worth mentioning to your clinician."
+        case .frequent:
+            return "About \(rate) days per 30 — \(AcuteMedicationBand.frequentThreshold)+ days a month is a level clinicians usually want to discuss. This is context, not a diagnosis."
         }
     }
+    
+    // MARK: - Patterns / insights
+    
+    private var patternsSection: some View {
+        AnalyticsPatternsCard(migraines: filteredMigraines) { drillDown in
+            patternDrillDown = drillDown
+        }
+    }
+    
+    /// Auto-generated narrative insights drawn from the filtered period.
+    /// Hidden entirely when no signal is strong enough — keeps the screen
+    /// quiet on light data sets.
+    private var insightsSection: some View {
+        AnalyticsInsightsView(
+            insights: AnalyticsInsightGenerator.generate(
+                for: filteredMigraines,
+                currentStreak: currentMigraineFreeStreak
+            )
+        )
+    }
+    
+    // MARK: - Cycle
+    
+    /// Shown only for users whose Health data makes cycle insights
+    /// applicable and who have the toggle on; excluded users see nothing.
+    @ViewBuilder
+    private var cycleSection: some View {
+        if healthCorrelationStore.cycleAvailability == .available {
+            NavigationLink(value: AnalyticsMetric.cyclePhase) {
+                CycleAssociationCard(association: healthCorrelationStore.cycleAssociation)
+            }
+            .buttonStyle(.plain)
+            .hoverEffect(.lift)
+            .accessibilityHint("Opens cycle and migraine details")
+        }
+    }
+    
+    // MARK: - Health
     
     /// Sleep + HRV correlation cards, hidden entirely when HealthKit
     /// isn't available on the device. The CTA on this card opens our
@@ -386,121 +446,43 @@ struct StatisticsView: View {
                 },
                 onSkip: {
                     HealthKitManager.shared.markAuthorizationRequested()
-                    // Re-evaluate authorization status so the section
-                    // moves from ".notDetermined" to ".denied" CTA copy
-                    // even if the user never opens Apple's sheet.
                     refreshHealthCorrelations()
                 }
             )
         }
     }
     
-    // MARK: - New dashboard sections
+    // MARK: - Impact
     
-    /// Heatmap + monthly distribution, the two charts that benefit most from
-    /// living above the fold. The heatmap uses a 60-day window so the
-    /// rendered grid stays roughly square on iPhone — long-range exploration
-    /// happens via the year filter or per-metric drill-downs.
-    private var trendsSection: some View {
-        ChartSection(title: "") {
-            VStack(alignment: .leading, spacing: 20) {
-                SeverityHeatmapView(cells: heatmapCells)
-                Divider()
-                    .padding(.horizontal, -8)
-                monthlyDistributionInline
-            }
-        }
-    }
-    
-    /// Auto-generated narrative insights drawn from the filtered period.
-    /// Hidden entirely when no signal is strong enough — keeps the screen
-    /// quiet on light data sets.
-    private var insightsSection: some View {
-        AnalyticsInsightsView(
-            insights: AnalyticsInsightGenerator.generate(
-                for: filteredMigraines,
-                currentStreak: currentMigraineFreeStreak
-            )
-        )
-    }
-    
-    /// Subset of `dailyPainCells` covering the heatmap window. Computed
-    /// off the unfiltered `viewModel.migraines` so multi-month time filters
-    /// (year/range) still see migraine-free days outside the filter.
-    private var heatmapCells: [DailyPainCell] {
-        let cal = Calendar.current
-        let end = cal.startOfDay(for: Date())
-        let start: Date = {
-            switch timeFilter {
-            case .week:
-                return cal.date(byAdding: .day, value: -27, to: end) ?? end
-            case .month:
-                return cal.date(byAdding: .day, value: -41, to: end) ?? end
-            case .year:
-                let y = cal.date(byAdding: .day, value: -89, to: end) ?? end
-                return y
-            case .range:
-                let clampedStart = cal.startOfDay(for: customStartDate)
-                let clampedEnd   = cal.startOfDay(for: customEndDate)
-                let span = cal.dateComponents([.day], from: clampedStart, to: clampedEnd).day ?? 0
-                if span > 90 {
-                    return cal.date(byAdding: .day, value: -89, to: clampedEnd) ?? clampedStart
-                }
-                return clampedStart
-            }
-        }()
-        let interval = DateInterval(start: start, end: end)
-        return viewModel.migraines.dailyPainCells(in: interval)
-    }
-    
-    /// Compact monthly bar chart used inside the Trends card. Identical
-    /// data to `monthlyDistributionChart` but unwrapped from its own
-    /// `ChartSection` so it nests cleanly under the heatmap.
-    private var monthlyDistributionInline: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Migraines per month", systemImage: "calendar")
-                .font(.headline)
-                .foregroundStyle(.blue)
-            if monthlyData.isEmpty {
-                Text("No data for this period.")
-                    .scaledFont(size: 13)
-                    .foregroundStyle(.secondary)
-            } else {
-                Chart(monthlyData) { point in
-                    BarMark(
-                        x: .value("Month", point.month, unit: .month),
-                        y: .value("Count", point.count)
-                    )
-                    .foregroundStyle(monthlyBarColor(count: point.count).gradient)
-                    .cornerRadius(6)
-                }
-                .chartXAxis {
-                    AxisMarks(values: .stride(by: .month)) { value in
-                        AxisValueLabel(format: .dateTime.month(.abbreviated))
-                            .font(.system(.caption2, design: .rounded, weight: .medium))
+    private var impactSummaryView: some View {
+        let missedWorkCount = filteredMigraines.filter { $0.missedWork }.count
+        let missedSchoolCount = filteredMigraines.filter { $0.missedSchool }.count
+        let missedEventsCount = filteredMigraines.filter { $0.missedEvents }.count
+        let totalImpact = missedWorkCount + missedSchoolCount + missedEventsCount
+        
+        return Group {
+            if totalImpact > 0 {
+                ChartSection(title: "Life impact", systemImage: "heart.slash.fill", accent: .red) {
+                    HStack(spacing: 12) {
+                        if missedWorkCount > 0 {
+                            ImpactBadge(icon: "briefcase.fill", count: missedWorkCount, label: "Work", color: .red) {
+                                selectedImpactType = "Missed Work"
+                            }
+                        }
+                        if missedSchoolCount > 0 {
+                            ImpactBadge(icon: "graduationcap.fill", count: missedSchoolCount, label: "School", color: .orange) {
+                                selectedImpactType = "Missed School"
+                            }
+                        }
+                        if missedEventsCount > 0 {
+                            ImpactBadge(icon: "calendar.badge.exclamationmark", count: missedEventsCount, label: "Events", color: .purple) {
+                                selectedImpactType = "Missed Events"
+                            }
+                        }
                     }
                 }
-                .frame(height: 160)
-                .accessibilityLabel("Migraines per month")
-                .accessibilityValue(
-                    monthlyData
-                        .map { "\($0.month.formatted(.dateTime.month(.abbreviated).year())), \($0.count)" }
-                        .joined(separator: "; ")
-                )
-                .accessibilityChartDescriptor(monthlyAudioGraph)
             }
         }
-    }
-
-    private var monthlyAudioGraph: BarChartAudioGraph {
-        BarChartAudioGraph(
-            title: "Migraines per month",
-            xAxisTitle: "Month",
-            yAxisTitle: "Migraines",
-            counts: monthlyData.map {
-                ($0.month.formatted(.dateTime.month(.abbreviated).year()), $0.count)
-            }
-        )
     }
     
     private var weatherCorrelationButton: some View {
@@ -511,28 +493,19 @@ struct StatisticsView: View {
             customStartDate: customStartDate,
             customEndDate: customEndDate
         )) {
-            HStack(spacing: 16) {
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.blue, Color.cyan],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 56, height: 56)
-                    
-                    Image(systemName: "cloud.sun.fill")
-                        .scaledFont(size: 24)
-                        .foregroundStyle(.white)
-                }
+            HStack(spacing: 14) {
+                Image(systemName: "cloud.sun.fill")
+                    .scaledFont(size: 22)
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(AnalyticsDomain.weather.accent)
+                    .frame(width: 44, height: 44)
+                    .background(AnalyticsDomain.weather.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Weather Correlation")
-                        .scaledFont(size: 17, weight: .semibold, design: .rounded)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Weather correlation")
+                        .scaledFont(size: 16, weight: .semibold, design: .rounded)
                         .foregroundStyle(.primary)
-                    Text("Analyze how weather patterns correlate with your migraines")
+                    Text("Pressure, temperature and conditions on migraine days")
                         .scaledFont(size: 13)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -542,174 +515,114 @@ struct StatisticsView: View {
                 
                 Image(systemName: "chevron.right")
                     .scaledFont(size: 14, weight: .semibold)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
             }
-            .padding(20)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Color(.secondarySystemGroupedBackground))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(Color(.systemGray5), lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
-            .shadow(color: Color.blue.opacity(0.1), radius: 8, x: 0, y: 2)
+            .padding(18)
+            .analyticsSurface()
             .padding(.horizontal, 16)
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(.plain)
+        .hoverEffect(.lift)
     }
     
-    /// Rolling 6-month bar chart data. Intentionally pulls from
-    /// `viewModel.migraines` (not `filteredMigraines`) so months that
-    /// fall in a prior calendar year — e.g. Oct/Nov/Dec 2025 when the
-    /// time-filter is set to 2026 — still contribute their bars. The
-    /// time-filter is a *year* picker for the rest of the Analytics
-    /// tab; applying it to this rolling window would silently drop
-    /// half the chart every January.
-    private var monthlyData: [MonthlyPoint] {
-        viewModel.migraines.monthlyDistribution(monthsBack: 6)
-    }
-    
-    // Add helper function for monthly bar color
-    private func monthlyBarColor(count: Int) -> Color {
-        switch count {
-        case 0...4: return .green
-        case 5...8: return .yellow
-        default: return .red
+    /// Data-completeness indicator so the user knows how much of the
+    /// dashboard rests on fully detailed entries.
+    private var completenessFooter: some View {
+        let completeness = filteredMigraines.dataCompleteness
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "checklist")
+                    .scaledFont(size: 12, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                Text("Data completeness · \(Int((completeness.overallShare * 100).rounded()))%")
+                    .scaledFont(size: 12, weight: .semibold, design: .rounded)
+                    .foregroundStyle(.secondary)
+            }
+            Text(completenessDetail(completeness))
+                .scaledFont(size: 11)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .accessibilityElement(children: .combine)
     }
     
-    var body: some View {
-        NavigationStack {
-            statisticsContent
-                .navigationTitle("Overview")
-                .navigationDestination(for: AnalyticsMetric.self) { metric in
-                    AnalyticsMetricDetailView(
-                        viewModel: viewModel,
-                        healthStore: healthCorrelationStore,
-                        metric: metric,
-                        migraines: filteredMigraines,
-                        periodLabel: periodLabel
-                    )
-                }
-                .navigationDestination(isPresented: $showingMonthDetail) {
-                    if let month = selectedMonth {
-                        MonthDetailView(viewModel: viewModel, month: month)
+    private func completenessDetail(_ completeness: DataCompleteness) -> String {
+        func pct(_ share: Double) -> String { "\(Int((share * 100).rounded()))%" }
+        return "End time \(pct(completeness.endTimeShare)) · Weather \(pct(completeness.weatherShare)) · Triggers \(pct(completeness.triggerShare)) · Medication \(pct(completeness.medicationShare)). Adding these details sharpens every chart above."
+    }
+    
+    // MARK: - Drill-downs
+    
+    @ViewBuilder
+    private func patternDrillDownView(_ drillDown: PatternDrillDown) -> some View {
+        switch drillDown {
+        case .severity(let bucket):
+            FilteredMigraineListView(
+                viewModel: viewModel,
+                title: "\(bucket.title) migraines",
+                migraines: filteredMigraines.filter { SeverityBucket.bucket(for: Int($0.painLevel)) == bucket }
+            )
+        case .timeOfDay(let slot):
+            FilteredMigraineListView(
+                viewModel: viewModel,
+                title: "Migraines in \(slot)",
+                migraines: filteredMigraines.filter { migraine in
+                    guard let date = migraine.startTime else { return false }
+                    let hour = Calendar.current.component(.hour, from: date)
+                    switch slot {
+                    case "Morning": return (5..<12).contains(hour)
+                    case "Afternoon": return (12..<17).contains(hour)
+                    case "Evening": return (17..<22).contains(hour)
+                    case "Night": return hour < 5 || hour >= 22
+                    default: return false
                     }
                 }
-                .navigationDestination(isPresented: medicationBinding) {
-                    medicationNavigationView()
+            )
+        case .weekday(let weekday):
+            let name = Calendar.current.weekdaySymbols[max(0, min(6, weekday - 1))]
+            FilteredMigraineListView(
+                viewModel: viewModel,
+                title: "Migraines on \(name)s",
+                migraines: filteredMigraines.filter { migraine in
+                    guard let date = migraine.startTime else { return false }
+                    return Calendar.current.component(.weekday, from: date) == weekday
                 }
-                .navigationDestination(isPresented: triggerBinding) {
-                    triggerNavigationView()
-                }
-                .navigationDestination(isPresented: timeOfDayBinding) {
-                    timeOfDayNavigationView()
-                }
-                .navigationDestination(isPresented: impactBinding) {
-                    impactNavigationView()
-                }
-                .navigationDestination(isPresented: painLevelBinding) {
-                    painLevelNavigationView()
-                }
-                .onAppear {
-                    viewModel.fetchMigraines()
-                    lastUpdateTime = Date()
-                    refreshHealthCorrelations()
-                }
-                .onChange(of: viewModel.migraines) {
-                    lastUpdateTime = Date()
-                    refreshHealthCorrelations()
-                }
-                .onChange(of: timeFilter) {
-                    lastUpdateTime = Date()
-                    refreshHealthCorrelations()
-                }
-                .onChange(of: customStartDate) {
-                    lastUpdateTime = Date()
-                    refreshHealthCorrelations()
-                }
-                .onChange(of: customEndDate) {
-                    lastUpdateTime = Date()
-                    refreshHealthCorrelations()
-                }
-        }
-    }
-    
-    // MARK: - Body Subviews
-    
-    private var statisticsContent: some View {
-        ZStack {
-            Color(.systemGroupedBackground)
-                .ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                timeFilterView
-                    .padding(.horizontal)
-                    .padding(.top)
-                    .background(Color(.systemGroupedBackground))
-                
-                ScrollView {
-                    VStack(spacing: 20) {
-                        if filteredMigraines.isEmpty {
-                            ContentUnavailableView {
-                                Label("No Data for This Period", systemImage: "chart.bar.xaxis")
-                                    .scaledFont(size: 20, weight: .semibold, design: .rounded)
-                            } description: {
-                                Text("Try selecting a different time range, or log a migraine to start seeing statistics.")
-                                    .scaledFont(size: 14)
-                            } actions: {
-                                if viewModel.migraines.isEmpty == false, timeFilter != .year {
-                                    Button("Show This Year") {
-                                        timeFilter = .year
-                                        selectedYear = Calendar.current.component(.year, from: Date())
-                                    }
-                                    .buttonStyle(.bordered)
-                                }
-                            }
-                            .padding(.top, 40)
-                        } else {
-                            summaryStatsView
-                                .padding(.top)
-                            chartsView
-                        }
-                    }
-                    .padding(.vertical)
-                    // On iPad, cap the dashboard width so the line length
-                    // stays comfortable to read; on iPhone (compact) we
-                    // let the content stretch edge-to-edge as before.
-                    .frame(maxWidth: horizontalSizeClass == .regular ? 1100 : .infinity)
-                    .frame(maxWidth: .infinity)
-                }
+            )
+        case .symptom(let symptom):
+            FilteredMigraineListView(
+                viewModel: viewModel,
+                title: "Migraines with \(symptom.title.lowercased())",
+                migraines: filteredMigraines.filter { $0.has(symptom) }
+            )
+        case .trigger(let triggerName):
+            if let trigger = MigraineTrigger(displayName: triggerName) {
+                FilteredMigraineListView(
+                    viewModel: viewModel,
+                    title: "Migraines with \(triggerName)",
+                    migraines: filteredMigraines.filter { $0.triggers.contains(trigger) }
+                )
             }
         }
     }
     
-    // MARK: - Navigation Bindings
-    
-    private var medicationBinding: Binding<Bool> {
-        Binding(
-            get: { selectedMedication != nil },
-            set: { if !$0 { selectedMedication = nil } }
-        )
-    }
-    
-    private var triggerBinding: Binding<Bool> {
-        Binding(
-            get: { selectedTrigger != nil },
-            set: { if !$0 {
-                selectedTrigger = nil
-                isNavigating = false
-            }}
-        )
-    }
-    
-    private var timeOfDayBinding: Binding<Bool> {
-        Binding(
-            get: { selectedTimeOfDay != nil },
-            set: { if !$0 { selectedTimeOfDay = nil } }
-        )
+    @ViewBuilder
+    private func impactNavigationView() -> some View {
+        if let impactType = selectedImpactType {
+            FilteredMigraineListView(
+                viewModel: viewModel,
+                title: impactType,
+                migraines: filteredMigraines.filter { migraine in
+                    switch impactType {
+                    case "Missed Work": return migraine.missedWork
+                    case "Missed School": return migraine.missedSchool
+                    case "Missed Events": return migraine.missedEvents
+                    default: return false
+                    }
+                }
+            )
+        }
     }
     
     private var impactBinding: Binding<Bool> {
@@ -719,14 +632,8 @@ struct StatisticsView: View {
         )
     }
     
-    private var painLevelBinding: Binding<Bool> {
-        Binding(
-            get: { selectedPainLevel != nil },
-            set: { if !$0 { selectedPainLevel = nil } }
-        )
-    }
+    // MARK: - Period windows
     
-    // Computed properties for statistics
     private var availableYears: [Int] {
         let calendar = Calendar.current
         let currentYear = calendar.component(.year, from: Date())
@@ -738,21 +645,65 @@ struct StatisticsView: View {
         return Array(earliestYear...currentYear)
     }
     
-    // Filtered migraines based on time filter
-    private var filteredMigraines: [MigraineEvent] {
+    /// The active filter as a half-open interval, and the equally long
+    /// interval immediately before it (for trend chips).
+    private var currentPeriod: DateInterval {
         let calendar = Calendar.current
         let now = Date()
-        
+        switch timeFilter {
+        case .week:
+            return DateInterval(start: calendar.date(byAdding: .day, value: -7, to: now) ?? now, end: now)
+        case .month:
+            return DateInterval(start: calendar.date(byAdding: .month, value: -1, to: now) ?? now, end: now)
+        case .year:
+            let start = calendar.date(from: DateComponents(year: selectedYear, month: 1, day: 1)) ?? now
+            let end = calendar.date(byAdding: .year, value: 1, to: start) ?? now
+            return DateInterval(start: start, end: end)
+        case .range:
+            let end = customEndDate.addingTimeInterval(1)
+            return DateInterval(start: min(customStartDate, end), end: end)
+        }
+    }
+    
+    private var previousPeriod: DateInterval {
+        let calendar = Calendar.current
+        let current = currentPeriod
+        switch timeFilter {
+        case .week:
+            return DateInterval(start: calendar.date(byAdding: .day, value: -7, to: current.start) ?? current.start, end: current.start)
+        case .month:
+            return DateInterval(start: calendar.date(byAdding: .month, value: -1, to: current.start) ?? current.start, end: current.start)
+        case .year:
+            return DateInterval(start: calendar.date(byAdding: .year, value: -1, to: current.start) ?? current.start, end: current.start)
+        case .range:
+            return DateInterval(start: current.start.addingTimeInterval(-current.duration), end: current.start)
+        }
+    }
+    
+    /// Calendar days covered by the filter, capped at today for the
+    /// current year so "of N days" never counts the future.
+    private var periodDayCount: Int? {
+        let calendar = Calendar.current
+        let end = min(currentPeriod.end, Date())
+        guard end > currentPeriod.start else { return nil }
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: currentPeriod.start), to: calendar.startOfDay(for: end)).day ?? 0
+        return max(1, days + (timeFilter == .range ? 1 : 0))
+    }
+    
+    private func migraines(in interval: DateInterval) -> [MigraineEvent] {
+        viewModel.migraines.filter { migraine in
+            guard let start = migraine.startTime else { return false }
+            return start >= interval.start && start < interval.end
+        }
+    }
+    
+    private var filteredMigraines: [MigraineEvent] {
+        let calendar = Calendar.current
         return viewModel.migraines.filter { migraine in
             guard let startTime = migraine.startTime else { return false }
-            
             switch timeFilter {
-            case .week:
-                let weekAgo = calendar.date(byAdding: .day, value: -7, to: now)!
-                return startTime >= weekAgo
-            case .month:
-                let monthAgo = calendar.date(byAdding: .month, value: -1, to: now)!
-                return startTime >= monthAgo
+            case .week, .month:
+                return startTime >= currentPeriod.start
             case .year:
                 return calendar.component(.year, from: startTime) == selectedYear
             case .range:
@@ -761,149 +712,91 @@ struct StatisticsView: View {
         }
     }
     
-    private var totalMigraines: Int {
-        filteredMigraines.count
+    private var previousPeriodMigraines: [MigraineEvent] {
+        migraines(in: previousPeriod)
     }
     
-    private var currentPeriodMigraines: Int {
-        let calendar = Calendar.current
-        let now = Date()
-        
-        return filteredMigraines.filter { migraine in
-            guard let startTime = migraine.startTime else { return false }
-            
-            switch timeFilter {
-            case .week:
-                return calendar.isDate(startTime, equalTo: now, toGranularity: .weekOfYear)
-            case .month:
-                return calendar.isDate(startTime, equalTo: now, toGranularity: .month)
-            case .year:
-                return calendar.isDate(startTime, equalTo: now, toGranularity: .year)
-            case .range:
-                return startTime >= customStartDate && startTime <= customEndDate
-            }
-        }.count
+    // MARK: - Metrics
+    
+    private var totalMigraines: Int { filteredMigraines.count }
+    private var headacheDays: Int { filteredMigraines.headacheDays() }
+    private var acuteMedicationDays: Int { filteredMigraines.acuteMedicationDays() }
+    private var abortivesUsed: Int { filteredMigraines.totalMedicationUses }
+    private var averagePain: Double { filteredMigraines.averagePain }
+    private var durationSpread: DurationSpread? { filteredMigraines.durationSpread }
+    private var severePainDays: Int { filteredMigraines.severePainDays() }
+    private var currentMigraineFreeStreak: Int? { viewModel.migraines.currentMigraineFreeStreak() }
+    private var topTriggerInfo: (trigger: MigraineTrigger, count: Int)? { filteredMigraines.topTrigger }
+    
+    /// Acute-medication days normalised to a 30-day month so the gauge
+    /// reads the same for a week, a month or a year.
+    private var acuteMedicationDaysPerMonth: Double? {
+        guard let days = periodDayCount, days > 0 else { return nil }
+        return Double(acuteMedicationDays) / Double(days) * 30
     }
     
-    private var previousPeriodMigraines: Int {
-        let calendar = Calendar.current
-        let now = Date()
-        
-        return viewModel.migraines.filter { migraine in
-            guard let startTime = migraine.startTime else { return false }
-            
-            switch timeFilter {
-            case .week:
-                let lastWeekStart = calendar.date(byAdding: .day, value: -14, to: now)!
-                let lastWeekEnd = calendar.date(byAdding: .day, value: -7, to: now)!
-                return startTime >= lastWeekStart && startTime < lastWeekEnd
-            case .month:
-                let lastMonthStart = calendar.date(byAdding: .month, value: -2, to: now)!
-                let lastMonthEnd = calendar.date(byAdding: .month, value: -1, to: now)!
-                return startTime >= lastMonthStart && startTime < lastMonthEnd
-            case .year:
-                let lastYearStart = calendar.date(byAdding: .year, value: -2, to: now)!
-                let lastYearEnd = calendar.date(byAdding: .year, value: -1, to: now)!
-                return startTime >= lastYearStart && startTime < lastYearEnd
-            case .range:
-                let interval = customEndDate.timeIntervalSince(customStartDate)
-                let prevStart = customStartDate.addingTimeInterval(-interval)
-                let prevEnd = customStartDate
-                return startTime >= prevStart && startTime < prevEnd
-            }
-        }.count
+    private var durationDetail: String? {
+        guard let spread = durationSpread else { return "no end times yet" }
+        guard spread.sampleCount >= 4 else { return "\(spread.sampleCount) timed" }
+        return "IQR \(formatDuration(spread.lowerQuartile))–\(formatDuration(spread.upperQuartile))"
     }
     
-    private var averageDuration: TimeInterval? {
-        filteredMigraines.averageDuration
-    }
-    
-    private var averageFrequency: Double {
-        switch timeFilter {
-        case .week:
-            return Double(totalMigraines) / 7.0
-        case .month:
-            return Double(totalMigraines) / 30.0
-        case .year:
-            return Double(totalMigraines) / 12.0  // monthly average for the year
-        case .range:
-            let days = max(Calendar.current.dateComponents([.day], from: customStartDate, to: customEndDate).day ?? 1, 1)
-            return Double(totalMigraines) / Double(days)
-        }
-    }
-    
-    private var averagePain: Double {
-        filteredMigraines.averagePain
-    }
-    
-    private var abortivesUsed: Int {
-        filteredMigraines.totalMedicationUses
-    }
-    
-    private var painLevelData: [PainLevelPoint] {
-        filteredMigraines.painLevelDistribution
-    }
-    
-    // MARK: - Severity / streak metrics
-    
-    /// Distribution across the four clinical severity buckets — replaces the
-    /// previous 1-10 histogram on the dashboard. Always emits one entry per
-    /// bucket so the chart layout stays stable regardless of dataset size.
-    private var severityBucketData: [SeverityBucketPoint] {
-        filteredMigraines.severityBucketDistribution
-    }
-    
-    /// Days in the *currently filtered period* on which at least one
-    /// migraine reached pain level 7+. Counts unique calendar days so a
-    /// patient with two severe migraines on the same day sees "1", not "2".
-    private var severePainDays: Int {
-        filteredMigraines.severePainDays()
-    }
-    
-    /// Days since the most recent migraine across the *full* history (not
-    /// just the filtered window) — a streak resets the moment a migraine is
-    /// logged regardless of which time filter is active.
-    private var currentMigraineFreeStreak: Int? {
-        viewModel.migraines.currentMigraineFreeStreak()
-    }
-    
-    /// Big-number portion of the streak tile, e.g. "12" or "—" when the user
-    /// has never logged a migraine.
     private var streakDisplayValue: String {
         guard let streak = currentMigraineFreeStreak else { return "—" }
         return String(streak)
     }
     
-    /// Subtitle under the streak number, e.g. "days" or "no entries yet".
     private var streakDisplaySubtitle: String? {
         guard let streak = currentMigraineFreeStreak else { return "no entries yet" }
         return streak == 1 ? "day" : "days"
     }
     
-    /// Top trigger across the filtered period, or `nil` when no triggers
-    /// were logged. Computed once per redraw and reused by both the KPI
-    /// tile and the upcoming insights cards.
-    private var topTriggerInfo: (trigger: MigraineTrigger, count: Int)? {
-        filteredMigraines.topTrigger
-    }
-    
-    /// Big-number portion of the Top Trigger tile.
     private var topTriggerDisplayValue: String {
         topTriggerInfo?.trigger.displayName ?? "—"
     }
     
-    /// Subtitle under the trigger name, e.g. "5 logs" or "no data yet".
     private var topTriggerDisplaySubtitle: String? {
         guard let info = topTriggerInfo else { return "no data yet" }
         return info.count == 1 ? "1 log" : "\(info.count) logs"
     }
     
-    /// Cumulative life-impact days inside the filtered period — drives the
-    /// "Days Missed" tile. Days are counted independently per category to
-    /// match the existing Life Impact card decomposition.
-    private var totalImpactDays: Int {
-        filteredMigraines.totalImpactDays
+    // MARK: - Trends vs. previous period
+    
+    private var headacheDaysTrend: StatBox.TrendDirection? {
+        countTrend(current: headacheDays, previous: previousPeriodMigraines.headacheDays())
     }
+    
+    private var totalTrend: StatBox.TrendDirection? {
+        countTrend(current: totalMigraines, previous: previousPeriodMigraines.count)
+    }
+    
+    private var medicationDaysTrend: StatBox.TrendDirection? {
+        countTrend(current: acuteMedicationDays, previous: previousPeriodMigraines.acuteMedicationDays())
+    }
+    
+    private var painTrend: StatBox.TrendDirection? {
+        guard timeFilter != .range, !previousPeriodMigraines.isEmpty else { return nil }
+        let diff = averagePain - previousPeriodMigraines.averagePain
+        if abs(diff) < 0.2 { return .same }
+        return diff > 0 ? .up(String(format: "+%.1f", diff)) : .down(String(format: "%.1f", diff))
+    }
+    
+    private func countTrend(current: Int, previous: Int) -> StatBox.TrendDirection? {
+        guard timeFilter != .range else { return nil }
+        if current > previous { return .up("\(current - previous) more") }
+        if current < previous { return .down("\(previous - current) fewer") }
+        return .same
+    }
+    
+    private func sentiment(for trend: StatBox.TrendDirection?, higherIsWorse: Bool) -> TrendSentiment {
+        switch trend {
+        case .up:   return higherIsWorse ? .unfavorable : .favorable
+        case .down: return higherIsWorse ? .favorable : .unfavorable
+        case .same, .none: return .neutral
+        }
+    }
+    
+    // MARK: - HealthKit window
     
     /// `DateInterval` used by the HealthKit correlation fetchers. Mirrors
     /// the active filter, except the `.year` filter is widened to a
@@ -928,8 +821,6 @@ struct StatisticsView: View {
         return DateInterval(start: start, end: end)
     }
     
-    /// Kicks off (or no-ops on duplicate) a refresh of the HealthKit
-    /// correlation stats for the active filter window.
     private func refreshHealthCorrelations() {
         healthCorrelationStore.load(
             window: correlationWindow,
@@ -952,559 +843,21 @@ struct StatisticsView: View {
         }
     }
     
-    private var timeOfDayData: [TimeOfDayPoint] {
-        filteredMigraines.timeOfDayDistribution()
-    }
-    
-    private var qualityOfLifeData: [QualityOfLifePoint] {
-        filteredMigraines.qualityOfLifeDistribution
-    }
-    
-    private var triggerData: [TriggerPoint] {
-        filteredMigraines.triggerDistribution
-    }
-    
-    private var medicationData: [MedicationPoint] {
-        filteredMigraines.medicationDistribution
-    }
-    
-    private var commonTriggersChart: some View {
-        ChartSection(title: "") {
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Triggers", systemImage: "bolt.fill")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.blue)
-                    .padding(.horizontal)
-                
-                if triggerData.isEmpty {
-                    ChartEmptyState(title: "No Triggers Logged", systemImage: "bolt.slash")
-                } else {
-                    Chart(triggerData.prefix(5)) { point in
-                        BarMark(
-                            x: .value("Count", point.count),
-                            y: .value("Trigger", point.trigger)
-                        )
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [Color.blue, Color.cyan],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .cornerRadius(6)
-                    }
-                    .chartYAxis {
-                        AxisMarks(position: .leading) { value in
-                            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
-                                .foregroundStyle(Color.gray.opacity(0.3))
-                            AxisValueLabel()
-                                .font(.system(.caption, design: .rounded, weight: .medium))
-                                .foregroundStyle(Color.primary)
-                        }
-                    }
-                    .chartXAxis {
-                        AxisMarks(position: .bottom) { value in
-                            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
-                                .foregroundStyle(Color.gray.opacity(0.3))
-                            AxisTick(stroke: StrokeStyle(lineWidth: 1))
-                                .foregroundStyle(Color.gray.opacity(0.5))
-                            AxisValueLabel()
-                                .font(.system(.caption, design: .rounded, weight: .medium))
-                                .foregroundStyle(Color.secondary)
-                        }
-                    }
-                    .chartPlotStyle { plotArea in
-                        plotArea
-                            .background(Color(.systemGray6).opacity(0.3))
-                            .cornerRadius(12)
-                    }
-                    .frame(height: 220)
-                    .accessibilityLabel("Most common triggers")
-                    .accessibilityValue(
-                        triggerData.prefix(5)
-                            .map { "\($0.trigger), \($0.count)" }
-                            .joined(separator: "; ")
-                    )
-                    .accessibilityChartDescriptor(
-                        BarChartAudioGraph(
-                            title: "Most common triggers",
-                            xAxisTitle: "Trigger",
-                            yAxisTitle: "Migraines",
-                            counts: triggerData.prefix(5).map { ($0.trigger, $0.count) }
-                        )
-                    )
-                    .onTapGesture { location in
-                        guard !isNavigating else { return }
-                        if let trigger = triggerData.first?.trigger {
-                            isNavigating = true
-                            selectedTrigger = trigger
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                isNavigating = false
-                            }
-                        }
-                    }
-                    SampleSizeLabel(count: filteredMigraines.count, suffix: "in this period")
-                        .padding(.horizontal)
-                }
-            }
-        }
-    }
-    
-    private var medicationUsageChart: some View {
-        ChartSection(title: "") {
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Medications", systemImage: "pill.fill")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.purple)
-                    .padding(.horizontal)
-                
-                if medicationData.isEmpty {
-                    ChartEmptyState(title: "No Medications Logged", systemImage: "pills")
-                } else {
-                    Chart(medicationData.prefix(5)) { point in
-                        SectorMark(
-                            angle: .value("Count", point.count),
-                            innerRadius: .ratio(0.618),
-                            angularInset: 2
-                        )
-                        .foregroundStyle(by: .value("Medication", point.medication))
-                        .cornerRadius(4)
-                    }
-                    .chartLegend(position: .bottom, alignment: .center, spacing: 12) {
-                        HStack(spacing: 16) {
-                            ForEach(medicationData.prefix(5)) { point in
-                                HStack(spacing: 6) {
-                                    Circle()
-                                        .fill(Color.purple.opacity(0.7))
-                                        .frame(width: 8, height: 8)
-                                    Text(point.medication)
-                                        .scaledFont(size: 11, weight: .medium, design: .rounded)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-                    .frame(height: 240)
-                    .accessibilityLabel("Medication usage")
-                    .accessibilityValue(
-                        medicationData.prefix(5)
-                            .map { "\($0.medication), \($0.count)" }
-                            .joined(separator: "; ")
-                    )
-                    .accessibilityChartDescriptor(
-                        BarChartAudioGraph(
-                            title: "Medication usage",
-                            xAxisTitle: "Medication",
-                            yAxisTitle: "Times taken",
-                            counts: medicationData.prefix(5).map { ($0.medication, $0.count) },
-                            valueUnit: "times"
-                        )
-                    )
-                    .onTapGesture { location in
-                        guard !isNavigating else { return }
-                        if let medication = medicationData.first?.medication {
-                            isNavigating = true
-                            selectedMedication = medication
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                isNavigating = false
-                            }
-                        }
-                    }
-                    SampleSizeLabel(count: filteredMigraines.count, suffix: "in this period")
-                        .padding(.horizontal)
-                }
-            }
-        }
-    }
-    
-    private var timeOfDayDistributionChart: some View {
-        ChartSection(title: "Time of Day Distribution") {
-            Chart(timeOfDayData) { point in
-                BarMark(
-                    x: .value("Time", point.timeOfDay),
-                    y: .value("Count", point.count)
-                )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Color.orange, Color.pink],
-                        startPoint: .bottom,
-                        endPoint: .top
-                    )
-                )
-                .cornerRadius(8)
-            }
-            .chartXAxis {
-                AxisMarks(position: .bottom) { value in
-                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
-                        .foregroundStyle(Color.gray.opacity(0.3))
-                    AxisTick(stroke: StrokeStyle(lineWidth: 1))
-                        .foregroundStyle(Color.gray.opacity(0.5))
-                    AxisValueLabel()
-                        .font(.system(.caption, design: .rounded, weight: .medium))
-                        .foregroundStyle(Color.secondary)
-                }
-            }
-            .chartYAxis {
-                AxisMarks(position: .leading) { value in
-                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
-                        .foregroundStyle(Color.gray.opacity(0.3))
-                    AxisTick(stroke: StrokeStyle(lineWidth: 1))
-                        .foregroundStyle(Color.gray.opacity(0.5))
-                    AxisValueLabel()
-                        .font(.system(.caption, design: .rounded, weight: .medium))
-                        .foregroundStyle(Color.secondary)
-                }
-            }
-            .chartPlotStyle { plotArea in
-                plotArea
-                    .background(Color(.systemGray6).opacity(0.3))
-                    .cornerRadius(12)
-            }
-            .chartOverlay { proxy in
-                GeometryReader { geometry in
-                    Rectangle()
-                        .fill(.clear)
-                        .contentShape(Rectangle())
-                        .onTapGesture { location in
-                            guard !isNavigating,
-                                  let (timeSlot, count) = proxy.value(at: location, as: (String, Int).self),
-                                  count > 0 else { return }
-                            isNavigating = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                isNavigating = false
-                            }
-                            selectedTimeOfDay = timeSlot
-                        }
-                }
-            }
-            .frame(height: 220)
-            .accessibilityLabel("Migraines by time of day")
-            .accessibilityValue(
-                timeOfDayData
-                    .filter { $0.count > 0 }
-                    .map { "\($0.timeOfDay), \($0.count)" }
-                    .joined(separator: "; ")
-            )
-            .accessibilityChartDescriptor(
-                BarChartAudioGraph(
-                    title: "Migraines by time of day",
-                    xAxisTitle: "Time of day",
-                    yAxisTitle: "Migraines",
-                    counts: timeOfDayData.map { ($0.timeOfDay, $0.count) }
-                )
-            )
-        }
-    }
-    
-    private var qualityOfLifeImpactChart: some View {
-        ChartSection(title: "Quality of Life Impact") {
-            let data = qualityOfLifeData.filter { $0.count > 0 }
-            
-            if data.isEmpty {
-                ChartEmptyState(title: "No Life Impact Recorded", systemImage: "calendar.badge.checkmark")
-            } else {
-                Chart(data) { point in
-                    BarMark(
-                        x: .value("Count", point.count),
-                        y: .value("Type", point.type)
-                    )
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Color.red, Color.orange],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .cornerRadius(6)
-                }
-                .chartXAxis {
-                    AxisMarks(position: .bottom) { value in
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
-                            .foregroundStyle(Color.gray.opacity(0.3))
-                        AxisTick(stroke: StrokeStyle(lineWidth: 1))
-                            .foregroundStyle(Color.gray.opacity(0.5))
-                        AxisValueLabel()
-                            .font(.system(.caption, design: .rounded, weight: .medium))
-                            .foregroundStyle(Color.secondary)
-                    }
-                }
-                .chartYAxis {
-                    AxisMarks(position: .leading) { value in
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
-                            .foregroundStyle(Color.gray.opacity(0.3))
-                        AxisValueLabel()
-                            .font(.system(.caption, design: .rounded, weight: .medium))
-                            .foregroundStyle(Color.primary)
-                    }
-                }
-                .chartPlotStyle { plotArea in
-                    plotArea
-                        .background(Color(.systemGray6).opacity(0.3))
-                        .cornerRadius(12)
-                }
-                .chartOverlay { proxy in
-                    GeometryReader { geometry in
-                        Rectangle()
-                            .fill(.clear)
-                            .contentShape(Rectangle())
-                            .onTapGesture { location in
-                                guard !isNavigating,
-                                      let (impactType, count) = proxy.value(at: location, as: (String, Int).self),
-                                      count > 0 else { return }
-                                isNavigating = true
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                    isNavigating = false
-                                }
-                                selectedImpactType = impactType
-                            }
-                    }
-                }
-                .frame(height: 220)
-                .accessibilityLabel("Quality of life impact")
-                .accessibilityValue(
-                    data.map { "\($0.type), \($0.count)" }.joined(separator: "; ")
-                )
-                .accessibilityChartDescriptor(
-                    BarChartAudioGraph(
-                        title: "Quality of life impact",
-                        xAxisTitle: "Impact",
-                        yAxisTitle: "Migraines",
-                        counts: data.map { ($0.type, $0.count) }
-                    )
-                )
-            }
-        }
-    }
-    
-    private func formatDuration(_ interval: TimeInterval?) -> String {
-        guard let interval = interval else { return "N/A" }
-        
+    private func formatDuration(_ interval: TimeInterval) -> String {
         let hours = Int(interval / 3600)
         let minutes = Int((interval.truncatingRemainder(dividingBy: 3600)) / 60)
-        return "\(hours)h \(minutes)m"
+        if hours == 0 { return "\(minutes)m" }
+        return minutes == 0 ? "\(hours)h" : "\(hours)h \(minutes)m"
     }
-    
-    private func painLevelColor(_ level: Int) -> Color {
-        switch level {
-        case 1...3: return .green
-        case 4...7: return .yellow
-        case 8...10: return .red
-        default: return .gray
-        }
-    }
-    
-    /// New top-level severity chart for the dashboard. Replaces the old
-    /// 10-bin histogram, which is now reachable via drill-down only.
-    private var painLevelDistributionChart: some View {
-        ChartSection(title: "") {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .firstTextBaseline) {
-                    Label("Severity Distribution", systemImage: "thermometer.medium")
-                        .font(.headline)
-                        .foregroundStyle(.red)
-                    Spacer()
-                    if severePainDays > 0 {
-                        Text("\(severePainDays) severe day\(severePainDays == 1 ? "" : "s")")
-                            .scaledFont(size: 12, weight: .medium, design: .rounded)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.horizontal, 4)
-                
-                Chart(severityBucketData) { point in
-                    BarMark(
-                        x: .value("Severity", point.bucket.title),
-                        y: .value("Count", point.count)
-                    )
-                    .foregroundStyle(point.bucket.color.gradient)
-                    .cornerRadius(8)
-                    .annotation(position: .top, alignment: .center, spacing: 4) {
-                        if point.count > 0 {
-                            Text(String(point.count))
-                                .scaledFont(size: 11, weight: .semibold, design: .rounded)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                .chartXAxis {
-                    AxisMarks(position: .bottom) { value in
-                        AxisValueLabel {
-                            if let bucketTitle = value.as(String.self),
-                               let bucket = SeverityBucket.allCases.first(where: { $0.title == bucketTitle }) {
-                                VStack(spacing: 2) {
-                                    Text(bucket.title)
-                                        .scaledFont(size: 12, weight: .semibold, design: .rounded)
-                                        .foregroundStyle(Color.primary)
-                                    Text(bucket.rangeDescription)
-                                        .scaledFont(size: 10, weight: .regular, design: .rounded)
-                                        .foregroundStyle(Color.secondary)
-                                }
-                            }
-                        }
-                    }
-                }
-                .chartYAxis {
-                    AxisMarks(position: .leading) { value in
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
-                            .foregroundStyle(Color.gray.opacity(0.3))
-                        AxisValueLabel()
-                            .font(.system(.caption, design: .rounded, weight: .medium))
-                            .foregroundStyle(Color.secondary)
-                    }
-                }
-                .chartPlotStyle { plotArea in
-                    plotArea
-                        .background(Color(.systemGray6).opacity(0.3))
-                        .cornerRadius(12)
-                }
-                .frame(height: 200)
-                .accessibilityLabel("Severity distribution")
-                .accessibilityValue(
-                    severityBucketData
-                        .filter { $0.count > 0 }
-                        .map { "\($0.count) \($0.bucket.title.lowercased())" }
-                        .joined(separator: ", ")
-                )
-                .accessibilityChartDescriptor(
-                    BarChartAudioGraph(
-                        title: "Severity distribution",
-                        xAxisTitle: "Severity",
-                        yAxisTitle: "Migraines",
-                        counts: severityBucketData.map { ($0.bucket.title, $0.count) }
-                    )
-                )
-            }
-        }
-    }
-    
-    /// Legacy 10-bin pain histogram, retained for the severity drill-down.
-    private var painLevelHistogramChart: some View {
-        ChartSection(title: "Pain Level Distribution (1-10)") {
-            Chart(painLevelData) { point in
-                BarMark(
-                    x: .value("Pain Level", point.level),
-                    y: .value("Count", point.count)
-                )
-                .foregroundStyle(painLevelColor(point.level).gradient)
-                .cornerRadius(8)
-            }
-            .chartXAxis {
-                AxisMarks(values: Array(1...10)) { value in
-                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
-                        .foregroundStyle(Color.gray.opacity(0.3))
-                    AxisTick(stroke: StrokeStyle(lineWidth: 1))
-                        .foregroundStyle(Color.gray.opacity(0.5))
-                    AxisValueLabel()
-                        .font(.system(.caption, design: .rounded, weight: .medium))
-                        .foregroundStyle(Color.secondary)
-                }
-            }
-            .chartYAxis {
-                AxisMarks(position: .leading) { value in
-                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
-                        .foregroundStyle(Color.gray.opacity(0.3))
-                    AxisTick(stroke: StrokeStyle(lineWidth: 1))
-                        .foregroundStyle(Color.gray.opacity(0.5))
-                    AxisValueLabel()
-                        .font(.system(.caption, design: .rounded, weight: .medium))
-                        .foregroundStyle(Color.secondary)
-                }
-            }
-            .chartPlotStyle { plotArea in
-                plotArea
-                    .background(Color(.systemGray6).opacity(0.3))
-                    .cornerRadius(12)
-            }
-            .chartOverlay { proxy in
-                GeometryReader { geometry in
-                    Rectangle()
-                        .fill(.clear)
-                        .contentShape(Rectangle())
-                        .onTapGesture { location in
-                            guard !isNavigating,
-                                  let (level, count) = proxy.value(at: location, as: (Int, Int).self),
-                                  count > 0 else { return }
-                            isNavigating = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                isNavigating = false
-                            }
-                            selectedPainLevel = level
-                        }
-                }
-            }
-            .frame(height: 220)
-            .accessibilityLabel("Pain level distribution")
-            .accessibilityValue(
-                painLevelData
-                    .filter { $0.count > 0 }
-                    .map { "level \($0.level), \($0.count)" }
-                    .joined(separator: "; ")
-            )
-            .accessibilityChartDescriptor(
-                BarChartAudioGraph(
-                    title: "Pain level distribution",
-                    xAxisTitle: "Pain level",
-                    yAxisTitle: "Migraines",
-                    counts: painLevelData.map { ("Level \($0.level)", $0.count) }
-                )
-            )
-        }
-    }
-    
-    // Add the missing monthlyDistributionChart view
-    private var monthlyDistributionChart: some View {
-        ChartSection(title: "Monthly Distribution") {
-            if monthlyData.isEmpty {
-                ChartEmptyState(title: "No Monthly Data")
-            } else {
-                Chart(monthlyData) { point in
-                    BarMark(
-                        x: .value("Month", point.month, unit: .month),
-                        y: .value("Count", point.count)
-                    )
-                    .foregroundStyle(monthlyBarColor(count: point.count).gradient)
-                    .cornerRadius(8)
-                }
-                .chartXAxis {
-                    AxisMarks(values: .stride(by: .month)) { value in
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
-                            .foregroundStyle(Color.gray.opacity(0.3))
-                        AxisTick(stroke: StrokeStyle(lineWidth: 1))
-                            .foregroundStyle(Color.gray.opacity(0.5))
-                        AxisValueLabel(format: .dateTime.month(.abbreviated))
-                            .font(.system(.caption, design: .rounded, weight: .medium))
-                            .foregroundStyle(Color.secondary)
-                    }
-                }
-                .chartYAxis {
-                    AxisMarks(position: .leading) { value in
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
-                            .foregroundStyle(Color.gray.opacity(0.3))
-                        AxisTick(stroke: StrokeStyle(lineWidth: 1))
-                            .foregroundStyle(Color.gray.opacity(0.5))
-                        AxisValueLabel()
-                            .font(.system(.caption, design: .rounded, weight: .medium))
-                            .foregroundStyle(Color.secondary)
-                    }
-                }
-                .chartPlotStyle { plotArea in
-                    plotArea
-                        .background(Color(.systemGray6).opacity(0.3))
-                        .cornerRadius(12)
-                }
-                .frame(height: 220)
-                .accessibilityLabel("Migraines per month")
-                .accessibilityValue(
-                    monthlyData
-                        .map { "\($0.month.formatted(.dateTime.month(.abbreviated).year())), \($0.count)" }
-                        .joined(separator: "; ")
-                )
-                .accessibilityChartDescriptor(monthlyAudioGraph)
-            }
+}
+
+private extension StatisticsView.TimeFilter {
+    var menuTitle: String {
+        switch self {
+        case .week:  return "Past 7 days"
+        case .month: return "Past 30 days"
+        case .year:  return "Calendar year"
+        case .range: return "Custom range"
         }
     }
 }
