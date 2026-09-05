@@ -237,6 +237,11 @@ struct NALI_Migraine_LogApp: App {
                     forecast: WeatherForecastService.shared.next(hours: 24)
                 )
             }
+            // Keep the Watch's risk current even if the user never visits
+            // the Predict tab this session. Throttled inside the coordinator.
+            Task { @MainActor in
+                await RiskSyncCoordinator.refresh(migraines: viewModel.migraines)
+            }
 
         default:
             break

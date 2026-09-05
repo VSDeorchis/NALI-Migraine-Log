@@ -140,24 +140,7 @@ enum BackgroundTaskScheduler {
     private static func performRefreshWork() async {
         AppLogger.background.notice("BG task starting refresh work")
 
-        // 1) Pull the user's last-known weather location & refresh forecast.
-        //    No location → no forecast → no risk push. That's fine; the
-        //    re-engagement check below still runs.
-        var forecastHours: [ForecastHour] = []
-        if let location = LocationManager.shared.location {
-            let weather = WeatherForecastService.shared
-            do {
-                forecastHours = try await weather.fetchForecast(
-                    latitude: location.coordinate.latitude,
-                    longitude: location.coordinate.longitude
-                )
-                AppLogger.background.notice("BG forecast refresh ok: \(forecastHours.count, privacy: .public) hours")
-            } catch {
-                AppLogger.background.error("BG forecast refresh failed: \(error.localizedDescription, privacy: .private)")
-            }
-        }
-
-        // 2) Pull all migraines for the prediction + re-engagement decisions.
+        // 1) Pull all migraines for the prediction + re-engagement decisions.
         //    Done on the view context — same context the UI uses, so any
         //    state we read here is what the user will see when they next
         //    open the app.
@@ -170,6 +153,13 @@ enum BackgroundTaskScheduler {
             AppLogger.background.error("BG migraine fetch failed: \(error.localizedDescription, privacy: .private)")
             migraines = []
         }
+
+        // 2) Refresh forecast + Health snapshot, recompute the risk score
+        //    and push it to the Watch. No location → no forecast; the
+        //    risk is still computed from history/Health and pushed.
+        let result = await RiskSyncCoordinator.refresh(migraines: migraines, force: true)
+        let forecastHours = result?.forecastHours ?? []
+        AppLogger.background.notice("BG forecast refresh: \(forecastHours.count, privacy: .public) hours")
 
         // 3) Hand off to the notification manager. It internally gates on
         //    the user's toggle preferences and the OS auth status, so this
