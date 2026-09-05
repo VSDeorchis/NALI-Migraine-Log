@@ -22,49 +22,26 @@ struct SeverityHeatmapView: View {
     /// the date + pain detail. Reset on outside tap.
     @State private var selected: DailyPainCell?
     
-    /// Width of the grid's container, captured from a background
-    /// `GeometryReader`. We use this to scale `cellSize` so the
-    /// heatmap fills its card on iPad instead of clumping against the
-    /// leading edge. A value of 0 means "not measured yet" — the
-    /// first render uses `minCellSize` until the preference callback
-    /// fires.
-    @State private var measuredWidth: CGFloat = 0
-    
     /// Days per week. Named rather than hard-coded so the transposed
     /// layout below reads clearly (7 = number of *rows*, i.e. weekday
     /// labels and cells-per-week, not columns).
     private let daysPerWeek = 7
-    /// Lower bound for the cell size. Matches the compact iPhone
-    /// layout we've shipped since the heatmap was introduced.
-    private let minCellSize: CGFloat = 14
-    /// Upper bound for the cell size on wider containers (iPad full
-    /// screen, Split View with a generous detail column, etc.).
-    /// Without a ceiling, a 3-month heatmap on a 12.9" iPad would
-    /// stretch each cell into a tile the size of a postage stamp and
-    /// lose the "density overview" character of the heatmap. Bumped
-    /// from the earlier 28pt cap so the transposed landscape grid
-    /// actually fills the wide Analytics card on iPad instead of
-    /// clumping into the middle.
-    private let maxCellSize: CGFloat = 48
+    /// Upper bound for the cell size on wide containers (iPad full
+    /// screen, short periods on a Plus-size iPhone). Without a ceiling
+    /// a 4-week heatmap would stretch each cell into a postage stamp
+    /// and lose the "density overview" character of the heatmap.
+    private let maxCellSize: CGFloat = 44
     private let cellSpacing: CGFloat = 3
+    private let cellCornerRadius: CGFloat = 4
     
     private var calendar: Calendar { .current }
     
-    /// Per-cell size, derived from the card's measured width and the
-    /// number of visible week columns (+ one leading column for the
-    /// weekday labels). Scales linearly between `minCellSize` and
-    /// `maxCellSize` so the grid fills the container's horizontal
-    /// space when the period is long enough; shorter periods center
-    /// their narrower grid inside the card rather than blowing each
-    /// cell up to absurd sizes. Falls back to `minCellSize` during
-    /// the first layout pass before `measuredWidth` has been
-    /// reported.
-    private var cellSize: CGFloat {
-        let columnCount = max(1, weekColumns.count + 1) // +1 = weekday-label column
-        guard measuredWidth > 0 else { return minCellSize }
-        let totalSpacing = cellSpacing * CGFloat(columnCount - 1)
-        let perCell = (measuredWidth - totalSpacing) / CGFloat(columnCount)
-        return max(minCellSize, min(maxCellSize, perCell))
+    /// Widest the grid may grow before cells would exceed `maxCellSize`.
+    /// Below this the grid stretches to fill the card; above it the grid
+    /// stays leading-aligned so it lines up with the header and legend.
+    private var maxGridWidth: CGFloat {
+        let columnCount = weekColumns.count + 1 // +1 = weekday-label column
+        return CGFloat(columnCount) * maxCellSize + CGFloat(columnCount - 1) * cellSpacing
     }
     
     /// Cells padded with leading "blank" entries so the first chunk of
@@ -138,103 +115,46 @@ struct SeverityHeatmapView: View {
     
     /// Transposed (GitHub-contribution-style) heatmap: weekday labels
     /// stack vertically as a leading column, then each calendar week
-    /// becomes its own column of 7 day-cells to the right. This is a
-    /// much better fit than the previous 7-cols-by-N-rows portrait
-    /// layout for the Analytics card, which is landscape-oriented
-    /// everywhere the heatmap appears (iPhone card full width, iPad
-    /// card even more so). Rendering weeks as columns lets the grid
-    /// grow horizontally as the period grows instead of stretching
-    /// into a tall narrow strip that clumps against the card's
-    /// vertical center line.
+    /// becomes its own column of 7 day-cells to the right. Every column
+    /// is flexible and every cell is a square, so the grid divides the
+    /// card's width evenly among the columns (up to `maxCellSize`)
+    /// without measuring the container.
     private var grid: some View {
         let columnsSlice = weekColumns
-        // Cache per-render so every cell + header label uses the same
-        // size for this layout pass (avoids any race if `measuredWidth`
-        // changes mid-render).
-        let size = cellSize
-        let cornerRadius = max(3, size * 0.22)
-        // Scale the weekday label font proportionally to the cell so
-        // the "S M T W T F S" column doesn't read as tiny 9pt text
-        // next to 48pt tiles on iPad.
-        let headerFontSize = max(9, min(13, size * 0.5))
         
-        // The inner HStack is the actual grid (weekday labels + week
-        // columns). Its natural width is `columnCount × cellSize +
-        // spacings`. We wrap it in an outer HStack with leading and
-        // trailing `Spacer()`s so the outer HStack *always* takes the
-        // full proposed width — the grid itself stays at its natural
-        // width and the spacers distribute leftover horizontal space
-        // symmetrically. This pattern also sidesteps a known SwiftUI
-        // quirk where `GeometryReader` inside `.background` on a
-        // `.frame(maxWidth: .infinity)`-wrapped HStack reports the
-        // HStack's *intrinsic* width instead of the expanded frame,
-        // which was causing the heatmap to measure ~390pt on an
-        // ~780pt iPad card and render at half-width.
-        let innerGrid = HStack(alignment: .top, spacing: cellSpacing) {
-            // Leading weekday-label column.
-            VStack(alignment: .center, spacing: cellSpacing) {
+        return HStack(alignment: .top, spacing: cellSpacing) {
+            VStack(spacing: cellSpacing) {
                 ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                     Text(symbol)
-                        .font(.system(size: headerFontSize, weight: .semibold, design: .rounded))
+                        .font(.system(.caption2, design: .rounded, weight: .semibold))
+                        .minimumScaleFactor(0.7)
                         .foregroundStyle(.secondary)
-                        .frame(width: size, height: size)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .aspectRatio(1, contentMode: .fit)
                 }
             }
             
-            // One VStack per calendar week, 7 cells tall.
             ForEach(columnsSlice.indices, id: \.self) { weekIndex in
                 VStack(spacing: cellSpacing) {
                     ForEach(0..<daysPerWeek, id: \.self) { dayIndex in
-                        let cell = columnsSlice[weekIndex][dayIndex]
-                        if let cell {
-                            cellView(for: cell,
-                                     size: size,
-                                     cornerRadius: cornerRadius)
-                        } else {
-                            Color.clear.frame(width: size, height: size)
-                        }
+                        cellView(for: columnsSlice[weekIndex][dayIndex])
                     }
                 }
             }
         }
-        
-        return HStack(spacing: 0) {
-            Spacer(minLength: 0)
-            innerGrid
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity)
-        .background(
-            // Measure the outer full-width HStack (not the intrinsic
-            // inner grid) so `cellSize` scales to the real card width
-            // on iPad. Using the `content:`-less `.background(_:)`
-            // overload keeps the geometry reader out of the layout
-            // pass that determines the HStack's size.
-            GeometryReader { geo in
-                Color.clear
-                    .preference(key: HeatmapWidthKey.self, value: geo.size.width)
-            }
-        )
-        .onPreferenceChange(HeatmapWidthKey.self) { newValue in
-            // Guard against layout-loop oscillation: only commit when
-            // the reported width moves by more than a half-point.
-            if abs(newValue - measuredWidth) > 0.5 {
-                measuredWidth = newValue
-            }
-        }
+        .frame(maxWidth: maxGridWidth, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
     
     @ViewBuilder
-    private func cellView(for cell: DailyPainCell?,
-                          size: CGFloat,
-                          cornerRadius: CGFloat) -> some View {
+    private func cellView(for cell: DailyPainCell?) -> some View {
         let isSelected = cell != nil && cell?.date == selected?.date
         let isCycleStart = cell.map { cycleStartDays.contains($0.date) } ?? false
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        RoundedRectangle(cornerRadius: cellCornerRadius, style: .continuous)
             .fill(fillColor(for: cell))
-            .frame(width: size, height: size)
+            .aspectRatio(1, contentMode: .fit)
             .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                RoundedRectangle(cornerRadius: cellCornerRadius, style: .continuous)
                     .strokeBorder(isSelected ? Color.primary.opacity(0.6) : Color.clear,
                                   lineWidth: 1.5)
             )
@@ -242,11 +162,12 @@ struct SeverityHeatmapView: View {
                 if isCycleStart {
                     Circle()
                         .fill(cycleAccent)
-                        .frame(width: max(4, size * 0.28), height: max(4, size * 0.28))
+                        .frame(width: 6, height: 6)
                         .overlay(Circle().strokeBorder(Color(.secondarySystemGroupedBackground), lineWidth: 1))
                         .offset(x: 1, y: 1)
                 }
             }
+            .contentShape(Rectangle())
             .onTapGesture {
                 guard let cell = cell else { return }
                 if selected?.date == cell.date {
@@ -317,18 +238,6 @@ struct SeverityHeatmapView: View {
         }
         let suffix = cell.migraineCount > 1 ? " (\(cell.migraineCount))" : ""
         return "\(dateText) · pain \(cell.worstPain)\(suffix)\(cycleSuffix)"
-    }
-}
-
-/// Carries the grid container's measured width from the background
-/// `GeometryReader` up to `SeverityHeatmapView`'s `@State` so `cellSize`
-/// can scale to fill available horizontal space. Private because no
-/// other view needs to consume it.
-private struct HeatmapWidthKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
     }
 }
 

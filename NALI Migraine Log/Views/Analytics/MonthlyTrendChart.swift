@@ -40,9 +40,10 @@ struct MonthlyTrendChart: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             chart
                 .frame(height: height)
+                .padding(.top, 6)
                 .onAppear { scrollPosition = initialScrollDate }
                 .onChange(of: points.count) { scrollPosition = initialScrollDate }
             legend
@@ -105,6 +106,7 @@ struct MonthlyTrendChart: View {
                     .foregroundStyle(Color.secondary)
             }
         }
+        .chartYScale(domain: 0...yAxisUpperBound)
         .chartScrollableAxes(.horizontal)
         .chartXVisibleDomain(length: visibleDomainLength)
         .chartScrollPosition(x: $scrollPosition)
@@ -149,6 +151,13 @@ struct MonthlyTrendChart: View {
 
     private var visibleDomainLength: TimeInterval {
         TimeInterval(visibleMonths) * 30.5 * 86_400
+    }
+
+    /// Tallest bar plus ~25% headroom (at least one unit) so the top bar
+    /// and its selection annotation don't sit flush against the title.
+    private var yAxisUpperBound: Int {
+        let peak = points.map(\.count).max() ?? 0
+        return peak + max(1, Int((Double(peak) * 0.25).rounded(.up)))
     }
 
     private func barColor(for point: MonthlyPoint) -> Color {
