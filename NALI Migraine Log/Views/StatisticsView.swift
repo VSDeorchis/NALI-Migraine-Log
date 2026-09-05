@@ -286,7 +286,7 @@ struct StatisticsView: View {
                     cycleStartDays: Set(healthCorrelationStore.cycleStartDays)
                 )
                 Divider()
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 12) {
                     Text("Migraine days per month")
                         .scaledFont(size: 14, weight: .semibold, design: .rounded)
                     if monthlyHeadacheDays.allSatisfy({ $0.count == 0 }) {
