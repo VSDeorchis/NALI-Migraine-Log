@@ -8,6 +8,7 @@
 import SwiftUI
 import WatchConnectivity
 import CoreData
+import TipKit
 
 @main
 struct NALI_Migraine_LogApp: App {
@@ -67,6 +68,12 @@ struct NALI_Migraine_LogApp: App {
         // in the .background scenePhase below.
         MainActor.assumeIsolated {
             BackgroundTaskScheduler.register()
+        }
+
+        do {
+            try Tips.configure()
+        } catch {
+            AppLogger.general.error("TipKit configuration failed: \(error.localizedDescription, privacy: .private)")
         }
 
         AppLogger.general.notice("App initialized")

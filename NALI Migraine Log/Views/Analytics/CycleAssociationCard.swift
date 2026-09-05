@@ -203,8 +203,11 @@ struct CycleAssociationCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             AnalyticsSectionHeader("Cycle & Migraines", systemImage: "drop.circle.fill", accent: accent) {
-                if let association {
-                    CycleConfidenceBadge(confidence: association.confidence)
+                HStack(spacing: 8) {
+                    if let association {
+                        CycleConfidenceBadge(confidence: association.confidence)
+                    }
+                    DetailsAffordance()
                 }
             }
 
@@ -261,6 +264,8 @@ struct CycleAssociationCard: View {
     }
 
     private func footer(_ association: CycleAssociation) -> String {
-        "Based on \(association.migraineDayCount) migraine day\(association.migraineDayCount == 1 ? "" : "s") across \(association.cycleCount) logged cycle\(association.cycleCount == 1 ? "" : "s"). Observed pattern, not a diagnosis."
+        let base = "Based on \(association.migraineDayCount) migraine day\(association.migraineDayCount == 1 ? "" : "s") across \(association.cycleCount) logged cycle\(association.cycleCount == 1 ? "" : "s"). Observed pattern, not a diagnosis."
+        guard association.confidence != .insufficient else { return base }
+        return base + " Tap a day in the chart for its count."
     }
 }

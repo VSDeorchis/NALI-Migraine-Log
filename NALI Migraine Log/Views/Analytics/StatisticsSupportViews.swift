@@ -193,29 +193,57 @@ struct AnalyticsSectionHeader<Trailing: View>: View {
     }
 }
 
+/// "Details ›" marker for cards that navigate somewhere, so a summary
+/// reads as a link rather than a static tile. Hidden from VoiceOver —
+/// the enclosing `NavigationLink` already announces itself as a button.
+struct DetailsAffordance: View {
+    var label: String? = "Details"
+
+    var body: some View {
+        HStack(spacing: 3) {
+            if let label {
+                Text(label)
+                    .scaledFont(size: 12, weight: .medium, design: .rounded)
+            }
+            Image(systemName: "chevron.right")
+                .scaledFont(size: 11, weight: .semibold)
+        }
+        .foregroundStyle(.tertiary)
+        .lineLimit(1)
+        .accessibilityHidden(true)
+    }
+}
+
 // Supporting Views
 struct ChartSection<Content: View>: View {
     let title: String
     var systemImage: String? = nil
     var accent: Color = .primary
+    var showsDetailsAffordance = false
     @ViewBuilder let content: () -> Content
     
     init(
         title: String,
         systemImage: String? = nil,
         accent: Color = .primary,
+        showsDetailsAffordance: Bool = false,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.title = title
         self.systemImage = systemImage
         self.accent = accent
+        self.showsDetailsAffordance = showsDetailsAffordance
         self.content = content
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if !title.isEmpty {
-                AnalyticsSectionHeader(title, systemImage: systemImage, accent: accent)
+                AnalyticsSectionHeader(title, systemImage: systemImage, accent: accent) {
+                    if showsDetailsAffordance {
+                        DetailsAffordance()
+                    }
+                }
             }
             content()
         }
@@ -298,10 +326,14 @@ struct HeroMetricCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title.uppercased())
-                .tracking(0.6)
-                .scaledFont(size: 12, weight: .semibold, design: .rounded)
-                .foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline) {
+                Text(title.uppercased())
+                    .tracking(0.6)
+                    .scaledFont(size: 12, weight: .semibold, design: .rounded)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                DetailsAffordance()
+            }
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(value)
                     .scaledFont(size: 48, weight: .bold, design: .rounded)
@@ -344,12 +376,17 @@ struct KPIChip: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(value)
-                .scaledFont(size: 22, weight: .bold, design: .rounded)
-                .foregroundStyle(accent)
-                .contentTransition(.numericText())
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
+            HStack(alignment: .top, spacing: 4) {
+                Text(value)
+                    .scaledFont(size: 22, weight: .bold, design: .rounded)
+                    .foregroundStyle(accent)
+                    .contentTransition(.numericText())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                Spacer(minLength: 0)
+                DetailsAffordance(label: nil)
+                    .padding(.top, 4)
+            }
             Text(title)
                 .scaledFont(size: 12, weight: .medium, design: .rounded)
                 .foregroundStyle(.secondary)

@@ -73,7 +73,7 @@ struct AnalyticsPatternsCard: View {
             content
                 .frame(minHeight: 200)
                 .animation(.snappy(duration: 0.25), value: pattern)
-            SampleSizeLabel(count: migraines.count, suffix: "in this period")
+            SampleSizeLabel(count: migraines.count, suffix: "in this period. Tap a bar to see those entries.")
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)

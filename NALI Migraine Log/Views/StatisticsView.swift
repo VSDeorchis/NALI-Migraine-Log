@@ -1,5 +1,6 @@
 import SwiftUI
 import Charts
+import TipKit
 
 struct StatisticsView: View {
     @ObservedObject var viewModel: MigraineViewModel
@@ -19,6 +20,10 @@ struct StatisticsView: View {
     /// CTA on the Health Correlations card from the Analytics dashboard.
     /// We never auto-present this — only the explicit CTA does.
     @State private var showingHealthKitPrimer = false
+
+    /// Invalidated the first time any drill-down opens, so users who have
+    /// already found the navigation never see it again.
+    private let drillDownTip = AnalyticsDrillDownTip()
     
     /// `.regular` ≈ iPad in any orientation + iPhone Plus/Pro Max in
     /// landscape. Drives the KPI grid column count and the dashboard's
@@ -52,9 +57,11 @@ struct StatisticsView: View {
                         migraines: filteredMigraines,
                         periodLabel: periodLabel
                     )
+                    .onAppear { drillDownTip.invalidate(reason: .actionPerformed) }
                 }
                 .navigationDestination(item: $patternDrillDown) { drillDown in
                     patternDrillDownView(drillDown)
+                        .onAppear { drillDownTip.invalidate(reason: .actionPerformed) }
                 }
                 .navigationDestination(isPresented: impactBinding) {
                     impactNavigationView()
@@ -193,6 +200,7 @@ struct StatisticsView: View {
         .buttonStyle(.plain)
         .hoverEffect(.lift)
         .padding(.horizontal, 16)
+        .popoverTip(drillDownTip, arrowEdge: .top)
         .accessibilityHint("Opens migraine days details")
     }
     
@@ -343,7 +351,8 @@ struct StatisticsView: View {
             ChartSection(
                 title: "Acute medication",
                 systemImage: "pills.fill",
-                accent: AnalyticsDomain.medication.accent
+                accent: AnalyticsDomain.medication.accent,
+                showsDetailsAffordance: true
             ) {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -371,6 +380,7 @@ struct StatisticsView: View {
             }
         }
         .buttonStyle(.plain)
+        .hoverEffect(.lift)
         .accessibilityHint("Opens acute medication days details")
     }
     
