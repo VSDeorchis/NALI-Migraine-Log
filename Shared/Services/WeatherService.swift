@@ -41,7 +41,7 @@ struct HourlyWeather: Codable {
     }
 }
 
-struct WeatherSnapshot: Codable {
+struct WeatherSnapshot: Codable, Sendable {
     let timestamp: Date
     let temperature: Double
     let pressure: Double

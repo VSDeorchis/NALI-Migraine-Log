@@ -40,7 +40,7 @@ final class MigraineViewModel: MigraineStore {
 
     // Stored state for the extensions (Swift extensions cannot add storage).
     var pendingChanges = 0
-    var autoSyncTimer: Timer?
+    var autoSyncTask: Task<Void, Never>?
     let autoSyncInterval: TimeInterval = 300 // 5 minutes
 
     /// Weather lookups that are still running for a freshly-saved entry,
@@ -86,7 +86,7 @@ final class MigraineViewModel: MigraineStore {
     }
 
     deinit {
-        autoSyncTimer?.invalidate()
+        autoSyncTask?.cancel()
         for task in weatherTasks.values { task.cancel() }
         NotificationCenter.default.removeObserver(self)
     }
@@ -382,14 +382,17 @@ final class MigraineViewModel: MigraineStore {
 // MARK: - NSFetchedResultsControllerDelegate
 
 extension MigraineViewModel: NSFetchedResultsControllerDelegate {
-    func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
-        let newMigraines = controller.fetchedObjects as? [MigraineEvent] ?? []
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+    /// The controller is bound to the main-queue `viewContext`, so Core Data
+    /// delivers this on the main thread; `assumeIsolated` makes that contract
+    /// explicit and keeps the managed objects from crossing an isolation
+    /// boundary.
+    nonisolated func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
+        MainActor.assumeIsolated {
+            let newMigraines = controller.fetchedObjects as? [MigraineEvent] ?? []
             // Only publish when data actually changed to avoid unnecessary re-renders
-            if newMigraines.count != self.migraines.count ||
-               newMigraines.map({ $0.objectID }) != self.migraines.map({ $0.objectID }) {
-                self.migraines = newMigraines
+            if newMigraines.count != migraines.count ||
+               newMigraines.map({ $0.objectID }) != migraines.map({ $0.objectID }) {
+                migraines = newMigraines
             }
         }
     }

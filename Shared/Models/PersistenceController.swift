@@ -74,6 +74,7 @@ import CloudKit
 import CoreData
 import SwiftUI
 
+@MainActor
 public final class PersistenceController: ObservableObject {
     @Published public var syncStatus: SyncStatus = .notConfigured
 
@@ -89,7 +90,7 @@ public final class PersistenceController: ObservableObject {
     /// successful event lands within `syncErrorDebounceInterval`. Any success
     /// (or a fresh failure) cancels the pending item, so the banner only shows
     /// for problems that actually persist.
-    private var pendingSyncErrorWorkItem: DispatchWorkItem?
+    private var pendingSyncErrorTask: Task<Void, Never>?
 
     /// How long a CloudKit failure must go un-recovered before the error banner
     /// is shown. Long enough to ride out transient blips, short enough that a
@@ -116,10 +117,7 @@ public final class PersistenceController: ObservableObject {
 
     public static let shared = PersistenceController()
     
-    static var preview: PersistenceController = {
-        let controller = PersistenceController(inMemory: true)
-        return controller
-    }()
+    static let preview = PersistenceController(inMemory: true)
     
     let container: NSPersistentCloudKitContainer
     
@@ -193,7 +191,7 @@ public final class PersistenceController: ObservableObject {
         }
         
         container.viewContext.automaticallyMergesChangesFromParent = true
-        container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        container.viewContext.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
         container.viewContext.shouldDeleteInaccessibleFaults = true
         
         NotificationCenter.default.addObserver(
@@ -208,7 +206,9 @@ public final class PersistenceController: ObservableObject {
             forName: .NSPersistentStoreRemoteChange,
             object: container.persistentStoreCoordinator,
             queue: .main) { [weak self] _ in
-                self?.container.viewContext.refreshAllObjects()
+                MainActor.assumeIsolated {
+                    self?.container.viewContext.refreshAllObjects()
+                }
         }
 
         // Drive an accurate sync status (and surface CloudKit errors) from the
@@ -217,7 +217,9 @@ public final class PersistenceController: ObservableObject {
             forName: NSPersistentCloudKitContainer.eventChangedNotification,
             object: container,
             queue: .main) { [weak self] notification in
-                self?.handleCloudKitEvent(notification)
+                MainActor.assumeIsolated {
+                    self?.handleCloudKitEvent(notification)
+                }
         }
 
         // If sync is on, confirm the device actually has an iCloud account so we
@@ -255,7 +257,10 @@ public final class PersistenceController: ObservableObject {
         // a background queue and just log the outcome; do not retry, since a
         // second call collides with the still-pending request
         // (NSCloudKitMirroringInitializeSchemaRequest, error 134417).
-        let container = self.container
+        // `NSPersistentContainer` isn't `Sendable`; the background work only
+        // calls the thread-safe schema API and never touches a context, so
+        // this DEBUG-only hand-off is marked rather than proven.
+        nonisolated(unsafe) let container = self.container
         DispatchQueue.global(qos: .utility).async {
             do {
                 try container.initializeCloudKitSchema(options: [])
@@ -270,7 +275,7 @@ public final class PersistenceController: ObservableObject {
     /// Core Data collapses these into a generic "A Core Data error occurred,"
     /// so we walk `userInfo`/`NSUnderlyingErrorKey` to surface the real cause
     /// (e.g. the originating `CKError`).
-    private static func logSchemaInitError(_ error: Error) {
+    private nonisolated static func logSchemaInitError(_ error: Error) {
         let ns = error as NSError
         AppLogger.coreData.error("CloudKit schema init failed: domain=\(ns.domain, privacy: .public) code=\(ns.code) — \(ns.localizedDescription, privacy: .private). This often just means initializeCloudKitSchema timed out on the Simulator; try a physical device, or populate the schema by creating an entry with the entitlement set to Development.")
         if let reason = ns.localizedFailureReason {
@@ -324,29 +329,28 @@ public final class PersistenceController: ObservableObject {
     /// stream of failures arriving faster than the interval would keep the
     /// banner suppressed forever) — the already-armed timer still fires.
     private func scheduleSyncErrorBanner(for error: Error) {
-        guard pendingSyncErrorWorkItem == nil else { return }
+        guard pendingSyncErrorTask == nil else { return }
 
         let message = Self.userFacingSyncMessage(for: error)
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self, self.isCloudKitEnabled else { return }
-            self.pendingSyncErrorWorkItem = nil
+        pendingSyncErrorTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(Self.syncErrorDebounceInterval))
+            guard !Task.isCancelled, let self, self.isCloudKitEnabled else { return }
+            self.pendingSyncErrorTask = nil
             self.syncStatus = .error(message)
         }
-        pendingSyncErrorWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.syncErrorDebounceInterval, execute: workItem)
     }
 
     private func cancelPendingSyncErrorBanner() {
-        pendingSyncErrorWorkItem?.cancel()
-        pendingSyncErrorWorkItem = nil
+        pendingSyncErrorTask?.cancel()
+        pendingSyncErrorTask = nil
     }
 
     /// Checks the iCloud account state for the sync container and, when it isn't
     /// usable, surfaces a clear, actionable message via `syncStatus`.
     private func verifyCloudAccountAvailable() {
         CKContainer(identifier: Self.cloudKitContainerIdentifier).accountStatus { [weak self] status, _ in
-            DispatchQueue.main.async {
-                guard let self = self, self.isCloudKitEnabled else { return }
+            Task { @MainActor in
+                guard let self, self.isCloudKitEnabled else { return }
                 switch status {
                 case .available:
                     break
@@ -375,7 +379,7 @@ public final class PersistenceController: ObservableObject {
     /// and the originating `CKError.notAuthenticated` is usually buried in the
     /// underlying-error chain. We check all three so the not-signed-in state is
     /// reliably recognized regardless of how Core Data wraps it.
-    static func isNoAccountError(_ error: Error) -> Bool {
+    nonisolated static func isNoAccountError(_ error: Error) -> Bool {
         if let ckError = error as? CKError, ckError.code == .notAuthenticated {
             return true
         }
@@ -390,7 +394,7 @@ public final class PersistenceController: ObservableObject {
     }
 
     /// Maps a CloudKit error to a short, non-technical message for the UI.
-    private static func userFacingSyncMessage(for error: Error) -> String {
+    private nonisolated static func userFacingSyncMessage(for error: Error) -> String {
         switch (error as? CKError)?.code {
         case .some(.notAuthenticated):
             return signInRequiredMessage
@@ -497,7 +501,7 @@ public final class PersistenceController: ObservableObject {
             // If the user had sync on, reattach CloudKit to the fresh store via
             // the normal reload path so a recovered store keeps syncing.
             if isCloudKitEnabled {
-                DispatchQueue.main.async { [weak self] in
+                Task { @MainActor [weak self] in
                     self?.reloadStore(cloudKitEnabled: true)
                 }
             }
@@ -506,7 +510,7 @@ public final class PersistenceController: ObservableObject {
             // moved-aside bytes are intact on disk. Surface an error instead of
             // crashing the app with `fatalError`.
             AppLogger.coreData.fault("Failed to recover from persistent store error: \(error.localizedDescription, privacy: .private)")
-            DispatchQueue.main.async { [weak self] in
+            Task { @MainActor [weak self] in
                 self?.syncStatus = .error("Couldn't open your data store. Your data is preserved on this device \u{2014} please contact support.")
             }
         }
@@ -629,23 +633,23 @@ public final class PersistenceController: ObservableObject {
             description.cloudKitContainerOptions = nil
         }
 
+        // Stores are added synchronously, so this runs on the calling (main)
+        // actor before `loadPersistentStores` returns.
         container.loadPersistentStores { [weak self] _, error in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                if let error = error {
-                    AppLogger.coreData.error("Failed to reload store after toggling iCloud sync: \(error.localizedDescription, privacy: .private)")
-                    self.syncStatus = .error(error.localizedDescription)
-                    completion?(.failure(error))
-                    return
-                }
-                self.isCloudKitEnabled = cloudKitEnabled
-                self.container.viewContext.refreshAllObjects()
-                self.syncStatus = cloudKitEnabled ? .enabled : .disabled
-                if cloudKitEnabled {
-                    self.verifyCloudAccountAvailable()
-                }
-                completion?(.success(()))
+            guard let self else { return }
+            if let error {
+                AppLogger.coreData.error("Failed to reload store after toggling iCloud sync: \(error.localizedDescription, privacy: .private)")
+                self.syncStatus = .error(error.localizedDescription)
+                completion?(.failure(error))
+                return
             }
+            self.isCloudKitEnabled = cloudKitEnabled
+            self.container.viewContext.refreshAllObjects()
+            self.syncStatus = cloudKitEnabled ? .enabled : .disabled
+            if cloudKitEnabled {
+                self.verifyCloudAccountAvailable()
+            }
+            completion?(.success(()))
         }
     }
 }

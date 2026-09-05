@@ -9,6 +9,7 @@ import Foundation
 import CoreLocation
 import Combine
 
+@MainActor
 class LocationManager: NSObject, ObservableObject {
     static let shared = LocationManager()
     
@@ -23,7 +24,7 @@ class LocationManager: NSObject, ObservableObject {
     /// A cached fix younger than this is returned without touching CoreLocation.
     private let cachedLocationMaxAge: TimeInterval = 3600
     private let locationRequestTimeout: Duration = .seconds(10)
-    @MainActor private var isRefreshingLocation = false
+    private var isRefreshingLocation = false
     
     /// Cross-platform check for location authorization
     /// macOS uses .authorized; iOS/watchOS use .authorizedWhenInUse
@@ -35,7 +36,7 @@ class LocationManager: NSObject, ObservableObject {
         #endif
     }
     
-    private static func isStatusAuthorized(_ status: CLAuthorizationStatus) -> Bool {
+    private nonisolated static func isStatusAuthorized(_ status: CLAuthorizationStatus) -> Bool {
         #if os(macOS)
         return status == .authorizedAlways || status == .authorized
         #else
@@ -52,40 +53,56 @@ class LocationManager: NSObject, ObservableObject {
         locationManager.desiredAccuracy = kCLLocationAccuracyKilometer
         locationManager.distanceFilter = 1000 // Update only if moved 1km
 
-        // The first read of `authorizationStatus` (and `startUpdatingLocation()`)
-        // makes a synchronous XPC round-trip to `locationd`. Doing that here — on
-        // the main thread, inside the SwiftUI `@StateObject` init that runs during
-        // the first scene update at launch — can block long enough to trip iOS's
-        // launch watchdog (`0x8BADF00D`) and crash the app before it draws a frame.
-        // Hop off the main thread for the status read; the `@Published` mutation
-        // and any CoreLocation start/request calls are bounced back to the main
-        // actor (CLLocationManager wants a thread with a run loop).
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        // The first read of `authorizationStatus` makes a synchronous XPC
+        // round-trip to `locationd`. Doing that here — on the main thread, inside
+        // the SwiftUI `@StateObject` init that runs during the first scene update
+        // at launch — can block long enough to trip iOS's launch watchdog
+        // (`0x8BADF00D`) and crash the app before it draws a frame. The probe
+        // runs off the main thread; the `@Published` mutation and any CoreLocation
+        // request calls happen back on the main actor (CLLocationManager wants a
+        // thread with a run loop).
+        Task { [weak self] in
+            let probe = await Self.probeAuthorization()
             guard let self else { return }
+            let currentStatus = probe.status
+            self.authorizationStatus = currentStatus
 
-            let currentStatus = self.locationManager.authorizationStatus
+            AppLogger.location.notice("LocationManager initialized; status=\(Self.statusDescription(currentStatus), privacy: .public)")
 
-            Task { @MainActor in
-                self.authorizationStatus = currentStatus
+            if Self.isStatusAuthorized(currentStatus) {
+                self.refreshLocationIfStale()
+            }
 
-                AppLogger.location.notice("LocationManager initialized; status=\(self.statusDescription(currentStatus), privacy: .public)")
-
-                if Self.isStatusAuthorized(currentStatus) {
-                    self.refreshLocationIfStale()
-                }
-
-                // IMPORTANT: Request authorization early so iOS recognizes this app
-                // uses location (makes "While Using the App" appear in Settings).
-                // If the user already responded, this is a no-op (no dialog).
-                if currentStatus == .notDetermined {
-                    AppLogger.location.debug("Proactively requesting authorization so iOS shows full permission options")
-                    self.locationManager.requestWhenInUseAuthorization()
-                }
+            // IMPORTANT: Request authorization early so iOS recognizes this app
+            // uses location (makes "While Using the App" appear in Settings).
+            // If the user already responded, this is a no-op (no dialog).
+            if currentStatus == .notDetermined {
+                AppLogger.location.debug("Proactively requesting authorization so iOS shows full permission options")
+                self.locationManager.requestWhenInUseAuthorization()
             }
         }
     }
+
+    /// Snapshot of the system-wide and per-app authorization state.
+    private struct AuthorizationProbe: Sendable {
+        let servicesEnabled: Bool
+        let status: CLAuthorizationStatus
+    }
+
+    /// Reads `locationServicesEnabled()` and `authorizationStatus` off the main
+    /// thread. Both block on `locationd` the first time they are called, which
+    /// is why the read happens on a throwaway manager in a detached task
+    /// rather than on the main-actor-owned `locationManager`.
+    private nonisolated static func probeAuthorization() async -> AuthorizationProbe {
+        await Task.detached(priority: .userInitiated) {
+            AuthorizationProbe(
+                servicesEnabled: CLLocationManager.locationServicesEnabled(),
+                status: CLLocationManager().authorizationStatus
+            )
+        }.value
+    }
     
-    private func statusDescription(_ status: CLAuthorizationStatus) -> String {
+    private nonisolated static func statusDescription(_ status: CLAuthorizationStatus) -> String {
         switch status {
         case .notDetermined: return "Not Determined"
         case .restricted: return "Restricted"
@@ -104,17 +121,15 @@ class LocationManager: NSObject, ObservableObject {
     func requestPermission() {
         AppLogger.location.notice("Requesting location permission")
 
-        // Request on a background thread to avoid UI unresponsiveness warning
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
+        // The status/services reads run off the main thread to avoid the UI
+        // unresponsiveness warning; the request itself goes back to the main actor.
+        Task { [weak self] in
+            let probe = await Self.probeAuthorization()
+            guard let self else { return }
 
-            // Check if location services are enabled system-wide
-            let servicesEnabled = CLLocationManager.locationServicesEnabled()
-            let currentStatus = self.locationManager.authorizationStatus
+            AppLogger.location.debug("Services enabled=\(probe.servicesEnabled, privacy: .public); status=\(Self.statusDescription(probe.status), privacy: .public)")
 
-            AppLogger.location.debug("Services enabled=\(servicesEnabled, privacy: .public); status=\(self.statusDescription(currentStatus), privacy: .public)")
-
-            guard servicesEnabled else {
+            guard probe.servicesEnabled else {
                 AppLogger.location.error("Location services are disabled system-wide")
                 return
             }
@@ -122,23 +137,20 @@ class LocationManager: NSObject, ObservableObject {
             // Request authorization - this will show the dialog even if "When I Share" was set
             self.locationManager.requestWhenInUseAuthorization()
 
-            // Set a timer to check if authorization changed
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                let newStatus = self.locationManager.authorizationStatus
-                if newStatus == .notDetermined {
-                    AppLogger.location.notice("Status still notDetermined 3s after request; likely 'When I Share' mode")
-                }
+            // Check whether the request produced a decision
+            try? await Task.sleep(for: .seconds(3))
+            if self.locationManager.authorizationStatus == .notDetermined {
+                AppLogger.location.notice("Status still notDetermined 3s after request; likely 'When I Share' mode")
             }
         }
     }
     
     /// Refresh authorization status (useful when returning from Settings)
-    @MainActor
     func refreshAuthorizationStatus() {
         let currentStatus = locationManager.authorizationStatus
 
         if currentStatus != authorizationStatus {
-            AppLogger.location.notice("Status changed: \(self.statusDescription(self.authorizationStatus), privacy: .public) → \(self.statusDescription(currentStatus), privacy: .public)")
+            AppLogger.location.notice("Status changed: \(Self.statusDescription(self.authorizationStatus), privacy: .public) → \(Self.statusDescription(currentStatus), privacy: .public)")
             authorizationStatus = currentStatus
         }
 
@@ -156,10 +168,9 @@ class LocationManager: NSObject, ObservableObject {
     /// `CLLocationUpdate.liveUpdates()` element. Each caller consumes its
     /// own short-lived stream, so cancelling the calling task tears down
     /// only that stream and never affects other callers.
-    @MainActor
     func getCurrentLocation() async throws -> CLLocation {
         let status = locationManager.authorizationStatus
-        AppLogger.location.debug("getCurrentLocation called; status=\(self.statusDescription(status), privacy: .public)")
+        AppLogger.location.debug("getCurrentLocation called; status=\(Self.statusDescription(status), privacy: .public)")
 
         // `.notDetermined` can also mean the iOS 18 "Ask Next Time / When I
         // Share" mode; `liveUpdates()` then surfaces the system prompt.
@@ -190,7 +201,7 @@ class LocationManager: NSObject, ObservableObject {
     }
 
     /// Races the first usable live update against the request timeout.
-    private static func firstFix(timeout: Duration) async throws -> CLLocation {
+    private nonisolated static func firstFix(timeout: Duration) async throws -> CLLocation {
         try await withThrowingTaskGroup(of: CLLocation.self) { group in
             group.addTask { try await firstLiveUpdate() }
             group.addTask {
@@ -206,7 +217,7 @@ class LocationManager: NSObject, ObservableObject {
     /// Consumes `liveUpdates()` until a location or a terminal condition
     /// (denied, restricted, unavailable) arrives. Reduced-accuracy fixes
     /// are accepted as-is; weather lookups only need a coarse position.
-    private static func firstLiveUpdate() async throws -> CLLocation {
+    private nonisolated static func firstLiveUpdate() async throws -> CLLocation {
         for try await update in CLLocationUpdate.liveUpdates() {
             if let fix = update.location {
                 AppLogger.location.debug("Location updated (accuracy \(Int(fix.horizontalAccuracy), privacy: .public) m)")
@@ -235,7 +246,6 @@ class LocationManager: NSObject, ObservableObject {
     /// Requests a single fix when the cached one is missing or older than an
     /// hour. Weather lookups only need a coarse, occasional position, so the
     /// app never runs continuous location updates.
-    @MainActor
     func refreshLocationIfStale() {
         guard isLocationAuthorized, !hasFreshLocation, !isRefreshingLocation else { return }
         isRefreshingLocation = true
@@ -251,7 +261,7 @@ class LocationManager: NSObject, ObservableObject {
 extension LocationManager: CLLocationManagerDelegate {
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
-        AppLogger.location.notice("Authorization changed to: \(self.statusDescription(status), privacy: .public)")
+        AppLogger.location.notice("Authorization changed to: \(Self.statusDescription(status), privacy: .public)")
 
         Task { @MainActor in
             self.authorizationStatus = status

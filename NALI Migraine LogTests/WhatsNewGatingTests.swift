@@ -15,6 +15,7 @@ import Foundation
 @testable import NALI_Migraine_Log
 
 @Suite("What's New presentation gate", .serialized)
+@MainActor
 struct WhatsNewGatingTests {
 
     /// Runs `body` with `WhatsNew.defaults` pointed at a throwaway suite,

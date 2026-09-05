@@ -114,7 +114,10 @@ extension MigraineViewModel {
     /// tasks, so `group.next()` yields exactly one result before the rest
     /// are cancelled; a `nil` there is impossible by construction and is
     /// treated as a timeout rather than a crash.
-    private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
+    private nonisolated func withTimeout<T: Sendable>(
+        seconds: TimeInterval,
+        operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
         try await withThrowingTaskGroup(of: T.self) { group in
             group.addTask {
                 try await operation()

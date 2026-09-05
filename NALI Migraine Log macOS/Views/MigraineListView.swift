@@ -204,7 +204,7 @@ struct MigraineListView: View {
         .task {
             viewModel.fetchMigraines()
         }
-        .onChange(of: selectedMigraineID) { _ in
+        .onChange(of: selectedMigraineID) {
             if selectedMigraineID == nil {
                 isEditing = false
             }
@@ -573,7 +573,7 @@ struct MigraineInspectorView: View {
             }
         }
         .background(Color(NSColor.controlBackgroundColor))
-        .onChange(of: migraine) { _ in
+        .onChange(of: migraine) {
             resetEdits()
             isEditing = false
         }

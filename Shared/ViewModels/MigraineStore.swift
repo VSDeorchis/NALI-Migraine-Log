@@ -27,6 +27,7 @@ enum MigraineError: LocalizedError {
 ///
 /// Subclasses replace `migraines`/`lastError` wholesale; views treat both
 /// as read-only.
+@MainActor
 class MigraineStore: NSObject, ObservableObject {
     /// Result of `deleteAllData()`. Core Data and ML artifacts are always
     /// cleared or the call throws; Health is the one dependency whose

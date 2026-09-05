@@ -139,8 +139,6 @@ struct StatisticsView: View {
                 return startTime >= customStartDate && startTime <= customEndDate
             }
         }
-        
-        return []
     }
     
     private var averagePain: Double {

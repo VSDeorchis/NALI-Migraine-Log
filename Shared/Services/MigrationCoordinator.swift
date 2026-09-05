@@ -65,6 +65,9 @@ struct UpgradeStep {
     let perform: (NSManagedObjectContext) throws -> Void
 }
 
+/// Runs on the main actor: every step writes to the main-queue
+/// `viewContext` handed in by the `@main` app at launch.
+@MainActor
 enum MigrationCoordinator {
     // MARK: - Tunable surface
 

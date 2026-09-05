@@ -368,15 +368,42 @@ class WatchConnectivityManager: NSObject, ObservableObject {
 
     // MARK: - Inbound
 
-    private func handleIncoming(_ payload: [String: Any]) {
-        if let envelope = WatchSyncEnvelope.decode(from: payload) {
+    /// Everything the manager needs from a `WCSession` payload, decoded on the
+    /// framework's delivery queue so only `Sendable` values cross onto the
+    /// main actor. The (rare) pre-v2 dictionary is carried as property-list
+    /// bytes and rebuilt on the main actor.
+    struct InboundPayload: Sendable {
+        let envelope: WatchSyncEnvelope?
+        let legacyPlist: Data?
+        let risk: WatchRiskPayload?
+        let requestsSync: Bool
+
+        nonisolated init(_ payload: [String: Any]) {
+            envelope = WatchSyncEnvelope.decode(from: payload)
+            if envelope == nil,
+               let records = payload["migraineData"] as? [[String: Any]],
+               let deleted = payload["deletedIds"] as? [String] {
+                let legacy: [String: Any] = ["migraineData": records, "deletedIds": deleted]
+                legacyPlist = try? PropertyListSerialization.data(fromPropertyList: legacy, format: .binary, options: 0)
+            } else {
+                legacyPlist = nil
+            }
+            risk = WatchRiskPayload.decode(from: payload)
+            requestsSync = payload["requestSync"] as? Bool == true
+        }
+    }
+
+    private func handleIncoming(_ inbound: InboundPayload) {
+        if let envelope = inbound.envelope {
             apply(envelope)
-        } else if let legacyRecords = payload["migraineData"] as? [[String: Any]],
-                  let legacyDeleted = payload["deletedIds"] as? [String] {
+        } else if let plist = inbound.legacyPlist,
+                  let legacy = (try? PropertyListSerialization.propertyList(from: plist, format: nil)) as? [String: Any],
+                  let legacyRecords = legacy["migraineData"] as? [[String: Any]],
+                  let legacyDeleted = legacy["deletedIds"] as? [String] {
             applyLegacy(records: legacyRecords, deletedIds: legacyDeleted)
         }
         #if os(watchOS)
-        if let risk = WatchRiskPayload.decode(from: payload) {
+        if let risk = inbound.risk {
             adoptSyncedRisk(risk)
         }
         #endif
@@ -563,16 +590,16 @@ extension WatchConnectivityManager: WCSessionDelegate {
     }
 
     nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
-        let payload = applicationContext
+        let inbound = InboundPayload(applicationContext)
         Task { @MainActor [weak self] in
-            self?.handleIncoming(payload)
+            self?.handleIncoming(inbound)
         }
     }
 
     nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
-        let payload = userInfo
+        let inbound = InboundPayload(userInfo)
         Task { @MainActor [weak self] in
-            self?.handleIncoming(payload)
+            self?.handleIncoming(inbound)
         }
     }
 
@@ -586,13 +613,13 @@ extension WatchConnectivityManager: WCSessionDelegate {
     }
 
     nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
-        let payload = message
+        let inbound = InboundPayload(message)
         Task { @MainActor [weak self] in
             guard let self else { return }
-            if payload["requestSync"] as? Bool == true {
+            if inbound.requestsSync {
                 self.handleSyncRequest()
             }
-            self.handleIncoming(payload)
+            self.handleIncoming(inbound)
         }
     }
 
