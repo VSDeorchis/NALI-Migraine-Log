@@ -72,7 +72,7 @@ struct AnalyticsPatternsCard: View {
             chipRow
             content
                 .frame(minHeight: 200)
-                .animation(.snappy(duration: 0.25), value: pattern)
+                .motionSafeAnimation(.snappy(duration: 0.25), value: pattern)
             SampleSizeLabel(count: migraines.count, suffix: "in this period. Tap a bar to see those entries.")
         }
         .padding(18)

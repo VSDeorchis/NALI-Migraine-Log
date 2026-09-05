@@ -15,6 +15,7 @@ struct MacMigraineRiskView: View {
     @StateObject private var forecastService = WeatherForecastService.shared
     @StateObject private var healthKit = HealthKitManager.shared
     
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isRefreshing = false
     @State private var showingDailyCheckIn = false
     @State private var showingHealthKitSetup = false
@@ -125,7 +126,7 @@ struct MacMigraineRiskView: View {
                         )
                         .frame(width: 200, height: 200)
                         .rotationEffect(.degrees(-90))
-                        .animation(.easeInOut(duration: 1.0), value: risk.overallRisk)
+                        .animation(reduceMotion ? nil : .easeInOut(duration: 1.0), value: risk.overallRisk)
 
                     // Rounded end caps — drawn separately so each can use the
                     // exact color it should be (always green at the low-risk
@@ -142,7 +143,7 @@ struct MacMigraineRiskView: View {
                             .frame(width: 20, height: 20)
                             .offset(y: -100)
                             .rotationEffect(.degrees(360 * risk.overallRisk))
-                            .animation(.easeInOut(duration: 1.0), value: risk.overallRisk)
+                            .animation(reduceMotion ? nil : .easeInOut(duration: 1.0), value: risk.overallRisk)
                     }
                     
                     // Center content
@@ -183,7 +184,7 @@ struct MacMigraineRiskView: View {
                             RoundedRectangle(cornerRadius: 3)
                                 .fill(Color.blue.opacity(0.7))
                                 .frame(width: geo.size.width * risk.confidence, height: 6)
-                                .animation(.easeInOut, value: risk.confidence)
+                                .animation(reduceMotion ? nil : .easeInOut, value: risk.confidence)
                         }
                     }
                     .frame(height: 6)

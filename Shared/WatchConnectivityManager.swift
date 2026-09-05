@@ -37,6 +37,8 @@ class WatchConnectivityManager: NSObject, ObservableObject {
     @Published var lastSyncTime: Date?
 
     /// Risk summary most recently received from the iPhone (used by watchOS).
+    /// Persisted so a cold launch shows the last known score (with its age)
+    /// instead of an empty gauge until the phone answers.
     @Published var syncedRisk: WatchRiskPayload?
 
     /// Entries this device changed and has not yet delivered to the counterpart.
@@ -53,6 +55,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
     private let pendingChangesKey = "com.neuroli.pendingWatchSyncIds"
     private let legacyDeletedIdsKey = "com.neuroli.deletedMigraineIds"
     private let pendingRiskKey = "pendingRiskPayload"
+    private let syncedRiskKey = "com.neuroli.lastSyncedRiskPayload"
 
     private let tombstoneRetention: TimeInterval = 90 * 86_400
     /// Upper bound on entries included in a phone → Watch snapshot.
@@ -112,6 +115,11 @@ class WatchConnectivityManager: NSObject, ObservableObject {
             pendingChangeIDs = ids
         }
         defaults.removeObject(forKey: legacyRevisionsKey)
+        #if os(watchOS)
+        if let data = defaults.data(forKey: syncedRiskKey) {
+            syncedRisk = WatchRiskPayload.decode(data)
+        }
+        #endif
         pruneTombstones()
     }
 
@@ -144,6 +152,8 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         savePendingChanges()
         saveTombstones()
         UserDefaults.standard.removeObject(forKey: pendingRiskKey)
+        UserDefaults.standard.removeObject(forKey: syncedRiskKey)
+        syncedRisk = nil
     }
 
     // MARK: - Public change notifications (called by the view models)
@@ -367,13 +377,20 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         }
         #if os(watchOS)
         if let risk = WatchRiskPayload.decode(from: payload) {
-            if let current = syncedRisk, current.timestamp > risk.timestamp {
-                return
-            }
-            syncedRisk = risk
+            adoptSyncedRisk(risk)
         }
         #endif
     }
+
+    #if os(watchOS)
+    private func adoptSyncedRisk(_ risk: WatchRiskPayload) {
+        guard WatchRiskPayload.shouldAdopt(risk, over: syncedRisk) else { return }
+        syncedRisk = risk
+        if let data = try? risk.encoded() {
+            UserDefaults.standard.set(data, forKey: syncedRiskKey)
+        }
+    }
+    #endif
 
     private func apply(_ envelope: WatchSyncEnvelope) {
         var applied = 0
@@ -518,6 +535,11 @@ extension WatchConnectivityManager: WCSessionDelegate {
         isReachable = session.isReachable
         #endif
         let activationError = error
+        #if os(watchOS)
+        // The last application context the phone delivered survives Watch
+        // relaunches, so it can carry a risk newer than the persisted one.
+        let contextRisk = WatchRiskPayload.decode(from: session.receivedApplicationContext)
+        #endif
 
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -531,6 +553,9 @@ extension WatchConnectivityManager: WCSessionDelegate {
             #if os(iOS)
             self.handleSyncRequest()
             #else
+            if let contextRisk {
+                self.adoptSyncedRisk(contextRisk)
+            }
             self.flushPendingChanges(forceTombstones: true)
             self.requestFullSync()
             #endif

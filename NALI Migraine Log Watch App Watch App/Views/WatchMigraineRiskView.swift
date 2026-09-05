@@ -2,40 +2,28 @@
 //  WatchMigraineRiskView.swift
 //  NALI Migraine Log Watch App Watch App
 //
-//  Compact migraine risk prediction view for watchOS.
+//  Compact migraine risk view for watchOS. The score itself is computed on
+//  the iPhone (which has weather + Health data); the Watch only displays
+//  the last payload it received, with its age, and asks the phone for a
+//  fresh one. It never invents a number from local history alone.
 //
 
 import SwiftUI
 
 struct WatchMigraineRiskView: View {
-    @ObservedObject var viewModel: MigraineViewModel
-    @StateObject private var predictionService = MigrainePredictionService.shared
     @ObservedObject private var connectivity = WatchConnectivityManager.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isRefreshing = false
-    @State private var lastRefresh: Date?
     
-    /// iPhone-synced risk when it is recent (less than 30 min old); otherwise nil.
-    private var freshSyncedRisk: WatchRiskPayload? {
-        guard let synced = connectivity.syncedRisk,
-              Date().timeIntervalSince(synced.timestamp) < 1800 else { return nil }
-        return synced
-    }
-
-    private var hasFreshSyncedRisk: Bool { freshSyncedRisk != nil }
+    /// How long a manual refresh waits for the phone before giving up.
+    private let refreshTimeout: Duration = .seconds(8)
+    /// A score younger than this is not re-requested just because the view appeared.
+    private let autoRefreshAge: TimeInterval = 300
     
-    /// Effective risk percentage to display (prefer iPhone-synced value)
-    private var displayRiskPercentage: Int {
-        freshSyncedRisk?.riskPercentage ?? predictionService.currentRisk?.riskPercentage ?? 0
-    }
+    private var syncedRisk: WatchRiskPayload? { connectivity.syncedRisk }
     
-    /// Effective risk level string
-    private var displayRiskLevel: String {
-        freshSyncedRisk?.riskLevel ?? predictionService.currentRisk?.riskLevel.rawValue ?? "Low"
-    }
-    
-    /// Effective risk color
-    private var displayRiskColor: Color {
-        switch displayRiskLevel {
+    private func riskColor(for level: String) -> Color {
+        switch level {
         case "Very High": return .red
         case "High": return .orange
         case "Moderate": return .yellow
@@ -43,152 +31,151 @@ struct WatchMigraineRiskView: View {
         }
     }
     
-    /// Effective recommendations
-    private var displayRecommendations: [String] {
-        if let recs = freshSyncedRisk?.recommendations, !recs.isEmpty {
-            return Array(recs.prefix(2))
+    private func displayFactors(_ risk: WatchRiskPayload) -> [RiskFactor] {
+        risk.factors.map {
+            RiskFactor(name: $0.name, contribution: $0.contribution, icon: $0.icon, color: .orange, detail: $0.detail)
         }
-        return Array((predictionService.currentRisk?.recommendations ?? []).prefix(2))
-    }
-    
-    /// Effective factors for display
-    private var displayFactors: [RiskFactor] {
-        if let factors = freshSyncedRisk?.factors {
-            return factors.map {
-                RiskFactor(name: $0.name, contribution: $0.contribution, icon: $0.icon, color: .orange, detail: $0.detail)
-            }
-        }
-        return Array((predictionService.currentRisk?.topFactors ?? []).prefix(3))
-    }
-    
-    /// Last updated time
-    private var displayLastUpdated: Date? {
-        freshSyncedRisk?.timestamp ?? lastRefresh
     }
     
     var body: some View {
         ScrollView {
             VStack(spacing: 12) {
-                // Risk gauge
-                riskGauge
-                
-                // Top factors
-                if !displayFactors.isEmpty {
-                    topFactorsSection(displayFactors)
-                }
-                
-                // Top recommendations
-                if !displayRecommendations.isEmpty {
-                    recommendationsSection(displayRecommendations)
-                }
-                
-                // Refresh button
-                Button {
-                    Task { await refreshPrediction() }
-                } label: {
-                    HStack {
-                        if isRefreshing {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                        } else {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                        Text(isRefreshing ? "Updating..." : "Refresh")
+                if let risk = syncedRisk {
+                    riskGauge(risk)
+                    
+                    let factors = displayFactors(risk)
+                    if !factors.isEmpty {
+                        topFactorsSection(factors)
                     }
+                    
+                    let recommendations = Array(risk.recommendations.prefix(2))
+                    if !recommendations.isEmpty {
+                        recommendationsSection(recommendations)
+                    }
+                } else {
+                    noDataState
                 }
-                .buttonStyle(.bordered)
-                .tint(.blue)
-                .disabled(isRefreshing)
-                .padding(.top, 4)
                 
-                // Data source indicator
-                if hasFreshSyncedRisk {
+                refreshButton
+                
+                if let risk = syncedRisk {
                     Label("Synced from iPhone", systemImage: "iphone")
                         .scaledFont(size: 9)
                         .foregroundStyle(.secondary)
-                }
-                
-                // Last updated
-                if let updated = displayLastUpdated {
-                    Text("Updated \(updated, style: .relative) ago")
+                    
+                    Text("Updated \(risk.timestamp, style: .relative) ago")
                         .scaledFont(size: 10)
                         .foregroundStyle(.secondary)
+                    
+                    if risk.isStale() {
+                        Label("May be out of date — open Headway on iPhone", systemImage: "clock.badge.exclamationmark")
+                            .scaledFont(size: 9)
+                            .foregroundStyle(.orange)
+                            .multilineTextAlignment(.center)
+                    }
                 }
             }
             .padding(.horizontal, 4)
         }
         .navigationTitle("Risk")
         .task {
-            await initialLoad()
+            if let risk = syncedRisk, Date().timeIntervalSince(risk.timestamp) < autoRefreshAge {
+                return
+            }
+            await refreshFromPhone()
         }
     }
     
     // MARK: - Risk Gauge
     
-    private var riskGauge: some View {
-        let hasData = hasFreshSyncedRisk || predictionService.currentRisk != nil
-        let riskFraction = Double(displayRiskPercentage) / 100.0
+    private func riskGauge(_ risk: WatchRiskPayload) -> some View {
+        let color = riskColor(for: risk.riskLevel)
+        let riskFraction = Double(risk.riskPercentage) / 100.0
         
         return VStack(spacing: 6) {
-            if predictionService.isCalculating && !hasData {
-                ProgressView("Analyzing...")
-                    .frame(height: 100)
-            } else if hasData {
-                ZStack {
-                    // Background ring
-                    Circle()
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 10)
-                        .frame(width: 100, height: 100)
-                    
-                    // Risk arc
-                    Circle()
-                        .trim(from: 0, to: riskFraction)
-                        .stroke(
-                            displayRiskColor,
-                            style: StrokeStyle(lineWidth: 10, lineCap: .round)
-                        )
-                        .frame(width: 100, height: 100)
-                        .rotationEffect(.degrees(-90))
-                        .animation(.easeInOut(duration: 0.8), value: riskFraction)
-                    
-                    // Center content
-                    VStack(spacing: 2) {
-                        Text("\(displayRiskPercentage)%")
-                            .scaledFont(size: 24, weight: .bold, design: .rounded)
-                            .foregroundStyle(displayRiskColor)
-                        
-                        Text(displayRiskLevel)
-                            .scaledFont(size: 10, weight: .semibold, design: .rounded)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.top, 4)
+            ZStack {
+                Circle()
+                    .stroke(Color.gray.opacity(0.2), lineWidth: 10)
+                    .frame(width: 100, height: 100)
                 
-                // Risk level label with icon
-                HStack(spacing: 4) {
-                    Image(systemName: iconForRiskLevel(displayRiskLevel))
-                        .scaledFont(size: 12)
-                        .foregroundStyle(displayRiskColor)
-                    Text("Migraine Risk")
-                        .scaledFont(size: 12, weight: .medium, design: .rounded)
+                Circle()
+                    .trim(from: 0, to: riskFraction)
+                    .stroke(
+                        color,
+                        style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                    )
+                    .frame(width: 100, height: 100)
+                    .rotationEffect(.degrees(-90))
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.8), value: riskFraction)
+                
+                VStack(spacing: 2) {
+                    Text("\(risk.riskPercentage)%")
+                        .scaledFont(size: 24, weight: .bold, design: .rounded)
+                        .foregroundStyle(color)
+                    
+                    Text(risk.riskLevel)
+                        .scaledFont(size: 10, weight: .semibold, design: .rounded)
                         .foregroundStyle(.secondary)
                 }
-            } else {
-                // No data yet
-                VStack(spacing: 8) {
-                    Image(systemName: "brain.head.profile")
-                        .scaledFont(size: 28)
-                        .foregroundStyle(.blue.opacity(0.6))
-                    Text("No risk data")
-                        .scaledFont(size: 13, weight: .medium)
-                        .foregroundStyle(.secondary)
-                    Text("Tap refresh to analyze")
-                        .scaledFont(size: 10)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(height: 100)
+            }
+            .padding(.top, 4)
+            
+            HStack(spacing: 4) {
+                Image(systemName: iconForRiskLevel(risk.riskLevel))
+                    .scaledFont(size: 12)
+                    .foregroundStyle(color)
+                Text("Migraine Risk")
+                    .scaledFont(size: 12, weight: .medium, design: .rounded)
+                    .foregroundStyle(.secondary)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Migraine risk")
+        .accessibilityValue("\(risk.riskPercentage) percent, \(risk.riskLevel)")
+    }
+    
+    // MARK: - No data
+    
+    private var noDataState: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "iphone.and.arrow.forward")
+                .scaledFont(size: 28)
+                .foregroundStyle(.blue.opacity(0.7))
+            Text("No risk score yet")
+                .scaledFont(size: 13, weight: .medium)
+            Text(isRefreshing
+                 ? "Asking your iPhone…"
+                 : (connectivity.isReachable
+                    ? "Tap Refresh to get today's score from your iPhone."
+                    : "Open Headway on your iPhone to calculate today's score."))
+                .scaledFont(size: 10)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(minHeight: 100)
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
+    }
+    
+    private var refreshButton: some View {
+        Button {
+            Task { await refreshFromPhone() }
+        } label: {
+            HStack {
+                if isRefreshing {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                }
+                Text(isRefreshing ? "Updating..." : "Refresh")
+            }
+        }
+        .buttonStyle(.bordered)
+        .tint(.blue)
+        .disabled(isRefreshing)
+        .padding(.top, 4)
     }
     
     private func iconForRiskLevel(_ level: String) -> String {
@@ -275,29 +262,24 @@ struct WatchMigraineRiskView: View {
     
     // MARK: - Helpers
     
-    private func initialLoad() async {
-        if lastRefresh.map({ Date().timeIntervalSince($0) > 300 }) ?? true {
-            await refreshPrediction()
-        }
-    }
-    
-    private func refreshPrediction() async {
+    /// Asks the phone for a fresh score and keeps the spinner up until a
+    /// newer payload lands or the timeout passes. The phone recomputes on
+    /// every sync request, so no local estimate is needed.
+    private func refreshFromPhone() async {
+        guard !isRefreshing else { return }
         isRefreshing = true
-        defer {
-            isRefreshing = false
-            lastRefresh = Date()
-        }
+        defer { isRefreshing = false }
         
-        // Request fresh risk data from the iPhone (which has weather + HealthKit)
+        let previousTimestamp = syncedRisk?.timestamp
         connectivity.requestFullSync()
         
-        // Also compute a local fallback from migraine history alone,
-        // used only if we don't have a fresh synced score from iPhone
-        _ = await predictionService.calculateRiskScore(
-            migraines: viewModel.migraines,
-            currentWeather: nil,
-            healthData: nil,
-            dailyCheckIn: nil
-        )
+        let deadline = ContinuousClock.now + refreshTimeout
+        while ContinuousClock.now < deadline {
+            if let current = syncedRisk?.timestamp, current != previousTimestamp {
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(250))
+            if Task.isCancelled { return }
+        }
     }
 }

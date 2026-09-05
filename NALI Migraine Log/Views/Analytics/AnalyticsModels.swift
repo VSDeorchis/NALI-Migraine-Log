@@ -51,6 +51,18 @@ enum SeverityBucket: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
+    /// Glyph shown alongside (or instead of) the colour when the user has
+    /// enabled Differentiate Without Colour: the fill grows with severity so
+    /// buckets stay distinguishable in monochrome.
+    var symbolName: String {
+        switch self {
+        case .mild:           return "circle"
+        case .moderate:       return "circle.lefthalf.filled"
+        case .severe:         return "circle.fill"
+        case .extremeBucket:  return "exclamationmark.circle.fill"
+        }
+    }
+
     /// Maps a 1-10 pain level into the appropriate bucket. Returns `nil` for
     /// invalid values so callers can defensively skip them.
     static func bucket(for painLevel: Int) -> SeverityBucket? {

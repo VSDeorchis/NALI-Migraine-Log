@@ -1,0 +1,50 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%lld of %lld days" : {
+      "comment" : "Severity heatmap period summary: migraine days out of days in the period",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld of %2$lld days"
+          }
+        }
+      }
+    },
+    "%lld period starts marked" : {
+      "comment" : "Severity heatmap VoiceOver summary suffix; count of cycle-start markers",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld period start marked"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld period starts marked"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "migraine-free" : {
+      "comment" : "Severity heatmap: selected day with no migraine (follows the date)",
+      "extractionState" : "manual"
+    },
+    "No data" : {
+      "comment" : "Severity heatmap summary when the period has no days",
+      "extractionState" : "manual"
+    }
+  },
+  "version" : "1.0"
+}
