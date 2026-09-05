@@ -121,6 +121,52 @@ final class NotificationManager: ObservableObject {
 
     private let center = UNUserNotificationCenter.current()
 
+    // MARK: - UNUserNotificationCenter bridging
+    //
+    // The center and its result objects are not `Sendable`; the
+    // completion-handler API keeps them on the main actor and only plain
+    // values leave the callback.
+
+    private func currentAuthorizationStatus() async -> UNAuthorizationStatus {
+        await withCheckedContinuation { continuation in
+            center.getNotificationSettings { settings in
+                continuation.resume(returning: settings.authorizationStatus)
+            }
+        }
+    }
+
+    private func requestSystemAuthorization(options: UNAuthorizationOptions) async throws -> Bool {
+        try await withCheckedThrowingContinuation { continuation in
+            center.requestAuthorization(options: options) { granted, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: granted)
+                }
+            }
+        }
+    }
+
+    private func add(_ request: UNNotificationRequest) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            center.add(request) { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+    }
+
+    private func pendingRequestIdentifiers() async -> [String] {
+        await withCheckedContinuation { continuation in
+            center.getPendingNotificationRequests { requests in
+                continuation.resume(returning: requests.map(\.identifier))
+            }
+        }
+    }
+
     private init() {
         // Both toggles default to `false`. They can only become `true` after
         // the user explicitly enables them in Settings, which also triggers
@@ -137,8 +183,7 @@ final class NotificationManager: ObservableObject {
     /// `authorizationStatus`. Cheap and idempotent — call on every app
     /// foreground so a Settings.app revoke is reflected immediately.
     func refreshAuthorizationStatus() async {
-        let settings = await center.notificationSettings()
-        self.authorizationStatus = settings.authorizationStatus
+        authorizationStatus = await currentAuthorizationStatus()
     }
 
     /// Prompt for notification permission. Returns `true` on grant. Safe to
@@ -147,7 +192,7 @@ final class NotificationManager: ObservableObject {
     @discardableResult
     func requestAuthorization() async -> Bool {
         do {
-            let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
+            let granted = try await requestSystemAuthorization(options: [.alert, .sound, .badge])
             await refreshAuthorizationStatus()
             AppLogger.notifications.notice("Notification authorization \(granted ? "granted" : "denied", privacy: .public)")
             return granted
@@ -228,7 +273,7 @@ final class NotificationManager: ObservableObject {
             // at a time, and the identifier scheme means stale ones from
             // earlier scheduling cycles won't get auto-replaced.
             await cancelAllForecastRiskNotifications()
-            try await center.add(request)
+            try await add(request)
             AppLogger.notifications.notice("Scheduled forecast push id=\(id, privacy: .public) for \(triggerDate.description, privacy: .public) (peak risk=\(peak.risk, privacy: .public))")
         } catch {
             AppLogger.notifications.error("Failed to schedule forecast push: \(error.localizedDescription, privacy: .private)")
@@ -250,9 +295,7 @@ final class NotificationManager: ObservableObject {
     /// expiration handler. Pulls the full pending list from the center
     /// rather than tracking ids ourselves so we can't leak.
     func cancelAllForecastRiskNotifications() async {
-        let pending = await center.pendingNotificationRequests()
-        let ids = pending
-            .map(\.identifier)
+        let ids = await pendingRequestIdentifiers()
             .filter { $0.hasPrefix(Self.forecastIdentifierPrefix) }
         if !ids.isEmpty {
             center.removePendingNotificationRequests(withIdentifiers: ids)
@@ -311,7 +354,7 @@ final class NotificationManager: ObservableObject {
 
         do {
             await cancelReengagementNotifications()
-            try await center.add(request)
+            try await add(request)
             AppLogger.notifications.notice("Scheduled re-engagement push (last activity \(daysSince, privacy: .public) days ago)")
         } catch {
             AppLogger.notifications.error("Failed to schedule re-engagement push: \(error.localizedDescription, privacy: .private)")
