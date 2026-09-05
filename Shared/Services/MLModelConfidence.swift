@@ -43,7 +43,7 @@ struct MLModelValidation: Codable, Equatable {
         }
         let skill = min(max((accuracy - baseline) / (1 - baseline), 0), 1)
         let sizeFactor = min(Double(sampleCount) / Double(fullCreditSampleCount), 1)
-        return floor + (ceiling - floor) * skill * sizeFactor
+        return min(max(floor + (ceiling - floor) * skill * sizeFactor, floor), ceiling)
     }
 
     /// Share of the most common label; the accuracy of always guessing it.
