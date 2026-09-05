@@ -268,12 +268,31 @@ enum TrendSentiment {
         case .neutral:     return .secondary
         }
     }
+
+    /// Glyph that carries the good/bad meaning when colour cannot.
+    var symbolName: String? {
+        switch self {
+        case .favorable:   return "checkmark"
+        case .unfavorable: return "exclamationmark"
+        case .neutral:     return nil
+        }
+    }
+
+    var accessibilityDescription: String? {
+        switch self {
+        case .favorable:   return "better"
+        case .unfavorable: return "worse"
+        case .neutral:     return nil
+        }
+    }
 }
 
-/// Compact "▼ 2 vs last period" pill with semantic colour.
+/// Compact "▼ 2 vs last period" pill with semantic colour. Under
+/// Differentiate Without Colour the sentiment is also shown as a glyph.
 struct TrendChip: View {
     let direction: StatBox.TrendDirection
     let sentiment: TrendSentiment
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     private var symbol: String {
         switch direction {
@@ -296,6 +315,10 @@ struct TrendChip: View {
                 .scaledFont(size: 9, weight: .bold)
             Text(text)
                 .scaledFont(size: 11, weight: .semibold, design: .rounded)
+            if differentiateWithoutColor, let sentimentSymbol = sentiment.symbolName {
+                Image(systemName: sentimentSymbol)
+                    .scaledFont(size: 9, weight: .bold)
+            }
         }
         .foregroundStyle(sentiment.tint)
         .padding(.horizontal, 8)
@@ -306,11 +329,14 @@ struct TrendChip: View {
     }
 
     private var accessibilityText: String {
+        let base: String
         switch direction {
-        case .up(let detail):   return "Up, \(detail)"
-        case .down(let detail): return "Down, \(detail)"
+        case .up(let detail):   base = "Up, \(detail)"
+        case .down(let detail): base = "Down, \(detail)"
         case .same:             return "No change from the previous period"
         }
+        guard let judgement = sentiment.accessibilityDescription else { return base }
+        return "\(base), \(judgement)"
     }
 }
 
@@ -338,7 +364,7 @@ struct HeroMetricCard: View {
                 Text(value)
                     .scaledFont(size: 48, weight: .bold, design: .rounded)
                     .foregroundStyle(accent)
-                    .contentTransition(.numericText())
+                    .motionSafeNumericTransition()
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                 Text(unit)
@@ -380,7 +406,7 @@ struct KPIChip: View {
                 Text(value)
                     .scaledFont(size: 22, weight: .bold, design: .rounded)
                     .foregroundStyle(accent)
-                    .contentTransition(.numericText())
+                    .motionSafeNumericTransition()
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                 Spacer(minLength: 0)
@@ -425,6 +451,7 @@ struct AnalyticsFooter: View {
 struct MedicationDaysGauge: View {
     let daysPerMonth: Double
     private let maximum: Double = 20
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     private var band: AcuteMedicationBand { .band(daysPerMonth: daysPerMonth) }
 
@@ -433,6 +460,15 @@ struct MedicationDaysGauge: View {
         case .low:      return .green
         case .moderate: return .yellow
         case .frequent: return .orange
+        }
+    }
+
+    /// Marker glyph so the band reads without colour: empty, half, full.
+    private var markerSymbol: String {
+        switch band {
+        case .low:      return "circle"
+        case .moderate: return "circle.lefthalf.filled"
+        case .frequent: return "exclamationmark.circle.fill"
         }
     }
 
@@ -448,11 +484,25 @@ struct MedicationDaysGauge: View {
                     Capsule().fill(Color.yellow.opacity(0.3)).frame(width: frequentX - moderateX)
                     Capsule().fill(Color.orange.opacity(0.3))
                 }
-                Circle()
-                    .fill(tint)
-                    .frame(width: 14, height: 14)
-                    .overlay(Circle().strokeBorder(Color(.secondarySystemGroupedBackground), lineWidth: 2))
-                    .offset(x: max(0, markerX - 7))
+                if differentiateWithoutColor {
+                    ForEach([moderateX, frequentX], id: \.self) { boundary in
+                        Rectangle()
+                            .fill(Color.primary.opacity(0.6))
+                            .frame(width: 1.5, height: 14)
+                            .offset(x: boundary - 0.75)
+                    }
+                    Image(systemName: markerSymbol)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.primary)
+                        .background(Color(.secondarySystemGroupedBackground), in: Circle())
+                        .offset(x: max(0, markerX - 7))
+                } else {
+                    Circle()
+                        .fill(tint)
+                        .frame(width: 14, height: 14)
+                        .overlay(Circle().strokeBorder(Color(.secondarySystemGroupedBackground), lineWidth: 2))
+                        .offset(x: max(0, markerX - 7))
+                }
             }
         }
         .frame(height: 14)
@@ -478,7 +528,7 @@ struct StatBox: View {
             Text(value)
                 .scaledFont(size: 22, weight: .bold, design: .rounded)
                 .foregroundStyle(.primary)
-                .contentTransition(.numericText())
+                .motionSafeNumericTransition()
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
             

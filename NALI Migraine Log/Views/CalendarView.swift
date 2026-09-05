@@ -419,6 +419,8 @@ struct DayCell: View {
     /// default that matches the long-standing compact layout.
     var cellHeight: CGFloat? = nil
     
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    
     private var maxPainLevel: Int16 {
         migraines.map(\.painLevel).max() ?? 0
     }
@@ -434,6 +436,19 @@ struct DayCell: View {
     
     private var painColor: Color {
         severityBucket?.color ?? .clear
+    }
+    
+    private var accessibilityDescription: String {
+        var parts = [date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())]
+        if let bucket = severityBucket {
+            parts.append(migraines.count == 1
+                         ? "\(bucket.title) migraine"
+                         : "\(migraines.count) migraines, worst \(bucket.title.lowercased())")
+        }
+        if Calendar.current.isDateInToday(date) {
+            parts.append("Today")
+        }
+        return parts.joined(separator: ", ")
     }
     
     var body: some View {
@@ -513,10 +528,21 @@ struct DayCell: View {
                         .clipShape(Circle())
                 }
             }
+            
+            if differentiateWithoutColor, let bucket = severityBucket {
+                Image(systemName: bucket.symbolName)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.primary)
+                    .padding(2)
+                    .background(Color(.systemBackground).opacity(0.85), in: Circle())
+                    .frame(width: indicatorSize, height: indicatorSize, alignment: .topTrailing)
+            }
         }
         .frame(maxWidth: .infinity)
         .frame(height: baseHeight)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityDescription)
     }
 }
 
@@ -533,11 +559,13 @@ struct DayCell: View {
 /// dot sees byte-identical colors, not a pale dot next to a richer
 /// swatch.
 struct CalendarLegend: View {
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    
     var body: some View {
         HStack(spacing: 16) {
             ForEach(SeverityBucket.allCases) { bucket in
                 legendItem(
-                    color: bucket.color,
+                    bucket: bucket,
                     label: "\(bucket.title) (\(bucket.rangeDescription))"
                 )
             }
@@ -545,10 +573,15 @@ struct CalendarLegend: View {
         .scaledFont(size: 10, weight: .medium, design: .rounded)
     }
     
-    private func legendItem(color: Color, label: String) -> some View {
+    private func legendItem(bucket: SeverityBucket, label: String) -> some View {
         HStack(spacing: 4) {
+            if differentiateWithoutColor {
+                Image(systemName: bucket.symbolName)
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.primary)
+            }
             Circle()
-                .fill(color.opacity(0.7))
+                .fill(bucket.color.opacity(0.7))
                 .frame(width: 8, height: 8)
             Text(label)
                 .foregroundStyle(.secondary)
