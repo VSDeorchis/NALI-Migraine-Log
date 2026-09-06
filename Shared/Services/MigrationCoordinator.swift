@@ -62,7 +62,7 @@ struct UpgradeStep {
 
     /// Performs the data work. Throwing aborts the step but never the
     /// launch — the surrounding coordinator catches and logs.
-    let perform: (NSManagedObjectContext) throws -> Void
+    let perform: @MainActor (NSManagedObjectContext) throws -> Void
 }
 
 /// Runs on the main actor: every step writes to the main-queue
