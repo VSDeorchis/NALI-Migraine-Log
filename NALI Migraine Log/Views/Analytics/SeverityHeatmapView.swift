@@ -6,6 +6,8 @@
 //  their colour from `SeverityBucket`, and migraine-free days render as a
 //  subtle grey background so users get an at-a-glance sense of how dense
 //  their migraine days are without having to read individual numbers.
+//  Under Differentiate Without Colour each migraine cell also carries the
+//  bucket's glyph and period starts switch from a dot to a ring.
 //
 
 import SwiftUI
@@ -21,6 +23,7 @@ struct SeverityHeatmapView: View {
     /// When non-nil, the selected cell is highlighted and the legend shows
     /// the date + pain detail. Reset on outside tap.
     @State private var selected: DailyPainCell?
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     
     /// Days per week. Named rather than hard-coded so the transposed
     /// layout below reads clearly (7 = number of *rows*, i.e. weekday
@@ -158,12 +161,17 @@ struct SeverityHeatmapView: View {
                     .strokeBorder(isSelected ? Color.primary.opacity(0.6) : Color.clear,
                                   lineWidth: 1.5)
             )
+            .overlay {
+                if differentiateWithoutColor, let bucket = cell?.bucket {
+                    Image(systemName: bucket.symbolName)
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.black.opacity(0.75))
+                        .minimumScaleFactor(0.5)
+                }
+            }
             .overlay(alignment: .bottomTrailing) {
                 if isCycleStart {
-                    Circle()
-                        .fill(cycleAccent)
-                        .frame(width: 6, height: 6)
-                        .overlay(Circle().strokeBorder(Color(.secondarySystemGroupedBackground), lineWidth: 1))
+                    cycleStartMarker(size: 6)
                         .offset(x: 1, y: 1)
                 }
             }
@@ -176,6 +184,21 @@ struct SeverityHeatmapView: View {
                     selected = cell
                 }
             }
+    }
+    
+    @ViewBuilder
+    private func cycleStartMarker(size: CGFloat) -> some View {
+        if differentiateWithoutColor {
+            Circle()
+                .strokeBorder(Color.primary, lineWidth: 1.5)
+                .background(Circle().fill(Color(.secondarySystemGroupedBackground)))
+                .frame(width: size + 2, height: size + 2)
+        } else {
+            Circle()
+                .fill(cycleAccent)
+                .frame(width: size, height: size)
+                .overlay(Circle().strokeBorder(Color(.secondarySystemGroupedBackground), lineWidth: 1))
+        }
     }
     
     private func fillColor(for cell: DailyPainCell?) -> Color {
@@ -196,6 +219,13 @@ struct SeverityHeatmapView: View {
                     RoundedRectangle(cornerRadius: 2)
                         .fill(bucket.color.opacity(0.85))
                         .frame(width: 10, height: 10)
+                        .overlay {
+                            if differentiateWithoutColor {
+                                Image(systemName: bucket.symbolName)
+                                    .font(.system(size: 7, weight: .bold))
+                                    .foregroundStyle(.black.opacity(0.75))
+                            }
+                        }
                     Text(bucket.title)
                         .scaledFont(size: 10, weight: .medium, design: .rounded)
                         .foregroundStyle(.secondary)
@@ -203,9 +233,7 @@ struct SeverityHeatmapView: View {
             }
             if !cycleStartDays.isEmpty {
                 HStack(spacing: 4) {
-                    Circle()
-                        .fill(cycleAccent)
-                        .frame(width: 8, height: 8)
+                    cycleStartMarker(size: 8)
                     Text("Period start")
                         .scaledFont(size: 10, weight: .medium, design: .rounded)
                         .foregroundStyle(.secondary)
@@ -220,21 +248,21 @@ struct SeverityHeatmapView: View {
     private var periodSummary: String {
         let migraineDays = cells.filter { $0.worstPain > 0 }.count
         let total = cells.count
-        guard total > 0 else { return "No data" }
-        return "\(migraineDays) of \(total) days"
+        guard total > 0 else { return String(localized: "No data") }
+        return String(localized: "\(migraineDays) of \(total) days")
     }
     
     private var accessibilitySummary: String {
         let marked = cells.filter { cycleStartDays.contains($0.date) }.count
         guard marked > 0 else { return periodSummary }
-        return "\(periodSummary); \(marked) period start\(marked == 1 ? "" : "s") marked"
+        return "\(periodSummary); \(String(localized: "\(marked) period starts marked"))"
     }
     
     private func selectedSummary(for cell: DailyPainCell) -> String {
         let dateText = cell.date.formatted(.dateTime.month(.abbreviated).day())
         let cycleSuffix = cycleStartDays.contains(cell.date) ? " · period start" : ""
         if cell.worstPain == 0 {
-            return "\(dateText) · migraine-free\(cycleSuffix)"
+            return "\(dateText) · \(String(localized: "migraine-free"))\(cycleSuffix)"
         }
         let suffix = cell.migraineCount > 1 ? " (\(cell.migraineCount))" : ""
         return "\(dateText) · pain \(cell.worstPain)\(suffix)\(cycleSuffix)"

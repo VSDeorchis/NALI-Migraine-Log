@@ -90,6 +90,20 @@ struct WatchRiskPayload: Codable, Equatable, Sendable {
         return nil
     }
 
+    /// Age after which the Watch flags a synced score as possibly out of date.
+    static let staleAfter: TimeInterval = 6 * 3_600
+
+    func isStale(at now: Date = Date()) -> Bool {
+        now.timeIntervalSince(timestamp) > Self.staleAfter
+    }
+
+    /// Last-writer-wins on the phone's timestamp; an equal timestamp is
+    /// re-adopted so a re-delivered payload converges instead of stalling.
+    static func shouldAdopt(_ incoming: WatchRiskPayload, over current: WatchRiskPayload?) -> Bool {
+        guard let current else { return true }
+        return incoming.timestamp >= current.timestamp
+    }
+
     /// Clamps values so a corrupt counterpart cannot drive the Watch UI out of range.
     func validated() -> WatchRiskPayload? {
         guard (0...100).contains(riskPercentage),

@@ -558,7 +558,7 @@ class HealthKitManager: ObservableObject {
                     quantityType: stepsType,
                     quantitySamplePredicate: predicate,
                     options: .cumulativeSum
-                ) { _, statistics, error in
+                ) { @Sendable _, statistics, error in
                     if let error = error {
                         continuation.resume(throwing: error)
                         return

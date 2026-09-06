@@ -17,7 +17,7 @@ struct WatchMigraineLogView: View {
                 }
                 
                 NavigationLink {
-                    WatchMigraineRiskView(viewModel: viewModel)
+                    WatchMigraineRiskView()
                 } label: {
                     Label("Risk Prediction", systemImage: "brain.head.profile")
                         .foregroundStyle(.purple)

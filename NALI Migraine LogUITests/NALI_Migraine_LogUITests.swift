@@ -41,6 +41,7 @@ final class NALI_Migraine_LogUITests: XCTestCase {
         }
     }
 
+    @MainActor
     func testTabNavigation() throws {
         let app = XCUIApplication()
         app.launch()

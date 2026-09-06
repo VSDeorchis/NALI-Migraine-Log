@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SplashScreen: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animationPhase: CGFloat = 0
     
     // Staggered entrance animation states
@@ -42,26 +43,26 @@ struct SplashScreen: View {
                             .font(.custom("Optima-Bold", size: 38, relativeTo: .largeTitle))
                             .minimumScaleFactor(0.7)
                             .opacity(showTitle ? 1 : 0)
-                            .offset(y: showTitle ? 0 : 12)
+                            .offset(y: entranceOffset(showTitle, 12))
                         
                         Text("Migraine Monitor and Analytics")
                             .font(.custom("Optima-Regular", size: 20, relativeTo: .title3))
                             .minimumScaleFactor(0.7)
                             .opacity(showSubtitle ? 1 : 0)
-                            .offset(y: showSubtitle ? 0 : 8)
+                            .offset(y: entranceOffset(showSubtitle, 8))
                         
                         // Animated tagline with pulsing dots
                         animatedTagline
                             .padding(.top, 4)
                             .opacity(showTagline ? 1 : 0)
-                            .offset(y: showTagline ? 0 : 8)
+                            .offset(y: entranceOffset(showTagline, 8))
                         
                         Image(systemName: "brain.head.profile")
                             .font(.system(size: 45))
                             .foregroundStyle(.white)
                             .padding(.top, 15)
                             .opacity(showIcon ? 1 : 0)
-                            .scaleEffect(showIcon ? 1 : 0.7)
+                            .scaleEffect(showIcon || reduceMotion ? 1 : 0.7)
                             .accessibilityLabel("Brain icon")
                     }
                     .foregroundStyle(.white)
@@ -71,7 +72,7 @@ struct SplashScreen: View {
                     gradientDivider
                         .padding(.vertical, 20)
                         .opacity(showDivider ? 1 : 0)
-                        .scaleEffect(x: showDivider ? 1 : 0, y: 1)
+                        .scaleEffect(x: showDivider || reduceMotion ? 1 : 0, y: 1)
                         .accessibilityHidden(true)
                     
                     Text("Neurological Associates\nof Long Island, P.C.")
@@ -81,7 +82,7 @@ struct SplashScreen: View {
                         .foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 2)
                         .opacity(showPractice ? 1 : 0)
-                        .offset(y: showPractice ? 0 : 8)
+                        .offset(y: entranceOffset(showPractice, 8))
                 }
                 .padding(.horizontal, 28)
                 .padding(.vertical, 32)
@@ -114,9 +115,12 @@ struct SplashScreen: View {
         }
         .transition(.opacity)
         .onAppear {
-            // Start the gradient animation
-            withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
-                animationPhase = 1.0
+            if reduceMotion {
+                animationPhase = 0.5
+            } else {
+                withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
+                    animationPhase = 1.0
+                }
             }
             
             // === ENTRANCE: staggered fade in ===
@@ -146,8 +150,9 @@ struct SplashScreen: View {
                 showFooter = true
             }
             
-            // Start tagline dot pulse sequence after tagline appears
-            startDotPulseAnimation()
+            if !reduceMotion {
+                startDotPulseAnimation()
+            }
             
             // === EXIT: reverse staggered fade out ===
             // Parent removes splash at 2.0s, so start exit at ~1.5s
@@ -179,6 +184,11 @@ struct SplashScreen: View {
                 showCard = false
             }
         }
+    }
+    
+    /// Entrance slide distance; zero under Reduce Motion so elements only fade.
+    private func entranceOffset(_ shown: Bool, _ distance: CGFloat) -> CGFloat {
+        shown || reduceMotion ? 0 : distance
     }
     
     // MARK: - Animated Tagline
