@@ -1,176 +1,345 @@
 import SwiftUI
 
 struct AboutView: View {
-    private let backgroundColor = Color(red: 68/255, green: 130/255, blue: 180/255)
-    
-    private var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    @ScaledMetric(relativeTo: .title) private var headshotSize: CGFloat = 128
+
+    private var versionString: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "1.0"
+        if let build = info?["CFBundleVersion"] as? String {
+            return "Version \(version) (\(build))"
+        }
+        return "Version \(version)"
     }
-    
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Header
-                    Text("About")
-                        .font(.custom("Optima-Regular", size: 34, relativeTo: .largeTitle))
-                        .foregroundStyle(.white)
-                        .padding(.bottom, 5)
-                    
-                    // Headshot and Name
-                    HStack(spacing: 16) {
-                        Image("headshot")
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 110, height: 110)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Color.white.opacity(0.6), lineWidth: 2))
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Vincent S. DeOrchis")
-                                .font(.custom("Optima-Bold", size: 20, relativeTo: .title3))
-                                .foregroundStyle(.white)
-                            Text("M.D., M.S., F.A.A.N.")
-                                .font(.custom("Optima-Regular", size: 16, relativeTo: .callout))
-                                .foregroundStyle(.white.opacity(0.9))
-                            Text("Board-Certified Neurologist")
-                                .font(.custom("Optima-Regular", size: 14, relativeTo: .subheadline))
-                                .foregroundStyle(.white.opacity(0.8))
-                        }
-                    }
-                    .padding(.bottom, 4)
-                    
-                    // Bio
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Headway: Migraine Monitor was created by Vincent S. DeOrchis, M.D., M.S., F.A.A.N., a board-certified neurologist and Managing Partner of Neurological Associates of Long Island, P.C., where he specializes in Clinical Neurophysiology and Neuromuscular Disorders.")
-                            .foregroundStyle(.white)
-                            .lineSpacing(4)
-                        
-                        Text("Dr. DeOrchis studied Neural Science at New York University and earned his Master\u{2019}s degree in Physiology and Biophysics from Georgetown University before receiving his medical degree from SUNY Downstate College of Medicine. He completed his Neurology residency at Albert Einstein College of Medicine\u{2019}s Montefiore Medical Center, where he served as Chief Resident, followed by a fellowship in Clinical Neurophysiology and Neuromuscular Disease.")
-                            .foregroundStyle(.white)
-                            .lineSpacing(4)
-                        
-                        Text("A Fellow of the American Academy of Neurology, Dr. DeOrchis has been recognized as a Castle Connolly Top Doctor and was the only neurologist in Nassau County named to Super Doctors 2025 by The New York Times. His research has been published in Headache, Neurology, Muscle & Nerve, and other peer-reviewed journals, and he serves as a principal investigator on numerous clinical trials. He currently holds the positions of Director of Neurology and Stroke Director at St. Francis Hospital and Heart Center and is a Clinical Assistant Professor of Neurology at Hofstra Medical School.")
-                            .foregroundStyle(.white)
-                            .lineSpacing(4)
-                        
-                        Text("Driven by a passion for clinical technology, Dr. DeOrchis has developed several digital health tools beyond Headway, including iFell, which records heart rate at the moment of a fall to help identify cardiovascular causes, and BrainMetrix, an analytics platform for quantitative brain MRI volumetric analysis. He also holds a patent pending for an avatar-assisted telemedicine platform and partnered with Fujifilm to bring the first Synergy Series MRI system in the nation to his practice. Headway and iFell are available free on the Apple App Store.")
-                            .foregroundStyle(.white)
-                            .lineSpacing(4)
-                    }
-                    
-                    // Privacy Note
-                    Rectangle()
-                        .fill(Color.white.opacity(0.3))
-                        .frame(height: 1)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "lock.shield.fill")
-                                .foregroundStyle(.white)
-                            Text("Your Privacy")
-                                .font(.custom("Optima-Bold", size: 16, relativeTo: .callout))
-                                .foregroundStyle(.white)
-                        }
-                        
-                        Text("All data entered into Headway is stored locally on your device and never transmitted to a third party. Data may optionally be preserved to your personal Apple iCloud account.")
-                            .foregroundStyle(.white.opacity(0.9))
-                            .font(.subheadline)
-                            .lineSpacing(3)
-
-                        Link(destination: AppContactInfo.privacyPolicyURL) {
-                            HStack(spacing: 6) {
-                                Text("View Privacy Policy")
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                Image(systemName: "arrow.up.right.square")
-                                    .font(.caption)
-                            }
-                            .foregroundStyle(.white)
-                            .padding(.top, 4)
-                        }
-                        .accessibilityLabel("View privacy policy")
-                        .accessibilityHint("Opens the full Headway privacy policy in your default browser.")
-                    }
-                    
-                    // References
-                    Rectangle()
-                        .fill(Color.white.opacity(0.3))
-                        .frame(height: 1)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Maintaining a headache diary has been a well established method for identifying and managing headache symptoms and triggers\u{00B9}\u{00B7}\u{00B2}")
-                            .foregroundStyle(.white)
-                            .font(.subheadline) +
-                        Text(". Further information can be found at the ")
-                            .foregroundStyle(.white)
-                            .font(.subheadline) +
-                        Text("American Migraine Foundation")
-                            .foregroundStyle(.white)
-                            .font(.subheadline)
-                            .underline() +
-                        Text(".")
-                            .foregroundStyle(.white)
-                            .font(.subheadline)
-                        
-                        Text("\u{00B9} van Casteren DS, et al. E-diary use in clinical headache practice: A prospective observational study. Cephalalgia. 2021.")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.7))
-                            .onTapGesture {
-                                if let url = URL(string: "https://pubmed.ncbi.nlm.nih.gov/33938248/") {
-                                    UIApplication.shared.open(url)
-                                }
-                            }
-                        
-                        Text("\u{00B2} Minen MT, et al. Headache clinicians\u{2019} perspectives on the remote monitoring of patients\u{2019} electronic diary data: A qualitative study. Headache. 2023.")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.7))
-                            .onTapGesture {
-                                if let url = URL(string: "https://pubmed.ncbi.nlm.nih.gov/37313636/") {
-                                    UIApplication.shared.open(url)
-                                }
-                            }
-                    }
-                    
-                    // Horizontal Line
-                    Rectangle()
-                        .fill(Color.white.opacity(0.3))
-                        .frame(height: 1)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
-                    
-                    // About Practice Button
-                    NavigationLink(destination: NeurologicalAssociatesView()) {
-                        HStack {
-                            Image(systemName: "building.2")
-                                .font(.title3)
-                            Text("About Neurological Associates of Long Island")
-                                .font(.custom("Optima-Bold", size: 16, relativeTo: .callout))
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                        }
-                        .foregroundStyle(.white)
-                        .padding()
-                        .background(Color.white.opacity(0.15))
-                        .cornerRadius(12)
-                    }
-                    
-                    // Version
-                    Text("Ver \(appVersion)")
-                        .font(.custom("Optima-Regular", size: 12, relativeTo: .caption))
-                        .foregroundStyle(.white.opacity(0.6))
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.top, 8)
+                VStack(spacing: 16) {
+                    profileHero
+                    biographyCard
+                    evidenceCard
+                    privacyCard
+                    practiceCard
+                    footer
                 }
-                .padding()
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .frame(maxWidth: 700)
+                .frame(maxWidth: .infinity)
             }
-            .background(backgroundColor)
-            .navigationTitle("")
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("About")
         }
+    }
+
+    // MARK: - Hero
+
+    private var profileHero: some View {
+        VStack(spacing: 14) {
+            Image("headshot")
+                .resizable()
+                .scaledToFill()
+                .frame(width: headshotSize, height: headshotSize)
+                .clipShape(Circle())
+                .overlay(Circle().strokeBorder(.white.opacity(0.85), lineWidth: 3))
+                .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
+                .accessibilityHidden(true)
+
+            VStack(spacing: 4) {
+                Text("Vincent S. DeOrchis")
+                    .font(.custom("Optima-Bold", size: 26, relativeTo: .title))
+                Text("M.D., M.S., F.A.A.N.")
+                    .font(.custom("Optima-Regular", size: 17, relativeTo: .body))
+                    .opacity(0.92)
+                Text("Board-Certified Neurologist")
+                    .font(.subheadline.weight(.medium))
+                    .opacity(0.85)
+                    .padding(.top, 2)
+            }
+            .multilineTextAlignment(.center)
+
+            Text("Creator of Headway: Migraine Monitor")
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.white.opacity(0.18), in: Capsule())
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 28)
+        .padding(.horizontal, 20)
+        .background(AboutPalette.heroGradient, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: - Biography
+
+    private var biographyCard: some View {
+        AboutCard(title: "Meet Dr. DeOrchis", systemImage: "person.text.rectangle") {
+            Text("Headway: Migraine Monitor was created by Vincent S. DeOrchis, M.D., M.S., F.A.A.N., a board-certified neurologist and Managing Partner of Neurological Associates of Long Island, P.C., where he specializes in Clinical Neurophysiology and Neuromuscular Disorders.")
+                .font(.callout)
+                .lineSpacing(3)
+
+            AboutFactRow(
+                title: "Education & Training",
+                systemImage: "graduationcap.fill",
+                tint: AboutPalette.steelBlue,
+                text: "Studied Neural Science at New York University and earned a Master\u{2019}s in Physiology and Biophysics from Georgetown University before receiving his medical degree from SUNY Downstate College of Medicine. Completed his Neurology residency at Albert Einstein College of Medicine\u{2019}s Montefiore Medical Center, where he served as Chief Resident, followed by a fellowship in Clinical Neurophysiology and Neuromuscular Disease."
+            )
+
+            AboutFactRow(
+                title: "Recognition & Research",
+                systemImage: "rosette",
+                tint: .orange,
+                text: "A Fellow of the American Academy of Neurology, recognized as a Castle Connolly Top Doctor and the only neurologist in Nassau County named to Super Doctors 2025 by The New York Times. His research has been published in Headache, Neurology, Muscle & Nerve, and other peer-reviewed journals, and he serves as a principal investigator on numerous clinical trials."
+            )
+
+            AboutFactRow(
+                title: "Leadership & Teaching",
+                systemImage: "building.columns.fill",
+                tint: .teal,
+                text: "Director of Neurology and Stroke Director at St. Francis Hospital and Heart Center, and Clinical Assistant Professor of Neurology at Hofstra Medical School."
+            )
+
+            AboutFactRow(
+                title: "Digital Health",
+                systemImage: "cpu.fill",
+                tint: .purple,
+                text: "Driven by a passion for clinical technology, Dr. DeOrchis has developed several digital health tools beyond Headway, including iFell, which records heart rate at the moment of a fall to help identify cardiovascular causes, and BrainMetrix, an analytics platform for quantitative brain MRI volumetric analysis. He also holds a patent pending for an avatar-assisted telemedicine platform and partnered with Fujifilm to bring the first Synergy Series MRI system in the nation to his practice. Headway and iFell are available free on the Apple App Store."
+            )
+        }
+    }
+
+    // MARK: - Evidence
+
+    private var evidenceCard: some View {
+        AboutCard(title: "Why Keep a Headache Diary?", systemImage: "text.book.closed.fill") {
+            Text("Maintaining a headache diary is a well-established method for identifying and managing headache symptoms and triggers. Further information can be found at the American Migraine Foundation.")
+                .font(.callout)
+                .lineSpacing(3)
+
+            if let url = AboutReference.americanMigraineFoundationURL {
+                Link(destination: url) {
+                    Label("American Migraine Foundation", systemImage: "arrow.up.right.square")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .accessibilityHint("Opens the American Migraine Foundation website.")
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(AboutReference.citations) { citation in
+                    Link(destination: citation.url) {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(citation.marker)
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(AboutPalette.steelBlue)
+                                .frame(width: 16, alignment: .leading)
+                            Text(citation.text)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.leading)
+                            Spacer(minLength: 0)
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(citation.accessibilityLabel)
+                    .accessibilityHint("Opens the article on PubMed.")
+                }
+            }
+            .padding(.top, 4)
+        }
+    }
+
+    // MARK: - Privacy
+
+    private var privacyCard: some View {
+        AboutCard(title: "Your Privacy", systemImage: "lock.shield.fill", tint: .green) {
+            Text("All data entered into Headway is stored locally on your device and never transmitted to a third party. Data may optionally be preserved to your personal Apple iCloud account.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .lineSpacing(3)
+
+            Link(destination: AppContactInfo.privacyPolicyURL) {
+                Label("View Privacy Policy", systemImage: "arrow.up.right.square")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .accessibilityLabel("View privacy policy")
+            .accessibilityHint("Opens the full Headway privacy policy in your default browser.")
+        }
+    }
+
+    // MARK: - Practice
+
+    private var practiceCard: some View {
+        NavigationLink {
+            NeurologicalAssociatesView()
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "building.2.fill")
+                    .font(.title3)
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(AboutPalette.heroGradient, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Neurological Associates of Long Island")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Text("Our practice, location, and contact details")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .multilineTextAlignment(.leading)
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(16)
+            .aboutSurface()
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Footer
+
+    private var footer: some View {
+        VStack(spacing: 4) {
+            Text("Headway: Migraine Monitor")
+                .font(.custom("Optima-Regular", size: 15, relativeTo: .subheadline))
+            Text(versionString)
+                .font(.caption)
+                .monospacedDigit()
+        }
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Building blocks
+
+enum AboutPalette {
+    static let steelBlue = Color(red: 68/255, green: 130/255, blue: 180/255)
+    static let deepBlue = Color(red: 38/255, green: 84/255, blue: 132/255)
+
+    static var heroGradient: LinearGradient {
+        LinearGradient(
+            colors: [steelBlue, deepBlue],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+}
+
+private struct AboutSurface: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(
+                Color(.secondarySystemGroupedBackground),
+                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+            )
+    }
+}
+
+extension View {
+    func aboutSurface() -> some View {
+        modifier(AboutSurface())
+    }
+}
+
+private struct AboutCard<Content: View>: View {
+    let title: LocalizedStringKey
+    let systemImage: String
+    var tint: Color = AboutPalette.steelBlue
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label {
+                Text(title)
+                    .font(.headline)
+            } icon: {
+                Image(systemName: systemImage)
+                    .foregroundStyle(tint)
+            }
+            .accessibilityAddTraits(.isHeader)
+
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .aboutSurface()
+    }
+}
+
+private struct AboutFactRow: View {
+    let title: LocalizedStringKey
+    let systemImage: String
+    let tint: Color
+    let text: LocalizedStringKey
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 30, height: 30)
+                .background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                Text(text)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineSpacing(2)
+            }
+        }
+        .padding(.top, 2)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - References
+
+private struct AboutCitation: Identifiable {
+    let marker: String
+    let text: String
+    let url: URL
+    let accessibilityLabel: String
+
+    var id: String { marker }
+}
+
+private enum AboutReference {
+    static let americanMigraineFoundationURL = URL(string: "https://americanmigrainefoundation.org")
+
+    static let citations: [AboutCitation] = [
+        (
+            marker: "1",
+            text: "van Casteren DS, et al. E-diary use in clinical headache practice: A prospective observational study. Cephalalgia. 2021.",
+            urlString: "https://pubmed.ncbi.nlm.nih.gov/33938248/",
+            accessibilityLabel: "Reference 1: van Casteren and colleagues, E-diary use in clinical headache practice, Cephalalgia, 2021"
+        ),
+        (
+            marker: "2",
+            text: "Minen MT, et al. Headache clinicians\u{2019} perspectives on the remote monitoring of patients\u{2019} electronic diary data: A qualitative study. Headache. 2023.",
+            urlString: "https://pubmed.ncbi.nlm.nih.gov/37313636/",
+            accessibilityLabel: "Reference 2: Minen and colleagues, Headache clinicians\u{2019} perspectives on remote monitoring of electronic diary data, Headache, 2023"
+        )
+    ].compactMap { entry -> AboutCitation? in
+        guard let url = URL(string: entry.urlString) else { return nil }
+        return AboutCitation(marker: entry.marker, text: entry.text, url: url, accessibilityLabel: entry.accessibilityLabel)
     }
 }
 
