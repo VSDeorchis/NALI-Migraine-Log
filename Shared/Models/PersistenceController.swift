@@ -90,6 +90,12 @@ private struct CloudKitEventOutcome: Sendable {
     }
 }
 
+/// Carries the container to a background queue for the one-off, thread-safe
+/// `initializeCloudKitSchema` call; no context is ever touched off-main.
+private struct SchemaInitializationHandoff: @unchecked Sendable {
+    let container: NSPersistentCloudKitContainer
+}
+
 @MainActor
 public final class PersistenceController: ObservableObject {
     @Published public var syncStatus: SyncStatus = .notConfigured
@@ -278,13 +284,13 @@ public final class PersistenceController: ObservableObject {
         // a background queue and just log the outcome; do not retry, since a
         // second call collides with the still-pending request
         // (NSCloudKitMirroringInitializeSchemaRequest, error 134417).
-        // `NSPersistentContainer` isn't `Sendable`; the background work only
-        // calls the thread-safe schema API and never touches a context, so
-        // this DEBUG-only hand-off is marked rather than proven.
-        nonisolated(unsafe) let container = self.container
+        // The background work only calls the thread-safe schema API and never
+        // touches a context, so the container hand-off is wrapped in an
+        // `@unchecked Sendable` box (older SDKs don't mark the container Sendable).
+        let handoff = SchemaInitializationHandoff(container: container)
         DispatchQueue.global(qos: .utility).async {
             do {
-                try container.initializeCloudKitSchema(options: [])
+                try handoff.container.initializeCloudKitSchema(options: [])
                 AppLogger.coreData.notice("CloudKit schema initialized in Development. Next: deploy Development → Production in the CloudKit Console, then remove the -InitializeCloudKitSchema launch argument.")
             } catch {
                 Self.logSchemaInitError(error)
