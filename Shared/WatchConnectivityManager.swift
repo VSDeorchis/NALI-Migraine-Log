@@ -344,7 +344,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         }
 
         if session.isReachable {
-            session.sendMessage([WatchRiskPayload.payloadKey: data], replyHandler: nil) { error in
+            session.sendMessage([WatchRiskPayload.payloadKey: data], replyHandler: nil) { @Sendable error in
                 AppLogger.watch.error("Error sending risk to Watch: \(error.localizedDescription, privacy: .private)")
             }
         }
@@ -359,7 +359,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
     /// Ask the paired iPhone to publish a fresh snapshot.
     func requestFullSync() {
         guard session.activationState == .activated, session.isReachable else { return }
-        session.sendMessage(["requestSync": true], replyHandler: nil) { error in
+        session.sendMessage(["requestSync": true], replyHandler: nil) { @Sendable error in
             AppLogger.watch.error("Error requesting sync: \(error.localizedDescription, privacy: .private)")
         }
     }

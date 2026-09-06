@@ -123,13 +123,13 @@ final class NotificationManager: ObservableObject {
 
     // MARK: - UNUserNotificationCenter bridging
     //
-    // The center and its result objects are not `Sendable`; the
-    // completion-handler API keeps them on the main actor and only plain
-    // values leave the callback.
+    // The center delivers these callbacks on its own queue, so each closure
+    // is explicitly `@Sendable` (nonisolated) and only plain values leave it;
+    // the non-`Sendable` settings/request objects never cross an actor.
 
     private func currentAuthorizationStatus() async -> UNAuthorizationStatus {
         await withCheckedContinuation { continuation in
-            center.getNotificationSettings { settings in
+            center.getNotificationSettings { @Sendable settings in
                 continuation.resume(returning: settings.authorizationStatus)
             }
         }
@@ -137,7 +137,7 @@ final class NotificationManager: ObservableObject {
 
     private func requestSystemAuthorization(options: UNAuthorizationOptions) async throws -> Bool {
         try await withCheckedThrowingContinuation { continuation in
-            center.requestAuthorization(options: options) { granted, error in
+            center.requestAuthorization(options: options) { @Sendable granted, error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else {
@@ -149,7 +149,7 @@ final class NotificationManager: ObservableObject {
 
     private func add(_ request: UNNotificationRequest) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            center.add(request) { error in
+            center.add(request) { @Sendable error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else {
@@ -161,7 +161,7 @@ final class NotificationManager: ObservableObject {
 
     private func pendingRequestIdentifiers() async -> [String] {
         await withCheckedContinuation { continuation in
-            center.getPendingNotificationRequests { requests in
+            center.getPendingNotificationRequests { @Sendable requests in
                 continuation.resume(returning: requests.map(\.identifier))
             }
         }

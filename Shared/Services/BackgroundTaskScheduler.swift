@@ -65,7 +65,9 @@ enum BackgroundTaskScheduler {
     static func register() {
         BGTaskScheduler.shared.register(
             forTaskWithIdentifier: refreshIdentifier,
-            using: nil  // run on a background queue; we'll hop to MainActor inside
+            // The handler only spawns Tasks, so deliver it on the main queue:
+            // that is where this main-actor enum's methods must run.
+            using: .main
         ) { task in
             // BGAppRefreshTask is the narrow type — `task` here is its
             // erased base, so we down-cast on the way in.

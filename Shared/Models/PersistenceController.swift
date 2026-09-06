@@ -367,7 +367,9 @@ public final class PersistenceController: ObservableObject {
     /// Checks the iCloud account state for the sync container and, when it isn't
     /// usable, surfaces a clear, actionable message via `syncStatus`.
     private func verifyCloudAccountAvailable() {
-        CKContainer(identifier: Self.cloudKitContainerIdentifier).accountStatus { [weak self] status, _ in
+        // CloudKit calls back on its own queue; the closure is explicitly
+        // `@Sendable` so it is nonisolated and hops to the main actor itself.
+        CKContainer(identifier: Self.cloudKitContainerIdentifier).accountStatus { @Sendable [weak self] status, _ in
             Task { @MainActor in
                 guard let self, self.isCloudKitEnabled else { return }
                 switch status {
