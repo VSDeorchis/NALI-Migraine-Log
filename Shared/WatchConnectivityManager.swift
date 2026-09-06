@@ -276,15 +276,19 @@ class WatchConnectivityManager: NSObject, ObservableObject {
                     self?.completeBatch(batch.id, error: nil)
                 } else {
                     AppLogger.watch.notice("Counterpart could not save direct delta; queuing transfer instead")
-                    self?.session.transferUserInfo(batch.payload)
+                    self?.requeue(batch)
                 }
             }
         }, errorHandler: { @Sendable error in
             AppLogger.watch.notice("Direct delta failed; queuing transfer instead: \(error.localizedDescription, privacy: .private)")
             Task { @MainActor [weak self] in
-                self?.session.transferUserInfo(batch.payload)
+                self?.requeue(batch)
             }
         })
+    }
+
+    private func requeue(_ batch: DeltaBatch) {
+        _ = session.transferUserInfo(batch.payload)
     }
 
     private func completeBatch(_ batchID: UUID, error: Error?) {
