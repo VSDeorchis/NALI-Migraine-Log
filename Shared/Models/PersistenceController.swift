@@ -74,6 +74,22 @@ import CloudKit
 import CoreData
 import SwiftUI
 
+/// The `Sendable` essence of an `NSPersistentCloudKitContainer` event
+/// notification: whether it failed, and whether it has finished. Built on the
+/// notification's delivery queue so the non-`Sendable` event never crosses an
+/// isolation boundary.
+private struct CloudKitEventOutcome: Sendable {
+    let error: Error?
+    let isFinished: Bool
+
+    init?(_ notification: Notification) {
+        guard let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
+                as? NSPersistentCloudKitContainer.Event else { return nil }
+        error = event.error
+        isFinished = event.endDate != nil
+    }
+}
+
 @MainActor
 public final class PersistenceController: ObservableObject {
     @Published public var syncStatus: SyncStatus = .notConfigured
@@ -177,6 +193,7 @@ public final class PersistenceController: ObservableObject {
         // off), so the handler runs on the main actor before this returns.
         container.loadPersistentStores { description, error in
             guard let error else { return }
+            let hadCloudKitAttached = description.cloudKitContainerOptions != nil
             MainActor.assumeIsolated {
                 AppLogger.coreData.error("Core Data failed to load: \(error.localizedDescription, privacy: .private)")
                 // If the failing store had CloudKit attached, the error may be
@@ -185,7 +202,7 @@ public final class PersistenceController: ObservableObject {
                 // file locally first so the user keeps all their data visible,
                 // and only fall back to the move-aside recovery if even a plain
                 // local load fails.
-                if description.cloudKitContainerOptions != nil {
+                if hadCloudKitAttached {
                     self.loadLocallyAfterCloudKitFailure(originalError: error)
                 } else {
                     self.handlePersistentStoreError(error)
@@ -220,8 +237,9 @@ public final class PersistenceController: ObservableObject {
             forName: NSPersistentCloudKitContainer.eventChangedNotification,
             object: container,
             queue: .main) { [weak self] notification in
+                guard let outcome = CloudKitEventOutcome(notification) else { return }
                 MainActor.assumeIsolated {
-                    self?.handleCloudKitEvent(notification)
+                    self?.handleCloudKitEvent(outcome)
                 }
         }
 
@@ -298,10 +316,8 @@ public final class PersistenceController: ObservableObject {
     /// Translates `NSPersistentCloudKitContainer` setup/import/export events into
     /// the user-facing `syncStatus`. Errors here are how we learn that, e.g.,
     /// the user isn't signed into iCloud or their storage is full.
-    private func handleCloudKitEvent(_ notification: Notification) {
-        guard isCloudKitEnabled,
-              let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
-                as? NSPersistentCloudKitContainer.Event else { return }
+    private func handleCloudKitEvent(_ event: CloudKitEventOutcome) {
+        guard isCloudKitEnabled else { return }
 
         if let error = event.error {
             AppLogger.coreData.error("CloudKit sync event failed: \(error.localizedDescription, privacy: .private)")
@@ -314,7 +330,7 @@ public final class PersistenceController: ObservableObject {
             } else {
                 scheduleSyncErrorBanner(for: error)
             }
-        } else if event.endDate == nil {
+        } else if !event.isFinished {
             // A setup/import/export is in progress.
             syncStatus = .syncing(0.0)
         } else {

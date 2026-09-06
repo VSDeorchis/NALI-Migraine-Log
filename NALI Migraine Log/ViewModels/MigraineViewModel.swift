@@ -385,10 +385,12 @@ extension MigraineViewModel: NSFetchedResultsControllerDelegate {
     /// The controller is bound to the main-queue `viewContext`, so Core Data
     /// delivers this on the main thread; `assumeIsolated` makes that contract
     /// explicit and keeps the managed objects from crossing an isolation
-    /// boundary.
+    /// boundary. The results are read back through the main-actor
+    /// `fetchedResultsController` (the same object) rather than the
+    /// non-`Sendable` parameter.
     nonisolated func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
         MainActor.assumeIsolated {
-            let newMigraines = controller.fetchedObjects as? [MigraineEvent] ?? []
+            let newMigraines = fetchedResultsController?.fetchedObjects ?? []
             // Only publish when data actually changed to avoid unnecessary re-renders
             if newMigraines.count != migraines.count ||
                newMigraines.map({ $0.objectID }) != migraines.map({ $0.objectID }) {
