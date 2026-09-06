@@ -78,6 +78,8 @@ struct WatchSyncEnvelope: Codable, Sendable {
     static let currentVersion = 2
     static let payloadKey = "syncV2"
     static let batchIDKey = "syncBatchID"
+    /// Reply key for a directly-sent delta: `true` once the receiver saved it.
+    static let ackKey = "syncAck"
 
     enum Kind: String, Codable, Sendable {
         /// Recent history pushed by the phone. Receivers upsert every record
