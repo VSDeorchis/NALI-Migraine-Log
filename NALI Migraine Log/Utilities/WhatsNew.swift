@@ -17,6 +17,7 @@
 
 import Foundation
 
+@MainActor
 enum WhatsNew {
     /// Bump this whenever there's a new announcement to show. The string
     /// is opaque — only equality matters.

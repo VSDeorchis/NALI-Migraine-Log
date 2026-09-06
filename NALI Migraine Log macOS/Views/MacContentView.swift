@@ -92,7 +92,7 @@ struct MacContentView: View {
         .sheet(isPresented: $showingNewMigraine) {
             NewMigraineView(viewModel: viewModel)
         }
-        .onChange(of: selectedTab) { newTab in
+        .onChange(of: selectedTab) { _, newTab in
             // Reset filter when switching away from Migraine Log
             if newTab >= 1 && newTab < 10 {
                 selectedFilter = .all

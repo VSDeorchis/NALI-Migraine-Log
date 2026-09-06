@@ -413,6 +413,7 @@ private struct DiagnosticsPreview: View {
 /// Tiny sidecar that consolidates the four "what version are you on?"
 /// questions support always asks. Kept here because no other view
 /// needs it — if it gets a third caller we should hoist it.
+@MainActor
 private enum AppMetadata {
 
     static var shortVersion: String {

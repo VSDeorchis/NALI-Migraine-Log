@@ -689,7 +689,7 @@ struct NewMigraineView: View {
             }
         }
         .transition(.move(edge: .top).combined(with: .opacity))
-        .animation(.easeInOut(duration: 0.3), value: viewModel.weatherFetchStatus)
+        .motionSafeAnimation(.easeInOut(duration: 0.3), value: viewModel.weatherFetchStatus)
         // Combine the icon + text so VoiceOver hears one statement instead of
         // two, and add `.updatesFrequently` so the active state isn't cached.
         .accessibilityElement(children: .combine)

@@ -37,6 +37,8 @@ class WatchConnectivityManager: NSObject, ObservableObject {
     @Published var lastSyncTime: Date?
 
     /// Risk summary most recently received from the iPhone (used by watchOS).
+    /// Persisted so a cold launch shows the last known score (with its age)
+    /// instead of an empty gauge until the phone answers.
     @Published var syncedRisk: WatchRiskPayload?
 
     /// Entries this device changed and has not yet delivered to the counterpart.
@@ -53,6 +55,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
     private let pendingChangesKey = "com.neuroli.pendingWatchSyncIds"
     private let legacyDeletedIdsKey = "com.neuroli.deletedMigraineIds"
     private let pendingRiskKey = "pendingRiskPayload"
+    private let syncedRiskKey = "com.neuroli.lastSyncedRiskPayload"
 
     private let tombstoneRetention: TimeInterval = 90 * 86_400
     /// Upper bound on entries included in a phone → Watch snapshot.
@@ -112,6 +115,11 @@ class WatchConnectivityManager: NSObject, ObservableObject {
             pendingChangeIDs = ids
         }
         defaults.removeObject(forKey: legacyRevisionsKey)
+        #if os(watchOS)
+        if let data = defaults.data(forKey: syncedRiskKey) {
+            syncedRisk = WatchRiskPayload.decode(data)
+        }
+        #endif
         pruneTombstones()
     }
 
@@ -144,6 +152,8 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         savePendingChanges()
         saveTombstones()
         UserDefaults.standard.removeObject(forKey: pendingRiskKey)
+        UserDefaults.standard.removeObject(forKey: syncedRiskKey)
+        syncedRisk = nil
     }
 
     // MARK: - Public change notifications (called by the view models)
@@ -334,7 +344,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         }
 
         if session.isReachable {
-            session.sendMessage([WatchRiskPayload.payloadKey: data], replyHandler: nil) { error in
+            session.sendMessage([WatchRiskPayload.payloadKey: data], replyHandler: nil) { @Sendable error in
                 AppLogger.watch.error("Error sending risk to Watch: \(error.localizedDescription, privacy: .private)")
             }
         }
@@ -349,7 +359,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
     /// Ask the paired iPhone to publish a fresh snapshot.
     func requestFullSync() {
         guard session.activationState == .activated, session.isReachable else { return }
-        session.sendMessage(["requestSync": true], replyHandler: nil) { error in
+        session.sendMessage(["requestSync": true], replyHandler: nil) { @Sendable error in
             AppLogger.watch.error("Error requesting sync: \(error.localizedDescription, privacy: .private)")
         }
     }
@@ -358,22 +368,56 @@ class WatchConnectivityManager: NSObject, ObservableObject {
 
     // MARK: - Inbound
 
-    private func handleIncoming(_ payload: [String: Any]) {
-        if let envelope = WatchSyncEnvelope.decode(from: payload) {
+    /// Everything the manager needs from a `WCSession` payload, decoded on the
+    /// framework's delivery queue so only `Sendable` values cross onto the
+    /// main actor. The (rare) pre-v2 dictionary is carried as property-list
+    /// bytes and rebuilt on the main actor.
+    struct InboundPayload: Sendable {
+        let envelope: WatchSyncEnvelope?
+        let legacyPlist: Data?
+        let risk: WatchRiskPayload?
+        let requestsSync: Bool
+
+        nonisolated init(_ payload: [String: Any]) {
+            envelope = WatchSyncEnvelope.decode(from: payload)
+            if envelope == nil,
+               let records = payload["migraineData"] as? [[String: Any]],
+               let deleted = payload["deletedIds"] as? [String] {
+                let legacy: [String: Any] = ["migraineData": records, "deletedIds": deleted]
+                legacyPlist = try? PropertyListSerialization.data(fromPropertyList: legacy, format: .binary, options: 0)
+            } else {
+                legacyPlist = nil
+            }
+            risk = WatchRiskPayload.decode(from: payload)
+            requestsSync = payload["requestSync"] as? Bool == true
+        }
+    }
+
+    private func handleIncoming(_ inbound: InboundPayload) {
+        if let envelope = inbound.envelope {
             apply(envelope)
-        } else if let legacyRecords = payload["migraineData"] as? [[String: Any]],
-                  let legacyDeleted = payload["deletedIds"] as? [String] {
+        } else if let plist = inbound.legacyPlist,
+                  let legacy = (try? PropertyListSerialization.propertyList(from: plist, format: nil)) as? [String: Any],
+                  let legacyRecords = legacy["migraineData"] as? [[String: Any]],
+                  let legacyDeleted = legacy["deletedIds"] as? [String] {
             applyLegacy(records: legacyRecords, deletedIds: legacyDeleted)
         }
         #if os(watchOS)
-        if let risk = WatchRiskPayload.decode(from: payload) {
-            if let current = syncedRisk, current.timestamp > risk.timestamp {
-                return
-            }
-            syncedRisk = risk
+        if let risk = inbound.risk {
+            adoptSyncedRisk(risk)
         }
         #endif
     }
+
+    #if os(watchOS)
+    private func adoptSyncedRisk(_ risk: WatchRiskPayload) {
+        guard WatchRiskPayload.shouldAdopt(risk, over: syncedRisk) else { return }
+        syncedRisk = risk
+        if let data = try? risk.encoded() {
+            UserDefaults.standard.set(data, forKey: syncedRiskKey)
+        }
+    }
+    #endif
 
     private func apply(_ envelope: WatchSyncEnvelope) {
         var applied = 0
@@ -518,6 +562,11 @@ extension WatchConnectivityManager: WCSessionDelegate {
         isReachable = session.isReachable
         #endif
         let activationError = error
+        #if os(watchOS)
+        // The last application context the phone delivered survives Watch
+        // relaunches, so it can carry a risk newer than the persisted one.
+        let contextRisk = WatchRiskPayload.decode(from: session.receivedApplicationContext)
+        #endif
 
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -531,6 +580,9 @@ extension WatchConnectivityManager: WCSessionDelegate {
             #if os(iOS)
             self.handleSyncRequest()
             #else
+            if let contextRisk {
+                self.adoptSyncedRisk(contextRisk)
+            }
             self.flushPendingChanges(forceTombstones: true)
             self.requestFullSync()
             #endif
@@ -538,16 +590,16 @@ extension WatchConnectivityManager: WCSessionDelegate {
     }
 
     nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
-        let payload = applicationContext
+        let inbound = InboundPayload(applicationContext)
         Task { @MainActor [weak self] in
-            self?.handleIncoming(payload)
+            self?.handleIncoming(inbound)
         }
     }
 
     nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
-        let payload = userInfo
+        let inbound = InboundPayload(userInfo)
         Task { @MainActor [weak self] in
-            self?.handleIncoming(payload)
+            self?.handleIncoming(inbound)
         }
     }
 
@@ -561,13 +613,13 @@ extension WatchConnectivityManager: WCSessionDelegate {
     }
 
     nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
-        let payload = message
+        let inbound = InboundPayload(message)
         Task { @MainActor [weak self] in
             guard let self else { return }
-            if payload["requestSync"] as? Bool == true {
+            if inbound.requestsSync {
                 self.handleSyncRequest()
             }
-            self.handleIncoming(payload)
+            self.handleIncoming(inbound)
         }
     }
 

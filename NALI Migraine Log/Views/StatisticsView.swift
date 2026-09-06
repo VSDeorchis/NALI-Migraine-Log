@@ -105,7 +105,7 @@ struct StatisticsView: View {
                 .padding(.vertical)
                 .frame(maxWidth: horizontalSizeClass == .regular ? 1100 : .infinity)
                 .frame(maxWidth: .infinity)
-                .animation(.snappy(duration: 0.3), value: timeFilter)
+                .motionSafeAnimation(.snappy(duration: 0.3), value: timeFilter)
             }
         }
     }
@@ -147,7 +147,7 @@ struct StatisticsView: View {
                 Text("\(filteredMigraines.count) \(filteredMigraines.count == 1 ? "entry" : "entries")")
                     .scaledFont(size: 13, weight: .medium, design: .rounded)
                     .foregroundStyle(.secondary)
-                    .contentTransition(.numericText())
+                    .motionSafeNumericTransition()
             }
             if timeFilter == .range {
                 HStack(spacing: 12) {
@@ -359,7 +359,7 @@ struct StatisticsView: View {
                         Text(String(acuteMedicationDays))
                             .scaledFont(size: 30, weight: .bold, design: .rounded)
                             .foregroundStyle(AnalyticsDomain.medication.accent)
-                            .contentTransition(.numericText())
+                            .motionSafeNumericTransition()
                         Text(acuteMedicationDays == 1 ? "day with acute medication" : "days with acute medication")
                             .scaledFont(size: 14, weight: .medium, design: .rounded)
                             .foregroundStyle(.secondary)
