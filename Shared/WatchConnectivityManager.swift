@@ -8,11 +8,13 @@ import SwiftUI
 ///
 /// **Sync protocol (v2):**
 /// - Each device sends a *delta* (`WatchSyncEnvelope.Kind.delta`) containing
-///   only the entries it created/edited itself, via `transferUserInfo`. The OS
-///   queues transfers until the counterpart is available, so a Watch-logged
-///   migraine reaches the phone even if it was logged offline. Dirty ids are
-///   persisted until the transfer is acknowledged in
-///   `session(_:didFinish:error:)`.
+///   only the entries it created/edited itself. While the counterpart is
+///   reachable the delta goes over `sendMessage` and is acknowledged by the
+///   receiver's reply once it has been saved; otherwise (or if the message
+///   fails) it falls back to `transferUserInfo`, which the OS queues until the
+///   counterpart is available, so a Watch-logged migraine reaches the phone
+///   even if it was logged offline. Dirty ids are persisted until one of the
+///   two acknowledgements arrives.
 /// - The phone additionally publishes a compact *snapshot* of recent history
 ///   (no notes / coordinates / weather) through `updateApplicationContext` so
 ///   a freshly installed Watch app has data to show. Snapshot records never
@@ -43,7 +45,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
 
     /// Entries this device changed and has not yet delivered to the counterpart.
     private var pendingChangeIDs: Set<UUID> = []
-    /// Dirty ids grouped by in-flight `transferUserInfo` batch.
+    /// Dirty ids grouped by in-flight delta batch (direct or queued).
     private var inFlightBatches: [UUID: Set<UUID>] = [:]
     /// Deleted entry id → time of deletion.
     private var tombstones: [UUID: Date] = [:]
@@ -187,8 +189,8 @@ class WatchConnectivityManager: NSObject, ObservableObject {
     // MARK: - Outbound: deltas
 
     /// Sends every un-acknowledged local change (and current tombstones) as a
-    /// single queued `transferUserInfo`. Safe to call repeatedly; ids already
-    /// in flight are skipped.
+    /// single delta batch — directly when the counterpart is reachable, queued
+    /// otherwise. Safe to call repeatedly; ids already in flight are skipped.
     private func flushPendingChanges(forceTombstones: Bool = false) {
         guard session.activationState == .activated else {
             AppLogger.watch.debug("Session not activated; delta deferred")
@@ -233,17 +235,56 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         )
 
         do {
-            let batchID = UUID()
-            let payload: [String: Any] = [
-                WatchSyncEnvelope.payloadKey: try envelope.encoded(),
-                WatchSyncEnvelope.batchIDKey: batchID.uuidString
-            ]
-            inFlightBatches[batchID] = Set(records.map(\.id))
-            session.transferUserInfo(payload)
-            AppLogger.watch.info("Queued delta: \(records.count, privacy: .public) entries, \(envelope.deletedIDs.count, privacy: .public) tombstones")
+            let batch = DeltaBatch(id: UUID(), envelope: try envelope.encoded())
+            inFlightBatches[batch.id] = Set(records.map(\.id))
+            if session.isReachable {
+                sendDeltaDirectly(batch)
+                AppLogger.watch.info("Sent delta: \(records.count, privacy: .public) entries, \(envelope.deletedIDs.count, privacy: .public) tombstones")
+            } else {
+                session.transferUserInfo(batch.payload)
+                AppLogger.watch.info("Queued delta: \(records.count, privacy: .public) entries, \(envelope.deletedIDs.count, privacy: .public) tombstones")
+            }
         } catch {
             AppLogger.watch.error("Failed to encode delta: \(error.localizedDescription, privacy: .private)")
         }
+    }
+
+    /// An outbound delta in `Sendable` form so it can be re-sent from a
+    /// framework callback queue.
+    private struct DeltaBatch: Sendable {
+        let id: UUID
+        let envelope: Data
+
+        var payload: [String: Any] {
+            [
+                WatchSyncEnvelope.payloadKey: envelope,
+                WatchSyncEnvelope.batchIDKey: id.uuidString
+            ]
+        }
+    }
+
+    /// Delivers a delta over `sendMessage`. The counterpart replies only after
+    /// it has saved the records, which completes the batch. If the message
+    /// fails, or the counterpart reports it could not save, the same batch is
+    /// handed to `transferUserInfo` so it is still acknowledged through
+    /// `session(_:didFinish:error:)`.
+    private func sendDeltaDirectly(_ batch: DeltaBatch) {
+        session.sendMessage(batch.payload, replyHandler: { @Sendable reply in
+            let saved = reply[WatchSyncEnvelope.ackKey] as? Bool == true
+            Task { @MainActor [weak self] in
+                if saved {
+                    self?.completeBatch(batch.id, error: nil)
+                } else {
+                    AppLogger.watch.notice("Counterpart could not save direct delta; queuing transfer instead")
+                    self?.session.transferUserInfo(batch.payload)
+                }
+            }
+        }, errorHandler: { @Sendable error in
+            AppLogger.watch.notice("Direct delta failed; queuing transfer instead: \(error.localizedDescription, privacy: .private)")
+            Task { @MainActor [weak self] in
+                self?.session.transferUserInfo(batch.payload)
+            }
+        })
     }
 
     private func completeBatch(_ batchID: UUID, error: Error?) {
@@ -368,6 +409,13 @@ class WatchConnectivityManager: NSObject, ObservableObject {
 
     // MARK: - Inbound
 
+    /// Wraps a `WCSession` reply handler so the acknowledgement can be sent
+    /// from the main actor after the inbound records have been saved. The
+    /// framework's reply blocks are safe to invoke from any queue.
+    private struct MessageReply: @unchecked Sendable {
+        let send: ([String: Any]) -> Void
+    }
+
     /// Everything the manager needs from a `WCSession` payload, decoded on the
     /// framework's delivery queue so only `Sendable` values cross onto the
     /// main actor. The (rare) pre-v2 dictionary is carried as property-list
@@ -393,9 +441,14 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         }
     }
 
-    private func handleIncoming(_ inbound: InboundPayload) {
+    /// Applies whatever the payload carries. Returns `false` only when it
+    /// contained sync records that could not be saved, so a direct-delta
+    /// sender knows to keep them pending.
+    @discardableResult
+    private func handleIncoming(_ inbound: InboundPayload) -> Bool {
+        var saved = true
         if let envelope = inbound.envelope {
-            apply(envelope)
+            saved = apply(envelope)
         } else if let plist = inbound.legacyPlist,
                   let legacy = (try? PropertyListSerialization.propertyList(from: plist, format: nil)) as? [String: Any],
                   let legacyRecords = legacy["migraineData"] as? [[String: Any]],
@@ -407,6 +460,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
             adoptSyncedRisk(risk)
         }
         #endif
+        return saved
     }
 
     #if os(watchOS)
@@ -419,7 +473,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
     }
     #endif
 
-    private func apply(_ envelope: WatchSyncEnvelope) {
+    private func apply(_ envelope: WatchSyncEnvelope) -> Bool {
         var applied = 0
         var skipped = 0
 
@@ -436,7 +490,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
                 }
             } catch {
                 AppLogger.watch.error("Inbound lookup failed: \(error.localizedDescription, privacy: .private)")
-                return
+                return false
             }
         }
 
@@ -463,7 +517,7 @@ class WatchConnectivityManager: NSObject, ObservableObject {
             applied += 1
         }
 
-        saveIfNeeded(applied: applied, skipped: skipped, kind: envelope.kind.rawValue)
+        return saveIfNeeded(applied: applied, skipped: skipped, kind: envelope.kind.rawValue)
     }
 
     /// Accepts payloads from pre-v2 app versions. Insert-only: it never
@@ -516,14 +570,17 @@ class WatchConnectivityManager: NSObject, ObservableObject {
         }
     }
 
-    private func saveIfNeeded(applied: Int, skipped: Int, kind: String) {
-        guard context.hasChanges else { return }
+    @discardableResult
+    private func saveIfNeeded(applied: Int, skipped: Int, kind: String) -> Bool {
+        guard context.hasChanges else { return true }
         do {
             try context.save()
             AppLogger.watch.info("Applied \(kind, privacy: .public): \(applied, privacy: .public) upserts, \(skipped, privacy: .public) skipped")
+            return true
         } catch {
             AppLogger.watch.error("Error saving inbound sync: \(error.localizedDescription, privacy: .private)")
             context.rollback()
+            return false
         }
     }
 
@@ -620,6 +677,26 @@ extension WatchConnectivityManager: WCSessionDelegate {
                 self.handleSyncRequest()
             }
             self.handleIncoming(inbound)
+        }
+    }
+
+    /// Direct deltas arrive here; the reply is the sender's acknowledgement,
+    /// so it is only sent once the records have been applied and saved.
+    nonisolated func session(_ session: WCSession,
+                             didReceiveMessage message: [String: Any],
+                             replyHandler: @escaping ([String: Any]) -> Void) {
+        let inbound = InboundPayload(message)
+        let reply = MessageReply(send: replyHandler)
+        Task { @MainActor [weak self] in
+            guard let self else {
+                reply.send([WatchSyncEnvelope.ackKey: false])
+                return
+            }
+            if inbound.requestsSync {
+                self.handleSyncRequest()
+            }
+            let saved = self.handleIncoming(inbound)
+            reply.send([WatchSyncEnvelope.ackKey: saved])
         }
     }
 
