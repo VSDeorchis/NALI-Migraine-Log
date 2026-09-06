@@ -1438,15 +1438,14 @@ struct SettingsView: View {
         }
     }
     
+    @MainActor
     private func performMigration() async {
         do {
             try await viewModel.migrateToDifferentStore()
         } catch {
-            await MainActor.run {
-                migrationErrorMessage = error.localizedDescription
-                showingMigrationError = true
-                settings.useICloudSync = false
-            }
+            migrationErrorMessage = error.localizedDescription
+            showingMigrationError = true
+            settings.useICloudSync = false
         }
     }
     
