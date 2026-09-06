@@ -95,10 +95,10 @@ public final class PersistenceController: ObservableObject {
     /// How long a CloudKit failure must go un-recovered before the error banner
     /// is shown. Long enough to ride out transient blips, short enough that a
     /// genuinely broken sync still surfaces promptly.
-    private static let syncErrorDebounceInterval: TimeInterval = 10
+    private nonisolated static let syncErrorDebounceInterval: TimeInterval = 10
 
     /// CloudKit container that backs iCloud sync across the user's devices.
-    private static let cloudKitContainerIdentifier = "iCloud.com.nali.migrainelog"
+    private nonisolated static let cloudKitContainerIdentifier = "iCloud.com.nali.migrainelog"
 
     /// CloudKit mirroring is driven from the phone/desktop only. The watch app
     /// relays its entries to the paired iPhone via `WatchConnectivity`, and the
@@ -173,8 +173,11 @@ public final class PersistenceController: ObservableObject {
             isCloudKitEnabled = syncEnabled
         }
         
+        // Stores are added synchronously (`shouldAddStoreAsynchronously` is
+        // off), so the handler runs on the main actor before this returns.
         container.loadPersistentStores { description, error in
-            if let error = error {
+            guard let error else { return }
+            MainActor.assumeIsolated {
                 AppLogger.coreData.error("Core Data failed to load: \(error.localizedDescription, privacy: .private)")
                 // If the failing store had CloudKit attached, the error may be
                 // CloudKit-specific (account state, container/entitlement, etc.)
@@ -369,7 +372,7 @@ public final class PersistenceController: ObservableObject {
 
     /// Shown when sync is on but the device has no iCloud account. Phrased as a
     /// gentle, actionable prompt rather than an error.
-    static let signInRequiredMessage = "Sign in to iCloud in the Settings app to sync across your devices."
+    nonisolated static let signInRequiredMessage = "Sign in to iCloud in the Settings app to sync across your devices."
 
     /// True when `error` means "there's no iCloud account on this device."
     ///
@@ -410,7 +413,7 @@ public final class PersistenceController: ObservableObject {
     /// UserDefaults key under which the path to the most recently moved-aside
     /// store is recorded. A future "Recover from backup" UI in Settings can
     /// surface this so users can hand the file to support or attempt re-import.
-    public static let lastRecoveryFileDefaultsKey = "lastCoreDataRecoveryFilePath"
+    public nonisolated static let lastRecoveryFileDefaultsKey = "lastCoreDataRecoveryFilePath"
 
     /// Last-resort-avoidance step when a CloudKit-attached store fails to load.
     ///
@@ -590,7 +593,7 @@ public final class PersistenceController: ObservableObject {
     /// whether `NSPersistentCloudKitContainer` syncs them to the user's private
     /// CloudKit database. This is what makes the toggle take effect immediately
     /// instead of only after the next cold launch.
-    func migrateDataToNewStore(completion: @escaping (Result<Void, Error>) -> Void) {
+    func migrateDataToNewStore(completion: @escaping @MainActor @Sendable (Result<Void, Error>) -> Void) {
         reloadStore(cloudKitEnabled: true, completion: completion)
     }
 
@@ -603,7 +606,10 @@ public final class PersistenceController: ObservableObject {
     /// without) CloudKit attached, so toggling iCloud sync applies to the live
     /// container without forcing a relaunch. No data is copied or deleted — the
     /// same on-disk store is reused; only the CloudKit mirroring option changes.
-    public func reloadStore(cloudKitEnabled requestedCloudKit: Bool, completion: ((Result<Void, Error>) -> Void)? = nil) {
+    public func reloadStore(
+        cloudKitEnabled requestedCloudKit: Bool,
+        completion: (@MainActor @Sendable (Result<Void, Error>) -> Void)? = nil
+    ) {
         // Never attach CloudKit on platforms where mirroring is intentionally
         // off (watchOS) even if a caller asks for it.
         let cloudKitEnabled = requestedCloudKit && Self.cloudKitMirroringSupported
@@ -636,20 +642,22 @@ public final class PersistenceController: ObservableObject {
         // Stores are added synchronously, so this runs on the calling (main)
         // actor before `loadPersistentStores` returns.
         container.loadPersistentStores { [weak self] _, error in
-            guard let self else { return }
-            if let error {
-                AppLogger.coreData.error("Failed to reload store after toggling iCloud sync: \(error.localizedDescription, privacy: .private)")
-                self.syncStatus = .error(error.localizedDescription)
-                completion?(.failure(error))
-                return
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if let error {
+                    AppLogger.coreData.error("Failed to reload store after toggling iCloud sync: \(error.localizedDescription, privacy: .private)")
+                    self.syncStatus = .error(error.localizedDescription)
+                    completion?(.failure(error))
+                    return
+                }
+                self.isCloudKitEnabled = cloudKitEnabled
+                self.container.viewContext.refreshAllObjects()
+                self.syncStatus = cloudKitEnabled ? .enabled : .disabled
+                if cloudKitEnabled {
+                    self.verifyCloudAccountAvailable()
+                }
+                completion?(.success(()))
             }
-            self.isCloudKitEnabled = cloudKitEnabled
-            self.container.viewContext.refreshAllObjects()
-            self.syncStatus = cloudKitEnabled ? .enabled : .disabled
-            if cloudKitEnabled {
-                self.verifyCloudAccountAvailable()
-            }
-            completion?(.success(()))
         }
     }
 }
