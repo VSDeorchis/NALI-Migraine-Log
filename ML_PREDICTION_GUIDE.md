@@ -160,6 +160,7 @@ Each factor generates a human-readable `RiskFactor` with icon and actionable det
 - Re-trains weekly or when 5+ new entries added
 - Model saved to Documents directory as `MigrainePredictor.mlmodel`
 - Falls back to Tier 1 if confidence is low or training fails
+- **Confidence is data-driven** (`Shared/Services/MLModelConfidence.swift`, 3.01): the trainer holds out the most recent ~20% of days, measures accuracy against the majority-class baseline on those days, and maps the *skill over baseline* to a confidence clamped to 0.30…0.90 (scaled by hold-out sample size up to 60 days; 0.40 if the model could not be validated). A model that is 90% accurate on days that are 90% migraine-free scores no skill and therefore low confidence.
 - Gated with `#if canImport(CreateML)` for watchOS compatibility
 - `MLModel.compileModel(at:)` gated with `#if os(watchOS)` to avoid unavailable API
 
@@ -348,8 +349,8 @@ MigraineRiskView(viewModel: viewModel)
 
 ## Privacy
 
-- **All data stays on-device** — no prediction data leaves the phone
-- **HealthKit read-only** — the app never writes to HealthKit
-- **Weather API** — only latitude/longitude are sent to Open-Meteo (no personal data)
+- **All data stays on-device** — no prediction data leaves the phone; the aggregate score pushed to the Watch (`WatchRiskPayload`) carries only numbers and short display strings, and reproductive-health factors are stripped before it is sent
+- **HealthKit** — reads sleep, HRV, resting heart rate, steps and (opt-in) menstrual flow / biological sex; the only write is mirroring logged migraines as `.headache` samples when the user turns on *Sync to Apple Health*. Cycle values are used in memory and never persisted
+- **Weather API** — only the coarsened (~1 km) latitude/longitude and dates are sent to Open-Meteo (no personal data)
 - **No analytics** — no usage tracking or telemetry
-- **ML model** — trained and stored locally in the app's Documents directory
+- **ML model & training CSV** — trained and stored locally with complete file protection; the training file is deleted after use and excluded from backup

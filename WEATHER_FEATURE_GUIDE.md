@@ -19,11 +19,12 @@ The weather correlation feature has been successfully integrated into your Headw
 - Includes error handling for network issues
 
 ### 2. **LocationManager** (`Shared/Services/LocationManager.swift`)
-- Manages user location for weather data
-- Requests location permission on first launch
+- Manages user location for weather data (`@MainActor`; uses `CLLocationUpdate.liveUpdates()` for one-shot fixes with a timeout, no continuous updates)
+- Requests location permission after the Apple Health primer on first launch
 - Caches recent location (1 hour) to minimize battery usage
-- Handles authorization states gracefully
+- Handles authorization states gracefully; authorization is probed off the launch path
 - Falls back gracefully if location is denied
+- **Coordinate privacy (3.01)**: every latitude/longitude is coarsened to two decimals (~1 km, `OpenMeteoSupport.coarseCoordinate`) before it is stored on a `MigraineEvent`, cached, or sent to Open-Meteo. Existing entries were backfilled once by the `v3.01-coarsen-weather-coordinates` migration step. This is what lets the App Store privacy declaration say *approximate* location.
 
 ### 3. **Core Data Updates**
 Added weather attributes to `MigraineEvent`:
@@ -218,8 +219,9 @@ Updated `Info.plist` with privacy descriptions:
 ### ✅ **Privacy-Focused**
 - Location only requested when needed
 - Can deny location and app still works
-- Weather data stored locally in Core Data
-- No data sent to third parties
+- Only ~1 km-coarsened coordinates are stored or sent; weather data stored locally in Core Data
+- No data sent to third parties beyond the anonymous Open-Meteo request (coordinates + dates, no identifiers)
+- Network hygiene: request timeouts, response-size cap, `Content-Type` check and length-validated parsers (`WeatherResponseParsingTests`)
 
 ### ✅ **Automatic & Seamless**
 - Weather data fetched automatically
