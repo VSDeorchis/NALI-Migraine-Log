@@ -335,28 +335,19 @@ struct NewMigraineView: View {
                     Text("A draft is kept on this device and restored the next time you start a new entry.")
                 }
                 .sheet(isPresented: $showingHealthKitPrimer) {
-                    HealthKitPermissionPrimerView(
-                        onContinue: {
-                            // The user has read what we'll ask for and
-                            // tapped Continue. Fire the system sheet and
-                            // then fetch a snapshot once they're done.
-                            Task { @MainActor in
-                                isLoadingHealth = true
-                                await healthKit.requestAuthorization()
-                                if healthKit.isAuthorized {
-                                    healthSnapshot = await healthKit.fetchSnapshot()
-                                }
-                                isLoadingHealth = false
+                    HealthKitPermissionPrimerView {
+                        // The user has read what we'll ask for and
+                        // tapped Continue. Fire the system sheet and
+                        // then fetch a snapshot once they're done.
+                        Task { @MainActor in
+                            isLoadingHealth = true
+                            await healthKit.requestAuthorization()
+                            if healthKit.isAuthorized {
+                                healthSnapshot = await healthKit.fetchSnapshot()
                             }
-                        },
-                        onSkip: {
-                            // The user explicitly said "Not Now". Stamp
-                            // the "have we asked?" flag so we don't
-                            // auto-show the primer again on every entry
-                            // — they can re-trigger it from Settings.
-                            healthKit.markAuthorizationRequested()
+                            isLoadingHealth = false
                         }
-                    )
+                    }
                 }
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {

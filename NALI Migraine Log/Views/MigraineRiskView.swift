@@ -657,16 +657,17 @@ struct MigraineRiskView: View {
                         .cornerRadius(14)
                 }
                 .padding(.horizontal)
-                
-                Button("Not Now") {
-                    showingHealthKitSetup = false
-                }
-                .foregroundStyle(.secondary)
+
+                Text("You choose what to share on Apple\u{2019}s screen, and can change it later in Settings.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
             .padding()
             .navigationTitle("Health Data")
             .navigationBarTitleDisplayMode(.inline)
         }
+        .interactiveDismissDisabled()
     }
     
     private func healthBenefit(icon: String, text: String) -> some View {
