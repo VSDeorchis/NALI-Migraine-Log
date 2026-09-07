@@ -4,11 +4,11 @@ Versions come from `Config/Shared.xcconfig` (`MARKETING_VERSION` / `CURRENT_PROJ
 
 ## 3.01 (build 15) — in submission
 
-Everything below landed on `main` through PRs #25–#40. Submission still requires the CloudKit Production schema to include `CD_modifiedAt`, the iCloud entitlement at `Production`, and a fresh-install smoke test on a physical iPhone + Watch.
+Everything below landed on `main` through PRs #25–#45. Submission still requires the CloudKit Production schema to include `CD_modifiedAt`, the iCloud entitlement at `Production`, and a fresh-install smoke test on a physical iPhone + Watch.
 
 ### For users
 
-- **Apple Watch**: log an attack in three taps (pain → your usual triggers/symptoms → save) with the full form behind *More*; entries sync both ways and survive being logged offline; the risk score now updates whenever the Watch asks, the iPhone app comes to the foreground or refreshes in the background — not only when the Predict tab is open. The Watch remembers the last synced score and says "No risk score yet — open Headway on iPhone" instead of showing 0%.
+- **Apple Watch**: log an attack in three taps (pain → your usual triggers/symptoms → save) with the full form behind *More*; entries sync both ways — delivered immediately over `sendMessage` (acknowledged only once the iPhone has saved them) when the phone is reachable, queued otherwise — and survive being logged offline; the risk score now updates whenever the Watch asks, the iPhone app comes to the foreground or refreshes in the background — not only when the Predict tab is open. The Watch remembers the last synced score and says "No risk score yet — open Headway on iPhone" instead of showing 0%.
 - **Cycle-aware insights (optional)**: perimenstrual badge on entries, a "Perimenstrual Window" contributing factor (with detail and recommendation) in the risk score, and a Statistics card with a rate ratio ("2.4× more likely around period start"), confidence tier, "in n of your last 3 cycles" pattern and a cycle-aligned chart. Offered only when Apple Health reports biological sex as female or real cycle history exists; nothing about the cycle is stored, synced or exported.
 - **Redesigned Statistics**: hero migraine-days number with trend chips, KPI strip, severity heatmap, scrollable 12-month chart, medication-days gauge, patterns switcher, insights, sleep/HRV correlations, "Details ›" affordances, a one-time tip and chart tap hints.
 - **Settings hub**: Data & Privacy / Integrations / Notifications / Appearance / About with permission status chips and deep links; two-pane on iPad; explains how to share Sex/Cycle Tracking later if it was skipped.

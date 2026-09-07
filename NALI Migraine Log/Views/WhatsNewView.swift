@@ -37,7 +37,7 @@ struct WhatsNewView: View {
         Feature(
             symbol: "applewatch",
             title: "Three-tap logging on Apple Watch",
-            detail: "Pain level, your usual triggers and symptoms, save. Entries appear on your iPhone right away, and edits on either device stay in sync."
+            detail: "Pain level, your usual triggers and symptoms, save. Entries reach your iPhone within a second when both devices are nearby, still arrive later if you log offline, and the Watch risk score refreshes on its own."
         ),
         Feature(
             symbol: "drop.fill",
@@ -48,12 +48,12 @@ struct WhatsNewView: View {
         Feature(
             symbol: "chart.xyaxis.line",
             title: "A redesigned Statistics dashboard",
-            detail: "Migraine days up front, with trends against your previous period, median duration, acute-medication days, symptom and weekday patterns, and a scrollable 12-month chart you can tap to explore."
+            detail: "Migraine days up front, with trends against your previous period, median duration, acute-medication days, symptom and weekday patterns, and a scrollable 12-month chart. Tap any card or bar to explore."
         ),
         Feature(
             symbol: "slider.horizontal.3",
             title: "Settings, reorganized",
-            detail: "Data & Privacy, Integrations, Notifications, Appearance, and About \u{2014} with the status of each permission and a one-tap link to fix it."
+            detail: "Data & Privacy, Integrations, Notifications, Appearance, and About \u{2014} with the status of each permission and a one-tap link to fix it. The About screen has a fresh look, too."
         ),
         Feature(
             symbol: "pills.fill",
@@ -61,14 +61,14 @@ struct WhatsNewView: View {
             detail: "Listed as generic (Brand), with the ones you use most pinned to the top. A gentle tap confirms every save, and half-finished entries are kept as drafts."
         ),
         Feature(
-            symbol: "chart.bar.xaxis",
-            title: "Charts you can hear",
-            detail: "Every chart supports VoiceOver Audio Graphs, empty screens explain what\u{2019}s coming, and the whole app respects your preferred text size."
+            symbol: "accessibility",
+            title: "Built for everyone",
+            detail: "Every chart supports VoiceOver Audio Graphs, severity and trends use shapes as well as color when Differentiate Without Color is on, animations respect Reduce Motion, and the whole app follows your preferred text size."
         ),
         Feature(
             symbol: "lock.shield.fill",
             title: "Privacy and reliability",
-            detail: "Sturdier weather and location lookups, stronger on-device protection for exports and prediction data, and \u{201C}Delete All Data\u{201D} now clears everything Headway created."
+            detail: "Your database, exports and prediction files are protected on device, weather locations are rounded to about 1 km before they\u{2019}re stored, prediction confidence reflects the model\u{2019}s track record on your own history, and \u{201C}Delete All Data\u{201D} clears everything Headway created."
         )
     ]
 
