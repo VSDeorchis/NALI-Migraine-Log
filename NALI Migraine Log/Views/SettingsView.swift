@@ -1044,16 +1044,11 @@ struct SettingsView: View {
                 Text(healthBackfillResult)
             }
             .sheet(isPresented: $showingHealthKitPrimer) {
-                HealthKitPermissionPrimerView(
-                    onContinue: {
-                        Task { @MainActor in
-                            await healthKitManager.requestAuthorization()
-                        }
-                    },
-                    onSkip: {
-                        healthKitManager.markAuthorizationRequested()
+                HealthKitPermissionPrimerView {
+                    Task { @MainActor in
+                        await healthKitManager.requestAuthorization()
                     }
-                )
+                }
             }
             .onAppear {
                 healthKitManager.refreshAuthorizationStatus()

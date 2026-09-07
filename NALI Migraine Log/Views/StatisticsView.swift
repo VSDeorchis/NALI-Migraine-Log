@@ -447,18 +447,12 @@ struct StatisticsView: View {
             }
         )
         .sheet(isPresented: $showingHealthKitPrimer) {
-            HealthKitPermissionPrimerView(
-                onContinue: {
-                    Task {
-                        await HealthKitManager.shared.requestAuthorization()
-                        refreshHealthCorrelations()
-                    }
-                },
-                onSkip: {
-                    HealthKitManager.shared.markAuthorizationRequested()
+            HealthKitPermissionPrimerView {
+                Task {
+                    await HealthKitManager.shared.requestAuthorization()
                     refreshHealthCorrelations()
                 }
-            )
+            }
         }
     }
     

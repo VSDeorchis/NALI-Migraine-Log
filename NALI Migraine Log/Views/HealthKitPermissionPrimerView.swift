@@ -40,13 +40,14 @@
 //  its own bespoke primer screen with risk-prediction-specific framing.
 //
 //  ──────────────────────────────────────────────────────────────────────
-//  WHAT HAPPENS AFTER THE BUTTONS
+//  WHAT HAPPENS AFTER THE BUTTON
 //  ──────────────────────────────────────────────────────────────────────
-//  This view is intentionally dumb: it takes two closures (`onContinue`
-//  and `onSkip`) and dismisses itself afterward. The hosting view is
-//  responsible for actually invoking `HealthKitManager.requestAuthorization`
-//  or recording the skip. This keeps the primer reusable from anywhere
-//  without baking in a specific post-primer flow.
+//  App Review guideline 5.1.1(iv): a message shown before a permission
+//  request must always lead to the system request — the user decides in
+//  Apple's sheet, not ours. So this view has exactly one action
+//  ("Continue"), cannot be swiped away, and the hosting view invokes
+//  `HealthKitManager.requestAuthorization` from `onContinue`. Declining
+//  happens on Apple's sheet via "Don't Allow" or by leaving toggles off.
 //
 
 #if os(iOS)
@@ -55,17 +56,10 @@ import SwiftUI
 
 struct HealthKitPermissionPrimerView: View {
 
-    /// Invoked when the user taps "Continue". The host view should
+    /// Invoked when the user taps "Continue". The host view must
     /// call `HealthKitManager.shared.requestAuthorization()` here to
     /// trigger Apple's permission sheet.
     var onContinue: () -> Void
-
-    /// Invoked when the user taps "Not Now" / dismisses without
-    /// continuing. The host view should call
-    /// `HealthKitManager.shared.markAuthorizationRequested()` if it
-    /// wants to suppress further auto-prompts; otherwise the primer
-    /// will re-appear next time the host view's `.task` runs.
-    var onSkip: () -> Void
 
     @Environment(\.dismiss) private var dismiss
 
@@ -179,35 +173,25 @@ struct HealthKitPermissionPrimerView: View {
                         Image(systemName: "lock.shield.fill")
                             .foregroundStyle(.secondary)
                             .accessibilityHidden(true)
-                        Text("You can decline any item now and change your mind later in iOS Settings → Privacy → Health → Headway.")
+                        Text("You decide on the next screen — leave off anything you’d rather not share — and can change your mind later in iOS Settings → Privacy → Health → Headway.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
                     .padding(.horizontal, 4)
 
-                    // Actions
-                    VStack(spacing: 10) {
-                        Button {
-                            onContinue()
-                            dismiss()
-                        } label: {
-                            Text("Continue")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(Color.accentColor)
-                                .foregroundStyle(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
-                        }
-                        .accessibilityHint("Opens Apple's permission sheet. Scroll all the way down on that screen to see every toggle.")
-
-                        Button("Not Now") {
-                            onSkip()
-                            dismiss()
-                        }
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 8)
+                    Button {
+                        onContinue()
+                        dismiss()
+                    } label: {
+                        Text("Continue")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Color.accentColor)
+                            .foregroundStyle(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
+                    .accessibilityHint("Opens Apple's permission sheet, where you choose what to share. Scroll all the way down on that screen to see every toggle.")
                     .padding(.top, 4)
                 }
                 .padding(.horizontal)
@@ -216,6 +200,7 @@ struct HealthKitPermissionPrimerView: View {
             .navigationTitle("Apple Health")
             .navigationBarTitleDisplayMode(.inline)
         }
+        .interactiveDismissDisabled()
     }
 
     // MARK: - Row helper
@@ -249,7 +234,7 @@ struct HealthKitPermissionPrimerView: View {
 }
 
 #Preview("Primer") {
-    HealthKitPermissionPrimerView(onContinue: {}, onSkip: {})
+    HealthKitPermissionPrimerView(onContinue: {})
 }
 
 #endif

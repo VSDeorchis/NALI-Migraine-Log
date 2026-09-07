@@ -4,7 +4,7 @@ A privacy-first migraine tracker for iPhone, iPad, Apple Watch, and Mac. Entries
 
 The app combines a manual logging UI with a hybrid risk-prediction engine (rule-based + on-device Core ML) that uses the user's history, Apple Health signals (sleep, HRV, optional menstrual cycle) and a free public weather API ([Open-Meteo](https://open-meteo.com/)) to surface a forecast risk score, plus an analytics dashboard built around clinical burden metrics (headache days, acute-medication days, cycle association).
 
-Current release: **3.01 (build 15)** — see [`CHANGELOG.md`](./CHANGELOG.md).
+Current release: **3.02 (build 16)** — see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 

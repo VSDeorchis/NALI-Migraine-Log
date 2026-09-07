@@ -2,7 +2,13 @@
 
 Versions come from `Config/Shared.xcconfig` (`MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`). The in-app "What's New" sheet is keyed separately by `WhatsNew.currentRelease`.
 
-## 3.01 (build 15) — in submission
+## 3.02 (build 16) — in submission
+
+Resubmission after App Review rejected 3.01 (15) under guideline 5.1.1(iv).
+
+- Every Apple Health pre-permission screen (first launch, new entry, Settings, Statistics, Risk tab) now has a single **Continue** action that always presents Apple's HealthKit authorization sheet and can no longer be dismissed or skipped with "Not Now"; users decide on Apple's sheet.
+
+## 3.01 (build 15) — rejected by App Review, superseded by 3.02
 
 Everything below landed on `main` through PRs #25–#45. Submission still requires the CloudKit Production schema to include `CD_modifiedAt`, the iCloud entitlement at `Production`, and a fresh-install smoke test on a physical iPhone + Watch.
 

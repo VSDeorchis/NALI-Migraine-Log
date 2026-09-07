@@ -159,19 +159,12 @@ struct NALI_Migraine_LogApp: App {
                     // (primer + Apple's sheet) is finished so the two
                     // prompts never stack on top of each other.
                     .sheet(isPresented: $showingHealthKitPrimer) {
-                        HealthKitPermissionPrimerView(
-                            onContinue: {
-                                Task { @MainActor in
-                                    await HealthKitManager.shared.requestAuthorization()
-                                    locationManager.requestPermission()
-                                }
-                            },
-                            onSkip: {
-                                HealthKitManager.shared.markAuthorizationRequested()
+                        HealthKitPermissionPrimerView {
+                            Task { @MainActor in
+                                await HealthKitManager.shared.requestAuthorization()
                                 locationManager.requestPermission()
                             }
-                        )
-                        .interactiveDismissDisabled()
+                        }
                     }
                     .onChange(of: showingWhatsNew) { _, isShowing in
                         if !isShowing {
