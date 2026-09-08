@@ -93,7 +93,7 @@ struct AboutView: View {
         } header: {
             Text("Why Keep a Headache Diary?")
         } footer: {
-            Text(AboutReference.citationsFooter)
+            Text(LocalizedStringKey(AboutReference.citationsFooter))
         }
     }
 
@@ -143,7 +143,7 @@ struct AboutView: View {
 private enum AboutReference {
     static let americanMigraineFoundationURL = URL(string: "https://americanmigrainefoundation.org")
 
-    static let citationsFooter: LocalizedStringKey = "Sources: [van Casteren et al., Cephalalgia 2021](https://pubmed.ncbi.nlm.nih.gov/33938248/) and [Minen et al., Headache 2023](https://pubmed.ncbi.nlm.nih.gov/37313636/)."
+    static let citationsFooter = "Sources: [van Casteren et al., Cephalalgia 2021](https://pubmed.ncbi.nlm.nih.gov/33938248/) and [Minen et al., Headache 2023](https://pubmed.ncbi.nlm.nih.gov/37313636/)."
 }
 
 #Preview {
